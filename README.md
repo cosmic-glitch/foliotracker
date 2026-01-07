@@ -2,8 +2,6 @@
 
 A multi-portfolio stock tracker with real-time prices and historical performance charts.
 
-**Live Demo:** [foliotracker.vercel.app](https://foliotracker.vercel.app)
-
 ## Features
 
 - **Multi-portfolio support** - Create and manage multiple portfolios with password protection

@@ -29,7 +29,7 @@ interface ParsedHoldings {
 }
 
 function parseHoldingsInput(input: string): ParsedHoldings {
-  const holdings: HoldingInput[] = [];
+  const holdingsMap = new Map<string, number>(); // Aggregate by ticker
   const errors: string[] = [];
   const lines = input.trim().split('\n');
 
@@ -48,11 +48,18 @@ function parseHoldingsInput(input: string): ParsedHoldings {
     if (match) {
       const ticker = match[1].trim();
       const value = parseFloat(match[2]) * 1000; // Convert from thousands to dollars
-      holdings.push({ ticker, value });
+      // Aggregate duplicate tickers by summing their values
+      const existing = holdingsMap.get(ticker) || 0;
+      holdingsMap.set(ticker, existing + value);
     } else {
       errors.push(`Could not parse line: "${trimmed}"`);
     }
   }
+
+  // Convert map to array
+  const holdings: HoldingInput[] = Array.from(holdingsMap.entries()).map(
+    ([ticker, value]) => ({ ticker, value })
+  );
 
   return { holdings, errors };
 }

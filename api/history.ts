@@ -88,18 +88,27 @@ export default async function handler(
     }
 
     // Find tickers that need data fetched
+    // Only refetch if we have no data OR most recent cached date is >3 days old
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const cutoffDate = threeDaysAgo.toISOString().split('T')[0];
+
     const tickersToFetch: string[] = [];
     for (const holding of tradeableHoldings) {
       const tickerDates = existingDates.get(holding.ticker) || new Set();
-      // If we have less than expected days of data, need to fetch from API
-      if (tickerDates.size < days * 0.7) {
+      const sortedDates = Array.from(tickerDates).sort();
+      const mostRecentCached = sortedDates[sortedDates.length - 1];
+
+      if (tickerDates.size === 0 || (mostRecentCached && mostRecentCached < cutoffDate)) {
         tickersToFetch.push(holding.ticker);
       }
     }
 
     // Also check if we need SPY benchmark data
     const spyDates = existingDates.get(BENCHMARK_TICKER) || new Set();
-    const needSpyData = spyDates.size < days * 0.7;
+    const spySortedDates = Array.from(spyDates).sort();
+    const spyMostRecent = spySortedDates[spySortedDates.length - 1];
+    const needSpyData = spyDates.size === 0 || (spyMostRecent && spyMostRecent < cutoffDate);
     if (needSpyData) {
       tickersToFetch.push(BENCHMARK_TICKER);
     }
@@ -213,8 +222,9 @@ export default async function handler(
       lastUpdated: new Date().toISOString(),
     };
 
-    // Cache for 1 hour (historical data doesn't change often)
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+    // Cache aggressively - historical data is very stable
+    // Browser: 24 hours, CDN: 1 hour, stale-while-revalidate: 24 hours
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400');
     res.status(200).json(response);
   } catch (error) {
     console.error('History API error:', error);

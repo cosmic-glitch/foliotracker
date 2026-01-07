@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
+import { isMarketOpen } from '../lib/market-hours';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -33,29 +35,31 @@ interface ApiPortfolioResponse {
   benchmark: BenchmarkData | null;
 }
 
-async function fetchPortfolio(portfolioId: string): Promise<ApiPortfolioResponse | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/portfolio?id=${encodeURIComponent(portfolioId)}`);
-    if (response.status === 404) {
-      return null;
-    }
-    if (!response.ok) throw new Error('Failed to fetch portfolio');
-    return await response.json();
-  } catch (error) {
-    console.warn('Could not fetch from API:', error);
-    return null;
-  }
+// Query key factories for cache management
+export const portfolioKeys = {
+  all: ['portfolios'] as const,
+  detail: (id: string) => ['portfolio', id] as const,
+  history: (id: string) => ['portfolio', id, 'history'] as const,
+};
+
+// Fetch functions with HTTP cache support
+async function fetchPortfolioApi(portfolioId: string): Promise<ApiPortfolioResponse | null> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/portfolio?id=${encodeURIComponent(portfolioId)}`,
+    { cache: 'default' } // Leverage browser HTTP cache
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error('Failed to fetch portfolio');
+  return response.json();
 }
 
-async function fetchHistory(portfolioId: string, days: number = 30): Promise<ApiHistoryResponse | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&days=${days}`);
-    if (!response.ok) throw new Error('Failed to fetch history');
-    return await response.json();
-  } catch (error) {
-    console.warn('Could not fetch history:', error);
-    return null;
-  }
+async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHistoryResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&days=${days}`,
+    { cache: 'default' } // Leverage browser HTTP cache (24hr for history)
+  );
+  if (!response.ok) throw new Error('Failed to fetch history');
+  return response.json();
 }
 
 export type TimeRange = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y';
@@ -72,122 +76,75 @@ export const TIME_RANGE_DAYS: Record<TimeRange, number> = {
 const MAX_DAYS = 1095; // Always fetch 3Y, filter client-side
 
 export function usePortfolioData(portfolioId: string) {
-  const [data, setData] = useState<PortfolioData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState<TimeRange>('2Y');
 
-  // Fetch portfolio data (fast - just current prices)
-  const fetchPortfolioData = useCallback(async (showRefreshState = false) => {
-    if (!portfolioId) {
-      setIsLoading(false);
-      setError('No portfolio ID provided');
-      return;
-    }
+  // Portfolio query - needs frequent updates for live prices
+  const portfolioQuery = useQuery({
+    queryKey: portfolioKeys.detail(portfolioId),
+    queryFn: () => fetchPortfolioApi(portfolioId),
+    enabled: !!portfolioId,
+    staleTime: 60 * 1000, // Fresh for 1 minute
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    // Smart auto-refresh: 5 min when market open, 30 min when closed
+    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
+  });
 
-    if (showRefreshState) {
-      setIsRefreshing(true);
-    }
+  // History query - very stable, rarely needs refresh
+  const historyQuery = useQuery({
+    queryKey: portfolioKeys.history(portfolioId),
+    queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS),
+    enabled: !!portfolioId && !!portfolioQuery.data, // Load after portfolio
+    staleTime: 24 * 60 * 60 * 1000, // Fresh for 24 hours
+    gcTime: 7 * 24 * 60 * 60 * 1000, // Keep in cache for 7 days
+    refetchOnMount: false, // Don't refetch on every mount
+    refetchOnWindowFocus: false,
+    refetchInterval: false, // No auto-refresh for history
+  });
 
-    try {
-      const portfolioResponse = await fetchPortfolio(portfolioId);
+  // Combine portfolio and history data
+  const data: PortfolioData | null = useMemo(() => {
+    if (!portfolioQuery.data) return null;
+    const p = portfolioQuery.data;
+    return {
+      portfolioId: p.portfolioId,
+      displayName: p.displayName,
+      totalValue: p.totalValue,
+      totalDayChange: p.totalDayChange,
+      totalDayChangePercent: p.totalDayChangePercent,
+      holdings: p.holdings,
+      historicalData: historyQuery.data?.data || [],
+      benchmarkHistory: historyQuery.data?.benchmark || [],
+      lastUpdated: new Date(p.lastUpdated),
+      marketStatus: p.marketStatus,
+      benchmark: p.benchmark,
+    };
+  }, [portfolioQuery.data, historyQuery.data]);
 
-      if (portfolioResponse) {
-        setData((prev) => ({
-          portfolioId: portfolioResponse.portfolioId,
-          displayName: portfolioResponse.displayName,
-          totalValue: portfolioResponse.totalValue,
-          totalDayChange: portfolioResponse.totalDayChange,
-          totalDayChangePercent: portfolioResponse.totalDayChangePercent,
-          holdings: portfolioResponse.holdings,
-          historicalData: prev?.historicalData || [],
-          benchmarkHistory: prev?.benchmarkHistory || [],
-          lastUpdated: new Date(portfolioResponse.lastUpdated),
-          marketStatus: portfolioResponse.marketStatus,
-          benchmark: portfolioResponse.benchmark,
-        }));
-        setError(null);
-      } else {
-        setData(null);
-        setError('Portfolio not found');
-      }
-    } catch (err) {
-      console.error('Error fetching portfolio data:', err);
-      setData(null);
-      setError('Failed to load portfolio');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [portfolioId]);
+  // Refresh only portfolio prices (not history - it rarely changes)
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: portfolioKeys.detail(portfolioId) });
+  }, [queryClient, portfolioId]);
 
-  // Fetch historical data (slow - fetches from Yahoo Finance)
-  // Always fetch max range (2Y), filtering happens client-side
-  const fetchHistoricalData = useCallback(async () => {
-    if (!portfolioId) return;
-
-    setIsHistoryLoading(true);
-    try {
-      const historyResponse = await fetchHistory(portfolioId, MAX_DAYS);
-      if (historyResponse) {
-        setData((prev) => prev ? {
-          ...prev,
-          historicalData: historyResponse.data,
-          benchmarkHistory: historyResponse.benchmark,
-        } : null);
-      }
-    } catch (err) {
-      console.error('Error fetching historical data:', err);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, [portfolioId]);
-
-  // Initial load - fetch portfolio first, then history
-  useEffect(() => {
-    setIsLoading(true);
-    setIsHistoryLoading(true);
-    setData(null);
-    setError(null);
-    fetchPortfolioData();
-  }, [fetchPortfolioData]);
-
-  // Fetch history after portfolio loads (lazy load)
-  useEffect(() => {
-    if (data && !isLoading && data.historicalData.length === 0) {
-      fetchHistoricalData();
-    }
-  }, [data?.portfolioId, isLoading, fetchHistoricalData]);
+  // Explicit history refresh (for when user really wants fresh chart data)
+  const refreshHistory = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: portfolioKeys.history(portfolioId) });
+  }, [queryClient, portfolioId]);
 
   // Change time range (no refetch needed - filtering is client-side)
   const changeTimeRange = useCallback((range: TimeRange) => {
     setTimeRange(range);
   }, []);
 
-  // Auto-refresh portfolio every 5 minutes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchPortfolioData(false);
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [fetchPortfolioData]);
-
-  const refresh = useCallback(() => {
-    fetchPortfolioData(true);
-    fetchHistoricalData();
-  }, [fetchPortfolioData, fetchHistoricalData]);
-
   return {
     data,
-    isLoading,
-    isHistoryLoading,
-    isRefreshing,
-    error,
+    isLoading: portfolioQuery.isLoading,
+    isHistoryLoading: historyQuery.isLoading,
+    isRefreshing: portfolioQuery.isFetching && !portfolioQuery.isLoading,
+    error: portfolioQuery.error?.message || (portfolioQuery.data === null ? 'Portfolio not found' : null),
     timeRange,
     changeTimeRange,
     refresh,
+    refreshHistory,
   };
 }

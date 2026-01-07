@@ -149,13 +149,21 @@ export function LandingPage() {
                       <p className="font-medium text-text-primary flex items-center gap-2">
                         {portfolio.display_name || portfolio.id}
                         {portfolio.is_private && (
-                          <Lock className="w-3.5 h-3.5 text-text-secondary" />
+                          <>
+                            <Lock className="w-3.5 h-3.5 text-amber-500" />
+                            <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full">
+                              Private
+                            </span>
+                          </>
                         )}
                       </p>
                       {isPrivate ? (
                         <div className="flex items-center gap-3 mt-1">
-                          <span className="text-lg font-semibold text-text-secondary">
-                            ------
+                          <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+                            $X,XXX,XXX
+                          </span>
+                          <span className="text-sm text-text-secondary blur-sm select-none">
+                            +$X.Xk (+X.XX%)
                           </span>
                         </div>
                       ) : (

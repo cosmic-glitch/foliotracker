@@ -399,7 +399,7 @@ SUPABASE_SERVICE_KEY=your_service_key  # Server-side only
 ## File Structure
 
 ```
-anurag_website/
+foliotracker/
 ├── public/
 │   └── vite.svg
 ├── src/

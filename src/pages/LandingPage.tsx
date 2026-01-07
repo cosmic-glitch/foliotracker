@@ -162,7 +162,7 @@ export function LandingPage() {
                           <span className="text-lg font-semibold text-text-primary blur-sm select-none">
                             $X,XXX,XXX
                           </span>
-                          <span className="text-sm text-text-secondary blur-sm select-none">
+                          <span className="text-sm text-positive blur-sm select-none">
                             +$X.Xk (+X.XX%)
                           </span>
                         </div>

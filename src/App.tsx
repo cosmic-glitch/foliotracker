@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Header,
@@ -16,6 +17,7 @@ function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
   const { unlock, getPassword } = useUnlockedPortfolios();
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Get stored password if portfolio was previously unlocked
   const storedPassword = portfolioId ? getPassword(portfolioId) : null;
@@ -52,6 +54,37 @@ function App() {
 
     // Password is valid, store it and the hook will refetch
     unlock(portfolioId, password);
+  };
+
+  const handleEdit = () => {
+    if (!portfolioId) return;
+
+    // If we already have a stored password, go directly to edit
+    if (storedPassword) {
+      navigate(`/${portfolioId}/edit`, { state: { password: storedPassword } });
+    } else {
+      // Show password modal
+      setShowEditModal(true);
+    }
+  };
+
+  const handleEditVerify = async (password: string) => {
+    if (!portfolioId) return;
+
+    // Verify password
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: portfolioId, password, holdings: '' }),
+    });
+
+    if (response.status === 401) {
+      throw new Error('Invalid password');
+    }
+
+    // Password verified, navigate to edit page
+    navigate(`/${portfolioId}/edit`, { state: { password } });
   };
 
   if (!portfolioId) {
@@ -95,7 +128,7 @@ function App() {
             />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <HoldingsTable holdings={data.holdings} />
+                <HoldingsTable holdings={data.holdings} onEdit={handleEdit} />
               </div>
               <div className="lg:col-span-1">
                 <HoldingsByType holdings={data.holdings} />
@@ -121,6 +154,17 @@ function App() {
           confirmLabel="Unlock"
           onConfirm={handleUnlock}
           onCancel={() => navigate('/')}
+        />
+      )}
+
+      {/* Password modal for editing */}
+      {showEditModal && (
+        <PasswordModal
+          title="Edit Portfolio"
+          description="Enter your password to edit this portfolio."
+          confirmLabel="Continue"
+          onConfirm={handleEditVerify}
+          onCancel={() => setShowEditModal(false)}
         />
       )}
     </div>

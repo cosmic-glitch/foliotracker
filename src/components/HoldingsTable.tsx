@@ -1,9 +1,10 @@
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Pencil } from 'lucide-react';
 import type { Holding } from '../types/portfolio';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 
 interface HoldingsTableProps {
   holdings: Holding[];
+  onEdit?: () => void;
 }
 
 function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
@@ -48,13 +49,22 @@ function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: n
   );
 }
 
-export function HoldingsTable({ holdings }: HoldingsTableProps) {
+export function HoldingsTable({ holdings, onEdit }: HoldingsTableProps) {
   const maxAllocation = Math.max(...holdings.map((h) => h.allocation));
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h2 className="text-lg font-semibold text-text-primary">Holdings</h2>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </button>
+        )}
       </div>
 
       {/* Desktop Table */}

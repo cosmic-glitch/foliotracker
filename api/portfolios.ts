@@ -17,7 +17,7 @@ import { getMultipleQuotes, getSymbolInfo, isMutualFund, getMutualFundQuote } fr
 const MAX_PORTFOLIOS = 10;
 
 // Static holdings that should not be fetched from Finnhub (non-ticker names)
-const STATIC_HOLDINGS = ['cash', 'real estate', 'other cash', 'crypto', 'bonds', 'savings', 'checking'];
+const STATIC_HOLDINGS = ['cash', 'real estate', 'other cash', 'crypto', 'bonds', 'savings', 'checking', 'rest', 'other'];
 
 interface HoldingInput {
   ticker: string;

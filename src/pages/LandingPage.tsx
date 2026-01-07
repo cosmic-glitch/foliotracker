@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, Plus, Users, Pencil, Trash2 } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
+import { isMarketOpen } from '../lib/market-hours';
 
 interface Portfolio {
   id: string;
@@ -21,6 +23,12 @@ interface PortfoliosResponse {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+async function fetchPortfolios(): Promise<PortfoliosResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/portfolios`, { cache: 'default' });
+  if (!response.ok) throw new Error('Failed to fetch portfolios');
+  return response.json();
+}
+
 function formatCompactValue(value: number): string {
   const absValue = Math.abs(value);
   if (absValue >= 1000) {
@@ -31,29 +39,18 @@ function formatCompactValue(value: number): string {
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const [data, setData] = useState<PortfoliosResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<Portfolio | null>(null);
   const [editTarget, setEditTarget] = useState<Portfolio | null>(null);
 
-  useEffect(() => {
-    async function fetchPortfolios() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/portfolios`);
-        if (!response.ok) throw new Error('Failed to fetch portfolios');
-        const json = await response.json();
-        setData(json);
-      } catch (err) {
-        console.error('Error fetching portfolios:', err);
-        setError('Could not load portfolios');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchPortfolios();
-  }, []);
+  // Use TanStack Query for auto-refresh
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['portfolios'],
+    queryFn: fetchPortfolios,
+    staleTime: 60 * 1000, // Fresh for 1 minute
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
+  });
 
   const handleDelete = async (password: string) => {
     if (!deleteTarget) return;
@@ -69,17 +66,8 @@ export function LandingPage() {
       throw new Error(json.error || 'Failed to delete portfolio');
     }
 
-    // Remove from local state
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            portfolios: prev.portfolios.filter((p) => p.id !== deleteTarget.id),
-            count: prev.count - 1,
-            canCreate: true,
-          }
-        : null
-    );
+    // Invalidate cache to refetch updated list
+    queryClient.invalidateQueries({ queryKey: ['portfolios'] });
     setDeleteTarget(null);
   };
 
@@ -122,7 +110,7 @@ export function LandingPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {error && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 text-accent text-sm mb-6">
-            {error}
+            {error.message || 'Could not load portfolios'}
           </div>
         )}
 

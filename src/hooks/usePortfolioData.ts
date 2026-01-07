@@ -35,6 +35,13 @@ interface ApiPortfolioResponse {
   benchmark: BenchmarkData | null;
 }
 
+interface PrivatePortfolioResponse {
+  portfolioId: string;
+  displayName: string | null;
+  isPrivate: true;
+  requiresAuth: true;
+}
+
 // Query key factories for cache management
 export const portfolioKeys = {
   all: ['portfolios'] as const,
@@ -43,12 +50,19 @@ export const portfolioKeys = {
 };
 
 // Fetch functions with HTTP cache support
-async function fetchPortfolioApi(portfolioId: string): Promise<ApiPortfolioResponse | null> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/portfolio?id=${encodeURIComponent(portfolioId)}`,
-    { cache: 'default' } // Leverage browser HTTP cache
-  );
+async function fetchPortfolioApi(
+  portfolioId: string,
+  password?: string | null
+): Promise<ApiPortfolioResponse | PrivatePortfolioResponse | null> {
+  const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
+  url.searchParams.set('id', portfolioId);
+  if (password) {
+    url.searchParams.set('password', password);
+  }
+
+  const response = await fetch(url.toString(), { cache: 'default' });
   if (response.status === 404) return null;
+  if (response.status === 401) throw new Error('Invalid password');
   if (!response.ok) throw new Error('Failed to fetch portfolio');
   return response.json();
 }
@@ -75,14 +89,15 @@ export const TIME_RANGE_DAYS: Record<TimeRange, number> = {
 
 const MAX_DAYS = 1095; // Always fetch 3Y, filter client-side
 
-export function usePortfolioData(portfolioId: string) {
+export function usePortfolioData(portfolioId: string, password?: string | null) {
   const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState<TimeRange>('2Y');
 
   // Portfolio query - needs frequent updates for live prices
+  // Include password in queryKey so it refetches when password changes
   const portfolioQuery = useQuery({
-    queryKey: portfolioKeys.detail(portfolioId),
-    queryFn: () => fetchPortfolioApi(portfolioId),
+    queryKey: [...portfolioKeys.detail(portfolioId), password ?? 'no-auth'],
+    queryFn: () => fetchPortfolioApi(portfolioId, password),
     enabled: !!portfolioId,
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
@@ -102,9 +117,26 @@ export function usePortfolioData(portfolioId: string) {
     refetchInterval: false, // No auto-refresh for history
   });
 
+  // Check if response is a private portfolio requiring auth
+  const requiresAuth = useMemo(() => {
+    if (!portfolioQuery.data) return false;
+    return 'requiresAuth' in portfolioQuery.data && portfolioQuery.data.requiresAuth === true;
+  }, [portfolioQuery.data]);
+
+  // Get display name for private portfolios
+  const privateDisplayName = useMemo(() => {
+    if (!portfolioQuery.data) return null;
+    if ('requiresAuth' in portfolioQuery.data) {
+      return portfolioQuery.data.displayName;
+    }
+    return null;
+  }, [portfolioQuery.data]);
+
   // Combine portfolio and history data
   const data: PortfolioData | null = useMemo(() => {
     if (!portfolioQuery.data) return null;
+    // If it's a private portfolio requiring auth, return null for data
+    if ('requiresAuth' in portfolioQuery.data) return null;
     const p = portfolioQuery.data;
     return {
       portfolioId: p.portfolioId,
@@ -142,6 +174,8 @@ export function usePortfolioData(portfolioId: string) {
     isHistoryLoading: historyQuery.isLoading,
     isRefreshing: portfolioQuery.isFetching && !portfolioQuery.isLoading,
     error: portfolioQuery.error?.message || (portfolioQuery.data === null ? 'Portfolio not found' : null),
+    requiresAuth,
+    privateDisplayName,
     timeRange,
     changeTimeRange,
     refresh,

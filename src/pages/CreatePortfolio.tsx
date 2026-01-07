@@ -20,6 +20,7 @@ export function CreatePortfolio() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [holdings, setHoldings] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +40,7 @@ export function CreatePortfolio() {
           displayName: displayName || undefined,
           password,
           holdings,
+          isPrivate,
         }),
       });
 
@@ -139,6 +141,33 @@ export function CreatePortfolio() {
             <p className="text-xs text-text-secondary mt-2">
               You'll need this password to update your portfolio later
             </p>
+          </div>
+
+          {/* Private Toggle */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Private Portfolio
+                </label>
+                <p className="text-xs text-text-secondary mt-1">
+                  Hide portfolio values on the homepage. Password required to view details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrivate(!isPrivate)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  isPrivate ? 'bg-accent' : 'bg-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                    isPrivate ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Holdings */}

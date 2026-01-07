@@ -14,6 +14,7 @@ export interface DbPortfolio {
   display_name: string | null;
   password_hash: string;
   created_at: string;
+  is_private: boolean;
 }
 
 export interface DbHolding {
@@ -43,7 +44,7 @@ export interface DbDailyPrice {
 export async function getPortfolios(): Promise<Omit<DbPortfolio, 'password_hash'>[]> {
   const { data, error } = await supabase
     .from('portfolios')
-    .select('id, display_name, created_at')
+    .select('id, display_name, created_at, is_private')
     .order('created_at', { ascending: true });
 
   if (error) throw error;
@@ -73,7 +74,8 @@ export async function getPortfolioCount(): Promise<number> {
 export async function createPortfolio(
   id: string,
   password: string,
-  displayName?: string
+  displayName?: string,
+  isPrivate?: boolean
 ): Promise<void> {
   const count = await getPortfolioCount();
   if (count >= MAX_PORTFOLIOS) {
@@ -86,6 +88,7 @@ export async function createPortfolio(
     id,
     display_name: displayName || null,
     password_hash: passwordHash,
+    is_private: isPrivate ?? false,
   });
 
   if (error) throw error;
@@ -117,6 +120,18 @@ export async function deletePortfolio(id: string): Promise<void> {
     .from('portfolios')
     .delete()
     .eq('id', normalizedId);
+
+  if (error) throw error;
+}
+
+export async function updatePortfolioSettings(
+  id: string,
+  settings: { is_private?: boolean; display_name?: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from('portfolios')
+    .update(settings)
+    .eq('id', id.toLowerCase());
 
   if (error) throw error;
 }

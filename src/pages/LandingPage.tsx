@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Pencil, Trash2 } from 'lucide-react';
+import { TrendingUp, Plus, Users, Pencil, Trash2, Lock } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { isMarketOpen } from '../lib/market-hours';
 
@@ -9,9 +9,10 @@ interface Portfolio {
   id: string;
   display_name: string | null;
   created_at: string;
-  totalValue: number;
-  dayChange: number;
-  dayChangePercent: number;
+  totalValue: number | null;
+  dayChange: number | null;
+  dayChangePercent: number | null;
+  is_private: boolean;
 }
 
 interface PortfoliosResponse {
@@ -134,7 +135,8 @@ export function LandingPage() {
           ) : (
             <div className="divide-y divide-border">
               {data?.portfolios.map((portfolio) => {
-                const isPositive = portfolio.dayChange >= 0;
+                const isPrivate = portfolio.is_private && portfolio.totalValue === null;
+                const isPositive = (portfolio.dayChange ?? 0) >= 0;
                 const changeColor = isPositive ? 'text-positive' : 'text-negative';
                 const sign = isPositive ? '+' : '';
 
@@ -144,17 +146,28 @@ export function LandingPage() {
                     className="flex items-center justify-between p-4 hover:bg-card-hover transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text-primary">
+                      <p className="font-medium text-text-primary flex items-center gap-2">
                         {portfolio.display_name || portfolio.id}
+                        {portfolio.is_private && (
+                          <Lock className="w-3.5 h-3.5 text-text-secondary" />
+                        )}
                       </p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-lg font-semibold text-text-primary">
-                          ${portfolio.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </span>
-                        <span className={`text-sm ${changeColor}`}>
-                          {sign}{formatCompactValue(Math.abs(portfolio.dayChange))} ({sign}{portfolio.dayChangePercent.toFixed(2)}%)
-                        </span>
-                      </div>
+                      {isPrivate ? (
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-lg font-semibold text-text-secondary">
+                            ------
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-lg font-semibold text-text-primary">
+                            ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                          <span className={`text-sm ${changeColor}`}>
+                            {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Link

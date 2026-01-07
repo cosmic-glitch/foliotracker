@@ -16,6 +16,7 @@ export function EditPortfolio() {
 
   const [holdings, setHoldings] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,13 +30,19 @@ export function EditPortfolio() {
 
     async function fetchPortfolio() {
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/portfolio?id=${portfolioId}`
-        );
+        // Include password to access private portfolios
+        const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
+        url.searchParams.set('id', portfolioId!);
+        if (password) {
+          url.searchParams.set('password', password);
+        }
+
+        const response = await fetch(url.toString());
         if (!response.ok) throw new Error('Failed to fetch portfolio');
 
         const data = await response.json();
         setDisplayName(data.displayName || '');
+        setIsPrivate(data.isPrivate ?? false);
 
         // Convert holdings back to input format
         const holdingsText = data.holdings
@@ -72,6 +79,7 @@ export function EditPortfolio() {
           id: portfolioId,
           password,
           holdings,
+          isPrivate,
         }),
       });
 
@@ -140,6 +148,33 @@ export function EditPortfolio() {
                 <p className="font-medium text-text-primary">{displayName}</p>
               </>
             )}
+          </div>
+
+          {/* Private Toggle */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Private Portfolio
+                </label>
+                <p className="text-xs text-text-secondary mt-1">
+                  Hide portfolio values on the homepage. Password required to view details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrivate(!isPrivate)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  isPrivate ? 'bg-accent' : 'bg-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                    isPrivate ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Holdings */}

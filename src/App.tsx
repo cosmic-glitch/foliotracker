@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Header,
   TotalValue,
@@ -8,11 +8,51 @@ import {
   Footer,
   LoadingSkeleton,
 } from './components';
+import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
+import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
-  const { data, isLoading, isHistoryLoading, isRefreshing, error, timeRange, changeTimeRange, refresh } = usePortfolioData(portfolioId || '');
+  const navigate = useNavigate();
+  const { unlock, getPassword } = useUnlockedPortfolios();
+
+  // Get stored password if portfolio was previously unlocked
+  const storedPassword = portfolioId ? getPassword(portfolioId) : null;
+
+  const {
+    data,
+    isLoading,
+    isHistoryLoading,
+    isRefreshing,
+    error,
+    requiresAuth,
+    privateDisplayName,
+    timeRange,
+    changeTimeRange,
+    refresh,
+  } = usePortfolioData(portfolioId || '', storedPassword);
+
+  const handleUnlock = async (password: string) => {
+    if (!portfolioId) return;
+
+    // Verify password by trying to fetch with it
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+    const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
+    url.searchParams.set('id', portfolioId);
+    url.searchParams.set('password', password);
+
+    const response = await fetch(url.toString());
+    if (response.status === 401) {
+      throw new Error('Invalid password');
+    }
+    if (!response.ok) {
+      throw new Error('Failed to verify password');
+    }
+
+    // Password is valid, store it and the hook will refetch
+    unlock(portfolioId, password);
+  };
 
   if (!portfolioId) {
     return (
@@ -70,6 +110,17 @@ function App() {
           lastUpdated={data.lastUpdated}
           onRefresh={refresh}
           isRefreshing={isRefreshing}
+        />
+      )}
+
+      {/* Password modal for private portfolios */}
+      {requiresAuth && (
+        <PasswordModal
+          title="Private Portfolio"
+          description={`"${privateDisplayName || portfolioId}" is a private portfolio. Enter the password to view details.`}
+          confirmLabel="Unlock"
+          onConfirm={handleUnlock}
+          onCancel={() => navigate('/')}
         />
       )}
     </div>

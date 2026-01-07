@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache } from './lib/db.js';
+import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword } from './lib/db.js';
 import { getMultipleQuotes, getQuote, isMutualFund, getMutualFundQuote } from './lib/finnhub.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
@@ -36,6 +36,7 @@ interface PortfolioResponse {
   lastUpdated: string;
   marketStatus: string;
   benchmark: BenchmarkData | null;
+  isPrivate: boolean;
 }
 
 export default async function handler(
@@ -70,6 +71,28 @@ export default async function handler(
     if (!portfolio) {
       res.status(404).json({ error: 'Portfolio not found' });
       return;
+    }
+
+    // Handle private portfolio authentication
+    if (portfolio.is_private) {
+      const password = req.query.password as string;
+
+      if (!password) {
+        // Return minimal info to indicate portfolio exists but is private
+        res.status(200).json({
+          portfolioId,
+          displayName: portfolio.display_name,
+          isPrivate: true,
+          requiresAuth: true,
+        });
+        return;
+      }
+
+      const isValid = await verifyPortfolioPassword(portfolioId, password);
+      if (!isValid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
     }
 
     // Get holdings from database
@@ -216,6 +239,7 @@ export default async function handler(
       lastUpdated: new Date().toISOString(),
       marketStatus: getMarketStatus(),
       benchmark,
+      isPrivate: portfolio.is_private,
     };
 
     // Cache response for 1 minute

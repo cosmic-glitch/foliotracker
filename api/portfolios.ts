@@ -10,6 +10,7 @@ import {
   verifyPortfolioPassword,
   getCachedPrices,
   updatePriceCache,
+  updatePortfolioSettings,
 } from './lib/db.js';
 import { getMultipleQuotes, getSymbolInfo, isMutualFund, getMutualFundQuote } from './lib/finnhub.js';
 
@@ -124,9 +125,9 @@ export default async function handler(
 
           return {
             ...portfolio,
-            totalValue,
-            dayChange: totalDayChange,
-            dayChangePercent,
+            totalValue: portfolio.is_private ? null : totalValue,
+            dayChange: portfolio.is_private ? null : totalDayChange,
+            dayChangePercent: portfolio.is_private ? null : dayChangePercent,
           };
         })
       );
@@ -142,7 +143,7 @@ export default async function handler(
 
     if (req.method === 'POST') {
       // Create new portfolio
-      const { id, displayName, password, holdings: holdingsInput } = req.body;
+      const { id, displayName, password, holdings: holdingsInput, isPrivate } = req.body;
 
       // Validate ID
       if (!id || typeof id !== 'string') {
@@ -282,7 +283,7 @@ export default async function handler(
       }
 
       // Create portfolio and add holdings
-      await createPortfolio(cleanId, password, displayName);
+      await createPortfolio(cleanId, password, displayName, isPrivate ?? false);
       await setHoldings(cleanId, dbHoldings);
 
       res.status(201).json({
@@ -294,7 +295,7 @@ export default async function handler(
 
     if (req.method === 'PUT') {
       // Update existing portfolio
-      const { id, password, holdings: holdingsInput } = req.body;
+      const { id, password, holdings: holdingsInput, isPrivate } = req.body;
 
       if (!id || typeof id !== 'string') {
         res.status(400).json({ error: 'Portfolio ID is required' });
@@ -403,6 +404,11 @@ export default async function handler(
           static_value: holding.value,
           instrument_type: instrumentType,
         });
+      }
+
+      // Update privacy setting if provided
+      if (typeof isPrivate === 'boolean') {
+        await updatePortfolioSettings(id, { is_private: isPrivate });
       }
 
       await setHoldings(id, dbHoldings);

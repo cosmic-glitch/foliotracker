@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(brew install:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase projects list:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel --yes:*)",
+      "Bash(vercel:*)",
+      "Bash(node -e:*)",
+      "Bash(ls:*)",
+      "Bash(node delete-portfolio.js:*)",
+      "Bash(node migrate-holdings.js:*)",
+      "Bash(node check-column.mjs:*)",
+      "Bash(supabase link:*)",
+      "Bash(node migrate-instrument-types.mjs:*)",
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(gh auth status:*)",
+      "Bash(for id in av gs vd)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

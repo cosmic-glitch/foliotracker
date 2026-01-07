@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  --color-background: #0f172a;
+  --color-card: #1e293b;
+  --color-card-hover: #334155;
+  --color-positive: #22c55e;
+  --color-negative: #ef4444;
+  --color-accent: #3b82f6;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-border: #334155;
+}
+
+body {
+  @apply bg-background text-text-primary font-sans antialiased;
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}

@@ -186,17 +186,17 @@ export function LandingPage() {
                       </Link>
                       <button
                         onClick={() => setEditTarget(portfolio)}
-                        className="p-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
-                        title="Edit portfolio"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
                       </button>
                       <button
                         onClick={() => setDeleteTarget(portfolio)}
-                        className="p-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors"
-                        title="Delete portfolio"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
                       </button>
                     </div>
                   </div>

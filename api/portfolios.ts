@@ -12,12 +12,9 @@ import {
   updatePriceCache,
   updatePortfolioSettings,
 } from './lib/db.js';
-import { getMultipleQuotes, getSymbolInfo, isMutualFund, getMutualFundQuote } from './lib/finnhub.js';
+import { getMultipleQuotes, getSymbolInfo, isMutualFund, getMutualFundQuote, getQuote } from './lib/finnhub.js';
 
 const MAX_PORTFOLIOS = 10;
-
-// Static holdings that should not be fetched from Finnhub (non-ticker names)
-const STATIC_HOLDINGS = ['cash', 'real estate', 'other cash', 'crypto', 'bonds', 'savings', 'checking', 'rest', 'other'];
 
 interface HoldingInput {
   ticker: string;
@@ -27,6 +24,18 @@ interface HoldingInput {
 interface ParsedHoldings {
   holdings: HoldingInput[];
   errors: string[];
+}
+
+interface ClassifiedHolding extends HoldingInput {
+  isStatic: boolean;
+  name?: string;
+  instrumentType?: string;
+  price?: number;
+}
+
+interface ClassificationResult {
+  tradeable: ClassifiedHolding[];
+  static: ClassifiedHolding[];
 }
 
 function parseHoldingsInput(input: string): ParsedHoldings {
@@ -65,14 +74,100 @@ function parseHoldingsInput(input: string): ParsedHoldings {
   return { holdings, errors };
 }
 
-function isStaticHolding(ticker: string): boolean {
-  // Check if it's a known static holding name
-  if (STATIC_HOLDINGS.includes(ticker.toLowerCase())) {
-    return true;
+// Determine instrument type for static holdings based on name
+function getStaticInstrumentType(ticker: string): string {
+  const lowerTicker = ticker.toLowerCase();
+  if (lowerTicker.includes('cash') || lowerTicker.includes('savings') || lowerTicker.includes('checking')) {
+    return 'Cash';
+  } else if (lowerTicker.includes('real estate')) {
+    return 'Real Estate';
+  } else if (lowerTicker.includes('crypto')) {
+    return 'Crypto';
+  } else if (lowerTicker.includes('bonds')) {
+    return 'Bonds';
   }
-  // Check if it looks like a ticker (uppercase letters, numbers, dots only, max 5 chars)
-  const tickerPattern = /^[A-Z0-9.]{1,5}$/;
-  return !tickerPattern.test(ticker.toUpperCase());
+  return 'Other';
+}
+
+// Smart classification: try price lookups, fallback to static
+async function classifyHoldings(
+  holdings: HoldingInput[],
+  priceMap: Map<string, { current_price: number; previous_close: number }>
+): Promise<ClassificationResult> {
+  const tradeable: ClassifiedHolding[] = [];
+  const staticHoldings: ClassifiedHolding[] = [];
+
+  for (const holding of holdings) {
+    // Check if we already have a cached price
+    const cachedPrice = priceMap.get(holding.ticker);
+    if (cachedPrice && cachedPrice.current_price > 0) {
+      const symbolInfo = await getSymbolInfo(holding.ticker);
+      tradeable.push({
+        ...holding,
+        isStatic: false,
+        name: symbolInfo?.name || holding.ticker,
+        instrumentType: symbolInfo?.instrumentType || 'Other',
+        price: cachedPrice.current_price,
+      });
+      continue;
+    }
+
+    // Try Finnhub for stocks/ETFs
+    try {
+      const quote = await getQuote(holding.ticker);
+      if (quote && quote.c > 0) {
+        const symbolInfo = await getSymbolInfo(holding.ticker);
+        tradeable.push({
+          ...holding,
+          isStatic: false,
+          name: symbolInfo?.name || holding.ticker,
+          instrumentType: symbolInfo?.instrumentType || 'Other',
+          price: quote.c,
+        });
+        // Update price map for later use
+        priceMap.set(holding.ticker, {
+          current_price: quote.c,
+          previous_close: quote.pc,
+        });
+        continue;
+      }
+    } catch (e) {
+      // Finnhub lookup failed, try CNBC for mutual funds
+    }
+
+    // Try CNBC for mutual funds
+    if (isMutualFund(holding.ticker)) {
+      try {
+        const mfQuote = await getMutualFundQuote(holding.ticker);
+        if (mfQuote && mfQuote.price > 0) {
+          tradeable.push({
+            ...holding,
+            isStatic: false,
+            name: holding.ticker,
+            instrumentType: 'Mutual Fund',
+            price: mfQuote.price,
+          });
+          priceMap.set(holding.ticker, {
+            current_price: mfQuote.price,
+            previous_close: mfQuote.previousClose,
+          });
+          continue;
+        }
+      } catch (e) {
+        // CNBC lookup failed
+      }
+    }
+
+    // Fallback to static
+    staticHoldings.push({
+      ...holding,
+      isStatic: true,
+      name: holding.ticker,
+      instrumentType: getStaticInstrumentType(holding.ticker),
+    });
+  }
+
+  return { tradeable, static: staticHoldings };
 }
 
 export default async function handler(
@@ -142,10 +237,52 @@ export default async function handler(
     }
 
     if (req.method === 'POST') {
-      // Create new portfolio
+      // Create new portfolio (or preview classification)
       const { id, displayName, password, holdings: holdingsInput, isPrivate } = req.body;
+      const isPreview = req.query.preview === 'true';
 
-      // Validate ID
+      // Parse holdings first (needed for both preview and create)
+      if (!holdingsInput || typeof holdingsInput !== 'string') {
+        res.status(400).json({ error: 'Holdings data is required' });
+        return;
+      }
+
+      const { holdings: parsedHoldings, errors: parseErrors } = parseHoldingsInput(holdingsInput);
+      if (parseErrors.length > 0) {
+        res.status(400).json({ error: 'Failed to parse holdings', details: parseErrors });
+        return;
+      }
+
+      if (parsedHoldings.length === 0) {
+        res.status(400).json({ error: 'At least one holding is required' });
+        return;
+      }
+
+      // Use smart classification to determine which holdings are tradeable vs static
+      const priceMap = await getCachedPrices();
+      const classification = await classifyHoldings(parsedHoldings, priceMap);
+
+      // If preview mode, return the classification without saving
+      if (isPreview) {
+        res.status(200).json({
+          preview: true,
+          tradeable: classification.tradeable.map((h) => ({
+            ticker: h.ticker,
+            value: h.value,
+            name: h.name,
+            instrumentType: h.instrumentType,
+            price: h.price,
+          })),
+          static: classification.static.map((h) => ({
+            ticker: h.ticker,
+            value: h.value,
+            instrumentType: h.instrumentType,
+          })),
+        });
+        return;
+      }
+
+      // Full create: validate all fields
       if (!id || typeof id !== 'string') {
         res.status(400).json({ error: 'Portfolio ID is required' });
         return;
@@ -177,108 +314,47 @@ export default async function handler(
         return;
       }
 
-      // Parse holdings
-      if (!holdingsInput || typeof holdingsInput !== 'string') {
-        res.status(400).json({ error: 'Holdings data is required' });
-        return;
-      }
-
-      const { holdings: parsedHoldings, errors: parseErrors } = parseHoldingsInput(holdingsInput);
-      if (parseErrors.length > 0) {
-        res.status(400).json({ error: 'Failed to parse holdings', details: parseErrors });
-        return;
-      }
-
-      if (parsedHoldings.length === 0) {
-        res.status(400).json({ error: 'At least one holding is required' });
-        return;
-      }
-
-      // Separate tradeable and static holdings
-      const tradeableHoldings = parsedHoldings.filter((h) => !isStaticHolding(h.ticker));
-      const staticHoldings = parsedHoldings.filter((h) => isStaticHolding(h.ticker));
-
-      // Separate mutual funds from stocks/ETFs
-      const mutualFundHoldings = tradeableHoldings.filter((h) => isMutualFund(h.ticker));
-      const stockEtfHoldings = tradeableHoldings.filter((h) => !isMutualFund(h.ticker));
-
-      // Fetch current prices for stock/ETF holdings from Finnhub
-      const stockEtfTickers = stockEtfHoldings.map((h) => h.ticker);
-      let priceMap = await getCachedPrices();
-
-      // Fetch missing stock/ETF prices from Finnhub
-      const tickersToFetch = stockEtfTickers.filter((t) => !priceMap.has(t));
-      if (tickersToFetch.length > 0) {
-        const quotes = await getMultipleQuotes(tickersToFetch);
-        for (const [ticker, quote] of quotes) {
-          await updatePriceCache(ticker, quote.c, quote.pc);
-          priceMap.set(ticker, {
-            ticker,
-            current_price: quote.c,
-            previous_close: quote.pc,
-            updated_at: new Date().toISOString(),
-          });
-        }
-      }
-
-      // Fetch mutual fund prices from CNBC
-      for (const holding of mutualFundHoldings) {
-        if (!priceMap.has(holding.ticker)) {
-          const quote = await getMutualFundQuote(holding.ticker);
-          if (quote) {
-            await updatePriceCache(holding.ticker, quote.price, quote.previousClose);
-            priceMap.set(holding.ticker, {
-              ticker: holding.ticker,
-              current_price: quote.price,
-              previous_close: quote.previousClose,
-              updated_at: new Date().toISOString(),
-            });
+      // Update price cache for tradeable holdings
+      for (const holding of classification.tradeable) {
+        if (holding.price) {
+          const cached = priceMap.get(holding.ticker);
+          if (!cached) {
+            await updatePriceCache(
+              holding.ticker,
+              holding.price,
+              priceMap.get(holding.ticker)?.previous_close || holding.price
+            );
           }
         }
       }
 
-      // Calculate share counts and fetch company names + instrument types
+      // Build database holdings from classification
       const dbHoldings = [];
 
-      for (const holding of [...stockEtfHoldings, ...mutualFundHoldings]) {
-        const price = priceMap.get(holding.ticker);
-        if (!price || price.current_price === 0) {
+      for (const holding of classification.tradeable) {
+        if (!holding.price || holding.price === 0) {
           res.status(400).json({ error: `Could not get price for ${holding.ticker}` });
           return;
         }
-        const shares = holding.value / price.current_price;
-        const symbolInfo = await getSymbolInfo(holding.ticker);
+        const shares = holding.value / holding.price;
         dbHoldings.push({
           ticker: holding.ticker,
-          name: symbolInfo?.name || holding.ticker,
+          name: holding.name || holding.ticker,
           shares,
           is_static: false,
           static_value: null,
-          instrument_type: symbolInfo?.instrumentType || 'Other',
+          instrument_type: holding.instrumentType || 'Other',
         });
       }
 
-      for (const holding of staticHoldings) {
-        // Determine instrument type for static holdings based on ticker name
-        let instrumentType = 'Other';
-        const lowerTicker = holding.ticker.toLowerCase();
-        if (lowerTicker.includes('cash') || lowerTicker.includes('savings') || lowerTicker.includes('checking')) {
-          instrumentType = 'Cash';
-        } else if (lowerTicker.includes('real estate')) {
-          instrumentType = 'Real Estate';
-        } else if (lowerTicker.includes('crypto')) {
-          instrumentType = 'Crypto';
-        } else if (lowerTicker.includes('bonds')) {
-          instrumentType = 'Bonds';
-        }
-
+      for (const holding of classification.static) {
         dbHoldings.push({
           ticker: holding.ticker,
           name: holding.ticker,
           shares: 1,
           is_static: true,
           static_value: holding.value,
-          instrument_type: instrumentType,
+          instrument_type: holding.instrumentType || 'Other',
         });
       }
 
@@ -294,8 +370,9 @@ export default async function handler(
     }
 
     if (req.method === 'PUT') {
-      // Update existing portfolio
+      // Update existing portfolio (or preview classification)
       const { id, password, holdings: holdingsInput, isPrivate } = req.body;
+      const isPreview = req.query.preview === 'true';
 
       if (!id || typeof id !== 'string') {
         res.status(400).json({ error: 'Portfolio ID is required' });
@@ -309,7 +386,7 @@ export default async function handler(
         return;
       }
 
-      // Parse and update holdings (same logic as POST)
+      // Parse holdings
       const { holdings: parsedHoldings, errors: parseErrors } = parseHoldingsInput(holdingsInput);
       if (parseErrors.length > 0) {
         res.status(400).json({ error: 'Failed to parse holdings', details: parseErrors });
@@ -321,88 +398,71 @@ export default async function handler(
         return;
       }
 
-      const tradeableHoldings = parsedHoldings.filter((h) => !isStaticHolding(h.ticker));
-      const staticHoldings = parsedHoldings.filter((h) => isStaticHolding(h.ticker));
+      // Use smart classification to determine which holdings are tradeable vs static
+      const priceMap = await getCachedPrices();
+      const classification = await classifyHoldings(parsedHoldings, priceMap);
 
-      // Separate mutual funds from stocks/ETFs
-      const mutualFundHoldings = tradeableHoldings.filter((h) => isMutualFund(h.ticker));
-      const stockEtfHoldings = tradeableHoldings.filter((h) => !isMutualFund(h.ticker));
-
-      const stockEtfTickers = stockEtfHoldings.map((h) => h.ticker);
-      let priceMap = await getCachedPrices();
-
-      // Fetch missing stock/ETF prices from Finnhub
-      const tickersToFetch = stockEtfTickers.filter((t) => !priceMap.has(t));
-      if (tickersToFetch.length > 0) {
-        const quotes = await getMultipleQuotes(tickersToFetch);
-        for (const [ticker, quote] of quotes) {
-          await updatePriceCache(ticker, quote.c, quote.pc);
-          priceMap.set(ticker, {
-            ticker,
-            current_price: quote.c,
-            previous_close: quote.pc,
-            updated_at: new Date().toISOString(),
-          });
-        }
+      // If preview mode, return the classification without saving
+      if (isPreview) {
+        res.status(200).json({
+          preview: true,
+          tradeable: classification.tradeable.map((h) => ({
+            ticker: h.ticker,
+            value: h.value,
+            name: h.name,
+            instrumentType: h.instrumentType,
+            price: h.price,
+          })),
+          static: classification.static.map((h) => ({
+            ticker: h.ticker,
+            value: h.value,
+            instrumentType: h.instrumentType,
+          })),
+        });
+        return;
       }
 
-      // Fetch mutual fund prices from CNBC
-      for (const holding of mutualFundHoldings) {
-        if (!priceMap.has(holding.ticker)) {
-          const quote = await getMutualFundQuote(holding.ticker);
-          if (quote) {
-            await updatePriceCache(holding.ticker, quote.price, quote.previousClose);
-            priceMap.set(holding.ticker, {
-              ticker: holding.ticker,
-              current_price: quote.price,
-              previous_close: quote.previousClose,
-              updated_at: new Date().toISOString(),
-            });
+      // Update price cache for tradeable holdings
+      for (const holding of classification.tradeable) {
+        if (holding.price) {
+          const cached = priceMap.get(holding.ticker);
+          if (!cached) {
+            await updatePriceCache(
+              holding.ticker,
+              holding.price,
+              priceMap.get(holding.ticker)?.previous_close || holding.price
+            );
           }
         }
       }
 
+      // Build database holdings from classification
       const dbHoldings = [];
 
-      for (const holding of [...stockEtfHoldings, ...mutualFundHoldings]) {
-        const price = priceMap.get(holding.ticker);
-        if (!price || price.current_price === 0) {
+      for (const holding of classification.tradeable) {
+        if (!holding.price || holding.price === 0) {
           res.status(400).json({ error: `Could not get price for ${holding.ticker}` });
           return;
         }
-        const shares = holding.value / price.current_price;
-        const symbolInfo = await getSymbolInfo(holding.ticker);
+        const shares = holding.value / holding.price;
         dbHoldings.push({
           ticker: holding.ticker,
-          name: symbolInfo?.name || holding.ticker,
+          name: holding.name || holding.ticker,
           shares,
           is_static: false,
           static_value: null,
-          instrument_type: symbolInfo?.instrumentType || 'Other',
+          instrument_type: holding.instrumentType || 'Other',
         });
       }
 
-      for (const holding of staticHoldings) {
-        // Determine instrument type for static holdings based on ticker name
-        let instrumentType = 'Other';
-        const lowerTicker = holding.ticker.toLowerCase();
-        if (lowerTicker.includes('cash') || lowerTicker.includes('savings') || lowerTicker.includes('checking')) {
-          instrumentType = 'Cash';
-        } else if (lowerTicker.includes('real estate')) {
-          instrumentType = 'Real Estate';
-        } else if (lowerTicker.includes('crypto')) {
-          instrumentType = 'Crypto';
-        } else if (lowerTicker.includes('bonds')) {
-          instrumentType = 'Bonds';
-        }
-
+      for (const holding of classification.static) {
         dbHoldings.push({
           ticker: holding.ticker,
           name: holding.ticker,
           shares: 1,
           is_static: true,
           static_value: holding.value,
-          instrument_type: instrumentType,
+          instrument_type: holding.instrumentType || 'Other',
         });
       }
 

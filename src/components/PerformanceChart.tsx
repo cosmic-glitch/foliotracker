@@ -8,7 +8,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { AlertTriangle } from 'lucide-react';
 import type { HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { type TimeRange, TIME_RANGE_DAYS } from '../hooks/usePortfolioData';
 import { formatChartDate } from '../utils/formatters';
@@ -182,7 +181,7 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-orange-500 rounded" />
+            <div className="w-3 h-0.5 bg-purple-500 rounded" />
             <span className="text-text-secondary">S&P 500</span>
             <span className={`font-medium ${benchmarkChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
               {benchmarkChange >= 0 ? '+' : ''}{benchmarkChange.toFixed(2)}%
@@ -225,7 +224,7 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
             <Line
               type="monotone"
               dataKey="benchmark"
-              stroke="#f97316"
+              stroke="#a855f7"
               strokeWidth={2}
               dot={false}
               name="S&P 500"
@@ -234,12 +233,9 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex items-start gap-2 mt-3 text-xs text-amber-500">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-        <p>
-          <span className="font-medium">Warning:</span> Historical values assume your current holdings have remained unchanged. This may not reflect actual performance if you've added, removed, or rebalanced holdings.
-        </p>
-      </div>
+      <p className="mt-3 text-xs text-amber-500">
+        <span className="font-medium">Warning:</span> Historical values assume your current holdings have remained unchanged. This may not reflect actual performance if you've added, removed, or rebalanced holdings.
+      </p>
     </div>
   );
 }

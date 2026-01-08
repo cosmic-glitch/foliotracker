@@ -117,7 +117,7 @@ export function LandingPage() {
           <ul className="text-text-secondary text-sm space-y-1">
             <li>• Enter your current holdings — no transaction history needed</li>
             <li>• Pick a unique ID — no account, no email, no personal data</li>
-            <li>• Keep it private or share with friends — your choice</li>
+            <li>• Keep it private or leave it public for friends to see</li>
           </ul>
         </div>
 

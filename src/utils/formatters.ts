@@ -18,11 +18,13 @@ export function formatCurrency(value: number, compact = false): string {
     }
   }
 
+  // Show 3 decimals for values in millions
+  const decimals = Math.abs(value) >= 1_000_000 ? 3 : 0;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(value);
 }
 

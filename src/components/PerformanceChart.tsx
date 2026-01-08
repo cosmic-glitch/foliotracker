@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
+import { AlertTriangle } from 'lucide-react';
 import type { HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { type TimeRange, TIME_RANGE_DAYS } from '../hooks/usePortfolioData';
 import { formatChartDate } from '../utils/formatters';
@@ -233,9 +234,12 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-text-secondary mt-3">
-        Historical values are backcalculated assuming current holdings have remained unchanged over the selected period.
-      </p>
+      <div className="flex items-start gap-2 mt-3 text-xs text-amber-500">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <p>
+          <span className="font-medium">Warning:</span> Historical values assume your current holdings have remained unchanged. This may not reflect actual performance if you've added, removed, or rebalanced holdings.
+        </p>
+      </div>
     </div>
   );
 }

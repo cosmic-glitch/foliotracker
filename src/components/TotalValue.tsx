@@ -33,7 +33,7 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, benchmark,
           </p>
           {lastUpdated && (
             <p className="text-text-secondary text-xs mt-4">
-              Last updated at {formatLastUpdated(lastUpdated)}. Updates every 5 min or so.
+              Last updated at {formatLastUpdated(lastUpdated)}. Updates every 5-10 min.
             </p>
           )}
         </div>

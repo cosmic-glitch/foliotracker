@@ -118,6 +118,7 @@ function App() {
               dayChange={data.totalDayChange}
               dayChangePercent={data.totalDayChangePercent}
               benchmark={data.benchmark}
+              lastUpdated={data.lastUpdated}
             />
             <PerformanceChart
               data={data.historicalData}

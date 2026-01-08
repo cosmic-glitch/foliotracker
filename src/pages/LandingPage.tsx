@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, Plus, Users, Pencil, Trash2, Lock } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
-import { isMarketOpen } from '../lib/market-hours';
+import { MarketStatusBadge } from '../components/MarketStatusBadge';
+import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 
 interface Portfolio {
   id: string;
@@ -97,13 +98,16 @@ export function LandingPage() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-accent" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-accent/10 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-accent" />
+              </div>
+              <h1 className="text-xl font-semibold text-text-primary">
+                Portfolio Tracker
+              </h1>
             </div>
-            <h1 className="text-xl font-semibold text-text-primary">
-              Portfolio Tracker
-            </h1>
+            <MarketStatusBadge status={getMarketStatus()} />
           </div>
         </div>
       </header>

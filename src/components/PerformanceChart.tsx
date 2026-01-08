@@ -234,7 +234,7 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
         </ResponsiveContainer>
       </div>
       <p className="mt-3 text-xs text-amber-500">
-        <span className="font-medium">Warning:</span> Historical values assume your current holdings have remained unchanged. This may not reflect actual performance if you've added, removed, or rebalanced holdings.
+        <span className="font-medium">Warning:</span> Historical performance assumes your current holdings remained unchanged during the selected time range. For meaningful results, select a period where you made no changes to your portfolio.
       </p>
     </div>
   );

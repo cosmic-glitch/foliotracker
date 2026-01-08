@@ -103,6 +103,7 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     // Smart auto-refresh: 5 min when market open, 30 min when closed
     refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
+    refetchIntervalInBackground: true,
   });
 
   // History query - very stable, rarely needs refresh

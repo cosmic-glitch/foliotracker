@@ -4,8 +4,8 @@ export function formatCurrency(value: number, compact = false): string {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
       }).format(value / 1_000_000) + 'M';
     }
     if (Math.abs(value) >= 1_000) {
@@ -18,13 +18,11 @@ export function formatCurrency(value: number, compact = false): string {
     }
   }
 
-  // Show 3 decimals for values in millions
-  const decimals = Math.abs(value) >= 1_000_000 ? 3 : 0;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 

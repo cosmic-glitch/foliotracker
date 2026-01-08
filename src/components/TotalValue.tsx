@@ -32,7 +32,7 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, benchmark,
             {formatCurrency(totalValue)}
           </p>
           {lastUpdated && (
-            <p className="text-text-secondary text-xs mt-2">
+            <p className="text-text-secondary text-xs mt-4">
               Last updated at {formatLastUpdated(lastUpdated)}. Updates every 5 min or so.
             </p>
           )}

@@ -120,28 +120,33 @@ export default async function handler(
       );
       const results = await Promise.all(fetchPromises);
 
-      // Process results and cache them
+      // Collect ALL cache writes across all tickers first
+      const allCachePromises: Promise<void>[] = [];
+
+      // Process results
       for (const { ticker, data: historicalData } of results) {
         if (!allPrices.has(ticker)) {
           allPrices.set(ticker, new Map());
         }
 
         const tickerDates = existingDates.get(ticker) || new Set();
-        const cachePromises: Promise<void>[] = [];
 
         for (const point of historicalData) {
           allPrices.get(ticker)!.set(point.date, point.close);
 
-          // Store in database for future use (batch the promises)
+          // Queue cache write (don't await yet)
           if (!tickerDates.has(point.date)) {
-            cachePromises.push(upsertDailyPrice(ticker, point.date, point.close));
+            allCachePromises.push(upsertDailyPrice(ticker, point.date, point.close));
           }
         }
+      }
 
-        // Execute cache writes in parallel (don't await individually)
-        if (cachePromises.length > 0) {
-          await Promise.all(cachePromises);
-        }
+      // Execute ALL cache writes in one parallel batch (non-blocking for response)
+      if (allCachePromises.length > 0) {
+        // Fire and forget - don't block the response on cache writes
+        Promise.all(allCachePromises).catch((err) =>
+          console.error('Cache write error:', err)
+        );
       }
     }
 

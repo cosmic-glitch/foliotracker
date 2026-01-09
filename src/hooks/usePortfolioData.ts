@@ -19,6 +19,7 @@ interface ApiPortfolioResponse {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  totalGain: number | null;
   totalGainPercent: number | null;
   holdings: Array<{
     ticker: string;
@@ -182,6 +183,7 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
       totalValue: p.totalValue,
       totalDayChange: p.totalDayChange,
       totalDayChangePercent: p.totalDayChangePercent,
+      totalGain: p.totalGain,
       totalGainPercent: p.totalGainPercent,
       holdings: p.holdings,
       historicalData: chartData,

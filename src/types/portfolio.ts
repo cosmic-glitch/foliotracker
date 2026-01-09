@@ -39,6 +39,7 @@ export interface PortfolioData {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  totalGain: number | null;
   totalGainPercent: number | null;
   holdings: Holding[];
   historicalData: HistoricalDataPoint[];

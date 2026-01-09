@@ -35,6 +35,7 @@ interface PortfolioResponse {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  totalGain: number | null;
   totalGainPercent: number | null;
   holdings: Holding[];
   lastUpdated: string;
@@ -227,6 +228,9 @@ export default async function handler(
         totalValueWithCostBasis += holding.value;
       }
     }
+    const totalGain = totalCostBasis > 0
+      ? totalValueWithCostBasis - totalCostBasis
+      : null;
     const totalGainPercent = totalCostBasis > 0
       ? ((totalValueWithCostBasis - totalCostBasis) / totalCostBasis) * 100
       : null;
@@ -252,6 +256,7 @@ export default async function handler(
       totalValue,
       totalDayChange,
       totalDayChangePercent,
+      totalGain,
       totalGainPercent,
       holdings,
       lastUpdated: new Date().toISOString(),

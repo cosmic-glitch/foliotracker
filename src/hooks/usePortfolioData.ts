@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isMarketOpen } from '../lib/market-hours';
+
+export type ChartView = '1D' | '7D' | '30D';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -47,6 +49,7 @@ export const portfolioKeys = {
   all: ['portfolios'] as const,
   detail: (id: string) => ['portfolio', id] as const,
   history: (id: string) => ['portfolio', id, 'history'] as const,
+  intraday: (id: string) => ['portfolio', id, 'intraday'] as const,
 };
 
 // Fetch functions with HTTP cache support
@@ -76,10 +79,20 @@ async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHi
   return response.json();
 }
 
+async function fetchIntradayApi(portfolioId: string): Promise<ApiHistoryResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&interval=5m`,
+    { cache: 'no-store' } // Always fetch fresh for intraday
+  );
+  if (!response.ok) throw new Error('Failed to fetch intraday data');
+  return response.json();
+}
+
 const MAX_DAYS = 30; // Fetch 30 days of history
 
 export function usePortfolioData(portfolioId: string, password?: string | null) {
   const queryClient = useQueryClient();
+  const [chartView, setChartView] = useState<ChartView>('1D');
 
   // Portfolio query - needs frequent updates for live prices
   // Include password in queryKey so it refetches when password changes
@@ -94,16 +107,29 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     refetchIntervalInBackground: true,
   });
 
-  // History query - very stable, rarely needs refresh
+  // History query (7D/30D) - very stable, rarely needs refresh
   const historyQuery = useQuery({
     queryKey: portfolioKeys.history(portfolioId),
     queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS),
-    enabled: !!portfolioId && !!portfolioQuery.data, // Load after portfolio
+    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '7D' || chartView === '30D'),
     staleTime: 24 * 60 * 60 * 1000, // Fresh for 24 hours
     gcTime: 7 * 24 * 60 * 60 * 1000, // Keep in cache for 7 days
     refetchOnMount: false, // Don't refetch on every mount
     refetchOnWindowFocus: false,
     refetchInterval: false, // No auto-refresh for history
+  });
+
+  // Intraday query (1D) - fetched fresh each time
+  const intradayQuery = useQuery({
+    queryKey: portfolioKeys.intraday(portfolioId),
+    queryFn: () => fetchIntradayApi(portfolioId),
+    enabled: !!portfolioId && !!portfolioQuery.data && chartView === '1D',
+    staleTime: 0, // Always stale - fetch fresh
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    // Auto-refresh every 5 minutes when market is open
+    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : false,
   });
 
   // Check if response is a private portfolio requiring auth
@@ -121,7 +147,16 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     return null;
   }, [portfolioQuery.data]);
 
-  // Combine portfolio and history data
+  // Get the current chart data based on view
+  const chartData = useMemo(() => {
+    if (chartView === '1D') {
+      return intradayQuery.data?.data || [];
+    }
+    // Both 7D and 30D use history data (filtering done in chart component)
+    return historyQuery.data?.data || [];
+  }, [chartView, intradayQuery.data, historyQuery.data]);
+
+  // Combine portfolio and chart data
   const data: PortfolioData | null = useMemo(() => {
     if (!portfolioQuery.data) return null;
     // If it's a private portfolio requiring auth, return null for data
@@ -134,13 +169,13 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
       totalDayChange: p.totalDayChange,
       totalDayChangePercent: p.totalDayChangePercent,
       holdings: p.holdings,
-      historicalData: historyQuery.data?.data || [],
+      historicalData: chartData,
       benchmarkHistory: historyQuery.data?.benchmark || [],
       lastUpdated: new Date(p.lastUpdated),
       marketStatus: p.marketStatus,
       benchmark: p.benchmark,
     };
-  }, [portfolioQuery.data, historyQuery.data]);
+  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark]);
 
   // Refresh only portfolio prices (not history - it rarely changes)
   const refresh = useCallback(() => {
@@ -152,14 +187,21 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     queryClient.invalidateQueries({ queryKey: portfolioKeys.history(portfolioId) });
   }, [queryClient, portfolioId]);
 
+  // Chart loading state depends on current view
+  const isChartLoading = chartView === '1D'
+    ? intradayQuery.isLoading
+    : historyQuery.isLoading; // 7D and 30D both use history query
+
   return {
     data,
     isLoading: portfolioQuery.isLoading,
-    isHistoryLoading: historyQuery.isLoading,
+    isHistoryLoading: isChartLoading,
     isRefreshing: portfolioQuery.isFetching && !portfolioQuery.isLoading,
     error: portfolioQuery.error?.message || (portfolioQuery.data === null ? 'Portfolio not found' : null),
     requiresAuth,
     privateDisplayName,
+    chartView,
+    setChartView,
     refresh,
     refreshHistory,
   };

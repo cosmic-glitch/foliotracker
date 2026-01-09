@@ -54,3 +54,11 @@ export function formatChartDate(dateString: string): string {
     day: 'numeric',
   }).format(date);
 }
+
+export function formatChartTime(dateString: string): string {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}

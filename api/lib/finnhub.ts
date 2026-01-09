@@ -103,14 +103,15 @@ export async function getQuote(symbol: string): Promise<FinnhubQuote | null> {
 export async function getHistoricalData(
   symbol: string,
   from: Date,
-  to: Date
+  to: Date,
+  interval: '1d' | '5m' = '1d'
 ): Promise<{ date: string; close: number }[]> {
   // Try Yahoo Finance first (free, no API key needed)
   try {
     const period1 = Math.floor(from.getTime() / 1000);
     const period2 = Math.floor(to.getTime() / 1000);
 
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=${interval}`;
     const response = await fetch(yahooUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
@@ -126,8 +127,12 @@ export async function getHistoricalData(
         const historicalData: { date: string; close: number }[] = [];
         for (let i = 0; i < timestamps.length; i++) {
           if (closes[i] !== null) {
+            // For intraday, use ISO timestamp; for daily, use date only
+            const dateStr = interval === '1d'
+              ? new Date(timestamps[i] * 1000).toISOString().split('T')[0]
+              : new Date(timestamps[i] * 1000).toISOString();
             historicalData.push({
-              date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+              date: dateStr,
               close: closes[i],
             });
           }
@@ -146,9 +151,11 @@ export async function getHistoricalData(
   try {
     const fromTimestamp = Math.floor(from.getTime() / 1000);
     const toTimestamp = Math.floor(to.getTime() / 1000);
+    // Map interval to Finnhub resolution: '5m' -> '5', '1d' -> 'D'
+    const resolution = interval === '1d' ? 'D' : interval.replace('m', '');
 
     const response = await fetch(
-      `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=D&from=${fromTimestamp}&to=${toTimestamp}&token=${FINNHUB_API_KEY}`
+      `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${fromTimestamp}&to=${toTimestamp}&token=${FINNHUB_API_KEY}`
     );
 
     if (!response.ok) {
@@ -164,13 +171,80 @@ export async function getHistoricalData(
     }
 
     return data.t.map((timestamp, i) => ({
-      date: new Date(timestamp * 1000).toISOString().split('T')[0],
+      date: interval === '1d'
+        ? new Date(timestamp * 1000).toISOString().split('T')[0]
+        : new Date(timestamp * 1000).toISOString(),
       close: data.c[i],
     }));
   } catch (error) {
     console.error(`Error fetching historical data for ${symbol}:`, error);
     return [];
   }
+}
+
+// Yahoo Finance quote functions (unified source for stocks, ETFs, and mutual funds)
+export interface YahooQuote {
+  currentPrice: number;
+  previousClose: number;
+  changePercent: number;
+}
+
+export async function getYahooQuote(symbol: string): Promise<YahooQuote | null> {
+  try {
+    // Use chart API with 1d range to get current price and previous close
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1m`;
+    const response = await fetch(yahooUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+
+    if (!response.ok) {
+      console.error(`Yahoo Finance API error for ${symbol}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const meta = data.chart?.result?.[0]?.meta;
+
+    if (!meta || !meta.regularMarketPrice) {
+      console.warn(`No Yahoo data for ${symbol}`);
+      return null;
+    }
+
+    const currentPrice = meta.regularMarketPrice;
+    const previousClose = meta.chartPreviousClose || meta.previousClose || currentPrice;
+    const changePercent = previousClose > 0
+      ? ((currentPrice - previousClose) / previousClose) * 100
+      : 0;
+
+    return {
+      currentPrice,
+      previousClose,
+      changePercent,
+    };
+  } catch (error) {
+    console.error(`Error fetching Yahoo quote for ${symbol}:`, error);
+    return null;
+  }
+}
+
+export async function getMultipleYahooQuotes(
+  symbols: string[]
+): Promise<Map<string, YahooQuote>> {
+  const results = new Map<string, YahooQuote>();
+
+  // Fetch in parallel
+  const promises = symbols.map((symbol) =>
+    getYahooQuote(symbol).then((quote) => ({ symbol, quote }))
+  );
+  const resolved = await Promise.all(promises);
+
+  for (const { symbol, quote } of resolved) {
+    if (quote) {
+      results.set(symbol, quote);
+    }
+  }
+
+  return results;
 }
 
 // Use Twelve Data for fetching company/fund names (covers stocks, ETFs, and mutual funds)

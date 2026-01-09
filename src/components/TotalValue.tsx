@@ -7,14 +7,9 @@ interface TotalValueProps {
   dayChange: number;
   dayChangePercent: number;
   benchmark: BenchmarkData | null;
-  lastUpdated?: Date;
 }
 
-function formatLastUpdated(date: Date): string {
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-export function TotalValue({ totalValue, dayChange, dayChangePercent, benchmark, lastUpdated }: TotalValueProps) {
+export function TotalValue({ totalValue, dayChange, dayChangePercent, benchmark }: TotalValueProps) {
   const isPositive = dayChange >= 0;
   const Icon = isPositive ? TrendingUp : TrendingDown;
   const changeColor = isPositive ? 'text-positive' : 'text-negative';
@@ -31,11 +26,6 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, benchmark,
           <p className="text-4xl md:text-5xl font-bold text-text-primary tracking-tight">
             {formatCurrency(totalValue)}
           </p>
-          {lastUpdated && (
-            <p className="text-text-secondary text-xs mt-4">
-              Last updated at {formatLastUpdated(lastUpdated)}. Updates every 5-10 min.
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${bgColor}`}>

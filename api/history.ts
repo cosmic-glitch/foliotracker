@@ -3,6 +3,7 @@ import {
   getHoldings,
   getDailyPrices,
   upsertDailyPrice,
+  getCachedPrices,
 } from './lib/db.js';
 import { getHistoricalData } from './lib/finnhub.js';
 
@@ -23,6 +24,126 @@ interface HistoryResponse {
 }
 
 const BENCHMARK_TICKER = 'SPY';
+
+// Handle intraday (5-minute interval) data - no caching
+async function handleIntraday(
+  req: VercelRequest,
+  res: VercelResponse,
+  portfolioId: string
+): Promise<void> {
+  // Get holdings from database
+  const dbHoldings = await getHoldings(portfolioId);
+  const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
+  const staticHoldings = dbHoldings.filter((h) => h.is_static);
+
+  // For intraday, fetch today's data
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  // Fetch intraday data for all tradeable holdings in parallel
+  const fetchPromises = tradeableHoldings.map((holding) =>
+    getHistoricalData(holding.ticker, startOfDay, now, '5m').then((data) => ({
+      ticker: holding.ticker,
+      shares: holding.shares,
+      data,
+    }))
+  );
+
+  const results = await Promise.all(fetchPromises);
+
+  // Get cached prices for holdings without intraday data (e.g., mutual funds)
+  const cachedPrices = await getCachedPrices();
+
+  // Identify holdings without intraday data and calculate their constant value
+  let constantValue = 0;
+  const holdingsWithData: typeof results = [];
+
+  for (const result of results) {
+    if (result.data.length === 0) {
+      // No intraday data - use cached price
+      const cached = cachedPrices.get(result.ticker);
+      if (cached) {
+        constantValue += result.shares * cached.current_price;
+      }
+    } else {
+      holdingsWithData.push(result);
+    }
+  }
+
+  // Add static holdings to constant value
+  for (const holding of staticHoldings) {
+    constantValue += holding.static_value || 0;
+  }
+
+  // Build a map of timestamp -> total portfolio value
+  const timestampValues = new Map<string, number>();
+
+  // Collect all unique timestamps from holdings with data
+  const allTimestamps = new Set<string>();
+  for (const { data } of holdingsWithData) {
+    for (const point of data) {
+      allTimestamps.add(point.date);
+    }
+  }
+
+  // Sort timestamps
+  const sortedTimestamps = Array.from(allTimestamps).sort();
+
+  // Build price maps for each ticker
+  const priceMaps = new Map<string, Map<string, number>>();
+  for (const { ticker, data } of holdingsWithData) {
+    const priceMap = new Map<string, number>();
+    for (const point of data) {
+      priceMap.set(point.date, point.close);
+    }
+    priceMaps.set(ticker, priceMap);
+  }
+
+  // Calculate portfolio value at each timestamp
+  for (const timestamp of sortedTimestamps) {
+    let totalValue = constantValue; // Start with holdings without intraday data + static
+
+    // Add tradeable holdings that have intraday data
+    for (const { ticker, shares } of holdingsWithData) {
+      const priceMap = priceMaps.get(ticker);
+      if (priceMap) {
+        // Use the price for this timestamp, or find the most recent price
+        let price = priceMap.get(timestamp);
+        if (!price) {
+          // Find most recent previous price
+          for (const ts of sortedTimestamps) {
+            if (ts > timestamp) break;
+            const p = priceMap.get(ts);
+            if (p) price = p;
+          }
+        }
+        if (price) {
+          totalValue += shares * price;
+        }
+      }
+    }
+
+    if (totalValue > 0) {
+      timestampValues.set(timestamp, totalValue);
+    }
+  }
+
+  // Convert to response format
+  const data: HistoricalDataPoint[] = Array.from(timestampValues.entries())
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const response: HistoryResponse = {
+    data,
+    benchmark: [], // No benchmark for intraday
+    lastUpdated: new Date().toISOString(),
+  };
+
+  // No caching for intraday data - always fetch fresh
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json(response);
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -46,10 +167,16 @@ export default async function handler(
   try {
     const days = parseInt(req.query.days as string) || 30;
     const portfolioId = req.query.id as string;
+    const interval = (req.query.interval as string) === '5m' ? '5m' : '1d';
 
     if (!portfolioId) {
       res.status(400).json({ error: 'Portfolio ID is required' });
       return;
+    }
+
+    // For intraday data, use a separate code path (no caching)
+    if (interval === '5m') {
+      return handleIntraday(req, res, portfolioId);
     }
 
     // Get holdings from database

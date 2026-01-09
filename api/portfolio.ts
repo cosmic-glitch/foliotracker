@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword } from './lib/db.js';
-import { getMultipleQuotes, getQuote, isMutualFund, getMutualFundQuote } from './lib/finnhub.js';
+import { getMultipleYahooQuotes, getYahooQuote } from './lib/finnhub.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -103,49 +103,28 @@ export default async function handler(
     const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
     const staticHoldings = dbHoldings.filter((h) => h.is_static);
 
-    // Separate mutual funds from regular stocks/ETFs
-    const mutualFundHoldings = tradeableHoldings.filter((h) => isMutualFund(h.ticker));
-    const stockEtfHoldings = tradeableHoldings.filter((h) => !isMutualFund(h.ticker));
-
-    // Check which stock/ETF prices need refreshing
+    // Check which prices need refreshing
     const tickersToRefresh: string[] = [];
-    for (const holding of stockEtfHoldings) {
+    for (const holding of tradeableHoldings) {
       const cached = cachedPrices.get(holding.ticker);
       if (!cached || isCacheStale(cached)) {
         tickersToRefresh.push(holding.ticker);
       }
     }
 
-    // Fetch fresh stock/ETF prices from Finnhub if needed
+    // Fetch fresh prices from Yahoo Finance (handles stocks, ETFs, and mutual funds)
     if (tickersToRefresh.length > 0) {
-      const quotes = await getMultipleQuotes(tickersToRefresh);
+      const quotes = await getMultipleYahooQuotes(tickersToRefresh);
 
       // Update cache
       for (const [ticker, quote] of quotes) {
-        await updatePriceCache(ticker, quote.c, quote.pc);
+        await updatePriceCache(ticker, quote.currentPrice, quote.previousClose);
         cachedPrices.set(ticker, {
           ticker,
-          current_price: quote.c,
-          previous_close: quote.pc,
+          current_price: quote.currentPrice,
+          previous_close: quote.previousClose,
           updated_at: new Date().toISOString(),
         });
-      }
-    }
-
-    // Fetch mutual fund prices from CNBC
-    for (const holding of mutualFundHoldings) {
-      const cached = cachedPrices.get(holding.ticker);
-      if (!cached || isCacheStale(cached)) {
-        const quote = await getMutualFundQuote(holding.ticker);
-        if (quote) {
-          await updatePriceCache(holding.ticker, quote.price, quote.previousClose);
-          cachedPrices.set(holding.ticker, {
-            ticker: holding.ticker,
-            current_price: quote.price,
-            previous_close: quote.previousClose,
-            updated_at: new Date().toISOString(),
-          });
-        }
       }
     }
 
@@ -214,15 +193,15 @@ export default async function handler(
     // Sort by value descending
     holdings.sort((a, b) => b.value - a.value);
 
-    // Fetch S&P 500 benchmark data
+    // Fetch S&P 500 benchmark data from Yahoo Finance
     let benchmark: BenchmarkData | null = null;
     try {
-      const spyQuote = await getQuote(BENCHMARK_TICKER);
-      if (spyQuote && spyQuote.pc > 0) {
+      const spyQuote = await getYahooQuote(BENCHMARK_TICKER);
+      if (spyQuote && spyQuote.previousClose > 0) {
         benchmark = {
           ticker: BENCHMARK_TICKER,
           name: BENCHMARK_NAME,
-          dayChangePercent: spyQuote.dp,
+          dayChangePercent: spyQuote.changePercent,
         };
       }
     } catch (error) {

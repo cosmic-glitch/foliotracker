@@ -8,31 +8,38 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import type { HistoricalDataPoint } from '../types/portfolio';
-import { formatChartDate, formatCurrency } from '../utils/formatters';
+import type { ChartView } from '../hooks/usePortfolioData';
+import { formatChartDate, formatChartTime, formatCurrency } from '../utils/formatters';
 
 interface PerformanceChartProps {
   data: HistoricalDataPoint[];
   isLoading?: boolean;
+  chartView: ChartView;
+  onViewChange: (view: ChartView) => void;
+  currentValue?: number;
 }
 
 interface ChartDataPoint {
   date: string;
+  timestamp: number;
   formattedDate: string;
   value: number;
 }
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
+  payload?: Array<{ value: number; payload: ChartDataPoint }>;
+  label?: number;
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
+
+  const dataPoint = payload[0].payload;
 
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-text-secondary text-xs mb-1">{label}</p>
+      <p className="text-text-secondary text-xs mb-1">{dataPoint.formattedDate}</p>
       <p className="text-sm text-text-primary font-semibold">
         {formatCurrency(payload[0].value)}
       </p>
@@ -40,29 +47,90 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   );
 }
 
-export function PerformanceChart({ data, isLoading }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue }: PerformanceChartProps) {
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
 
-    // Filter to last 30 days
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 30);
-    const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
+    let points: ChartDataPoint[];
 
-    const filteredData = data.filter((point) => point.date >= cutoffDateStr);
+    if (chartView === '1D') {
+      // Intraday: use all data points, format as time
+      points = data.map((point): ChartDataPoint => ({
+        date: point.date,
+        timestamp: new Date(point.date).getTime(),
+        formattedDate: formatChartTime(point.date),
+        value: point.value,
+      }));
+    } else {
+      // 7D or 30D: Filter to last N days, format as date
+      const days = chartView === '7D' ? 7 : 30;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+      const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
 
-    return filteredData.map((point): ChartDataPoint => ({
-      date: point.date,
-      formattedDate: formatChartDate(point.date),
-      value: point.value,
-    }));
-  }, [data]);
+      const filteredData = data.filter((point) => point.date >= cutoffDateStr);
+
+      points = filteredData.map((point): ChartDataPoint => ({
+        date: point.date,
+        timestamp: new Date(point.date).getTime(),
+        formattedDate: formatChartDate(point.date),
+        value: point.value,
+      }));
+    }
+
+    // Always set the last point's value to currentValue (ensures chart ends at displayed total)
+    if (currentValue && points.length > 0) {
+      points[points.length - 1] = {
+        ...points[points.length - 1],
+        value: currentValue,
+      };
+    }
+
+    return points;
+  }, [data, chartView, currentValue]);
+
+  const renderHeader = () => (
+    <div className="flex items-center mb-4">
+      <div className="flex rounded-lg overflow-hidden border border-border">
+        <button
+          onClick={() => onViewChange('1D')}
+          className={`px-3 py-1 text-sm font-medium transition-colors ${
+            chartView === '1D'
+              ? 'bg-accent text-white'
+              : 'bg-card text-text-secondary hover:bg-background'
+          }`}
+        >
+          1D
+        </button>
+        <button
+          onClick={() => onViewChange('7D')}
+          className={`px-3 py-1 text-sm font-medium transition-colors ${
+            chartView === '7D'
+              ? 'bg-accent text-white'
+              : 'bg-card text-text-secondary hover:bg-background'
+          }`}
+        >
+          7D
+        </button>
+        <button
+          onClick={() => onViewChange('30D')}
+          className={`px-3 py-1 text-sm font-medium transition-colors ${
+            chartView === '30D'
+              ? 'bg-accent text-white'
+              : 'bg-card text-text-secondary hover:bg-background'
+          }`}
+        >
+          30D
+        </button>
+      </div>
+    </div>
+  );
 
   // Show loading state
   if (isLoading) {
     return (
       <div className="bg-card rounded-2xl p-6 border border-border">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
+        {renderHeader()}
         <div className="h-64 md:h-72 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -76,9 +144,9 @@ export function PerformanceChart({ data, isLoading }: PerformanceChartProps) {
   if (chartData.length === 0) {
     return (
       <div className="bg-card rounded-2xl p-6 border border-border">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
+        {renderHeader()}
         <div className="h-64 flex items-center justify-center text-text-secondary">
-          No historical data available
+          No data available
         </div>
       </div>
     );
@@ -91,9 +159,25 @@ export function PerformanceChart({ data, isLoading }: PerformanceChartProps) {
   const range = maxValue - minValue;
   const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
 
+  // Calculate market hours for x-axis domain (9:30 AM - 4:00 PM ET)
+  const getMarketHoursDomain = (): [number, number] => {
+    // Create dates in ET timezone
+    const etDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+
+    const marketOpen = new Date(etDate);
+    marketOpen.setHours(9, 30, 0, 0);
+
+    const marketClose = new Date(etDate);
+    marketClose.setHours(16, 0, 0, 0);
+
+    return [marketOpen.getTime(), marketClose.getTime()];
+  };
+
+  const xDomain = chartView === '1D' ? getMarketHoursDomain() : ['dataMin', 'dataMax'];
+
   return (
     <div className="bg-card rounded-2xl p-6 border border-border">
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
+      {renderHeader()}
       <div className="h-64 md:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -101,11 +185,14 @@ export function PerformanceChart({ data, isLoading }: PerformanceChartProps) {
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
           >
             <XAxis
-              dataKey="formattedDate"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
               axisLine={false}
               tickLine={false}
               tick={{ fill: '#94a3b8', fontSize: 12 }}
-              interval="preserveStartEnd"
+              tickFormatter={(ts) => chartView === '1D' ? formatChartTime(new Date(ts).toISOString()) : formatChartDate(new Date(ts).toISOString())}
               minTickGap={50}
             />
             <YAxis

@@ -48,7 +48,7 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
                 {copied ? (
                   <>
                     <Check className="w-5 h-5 text-positive" />
-                    <span className="text-positive">Copied!</span>
+                    <span className="text-positive">Portfolio link copied!</span>
                   </>
                 ) : (
                   <>

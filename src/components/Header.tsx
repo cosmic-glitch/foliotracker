@@ -4,7 +4,6 @@ import { TrendingUp, Home, Share2, Check } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
 import { ThemeToggle } from './ThemeToggle';
-import { useToast } from '../context/ToastContext';
 
 interface HeaderProps {
   marketStatus?: MarketStatus;
@@ -14,7 +13,6 @@ interface HeaderProps {
 
 export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) {
   const [copied, setCopied] = useState(false);
-  const { showToast } = useToast();
 
   // If we have a portfolioId but no displayName yet, show generic title while loading
   const title = portfolioId
@@ -24,7 +22,6 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
   const handleShare = async () => {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
-    showToast('Link copied!');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -45,11 +42,14 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
             {portfolioId && (
               <button
                 onClick={handleShare}
-                className="p-2 hover:bg-card rounded-lg transition-colors"
-                title={copied ? 'Copied!' : 'Copy link'}
+                className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors"
+                title="Copy link"
               >
                 {copied ? (
-                  <Check className="w-5 h-5 text-positive" />
+                  <>
+                    <Check className="w-5 h-5 text-positive" />
+                    <span className="text-sm text-positive">Copied!</span>
+                  </>
                 ) : (
                   <Share2 className="w-5 h-5 text-text-secondary" />
                 )}

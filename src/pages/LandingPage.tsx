@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, Plus, Users, Pencil, Trash2, Lock } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 
 interface Portfolio {
@@ -107,7 +108,10 @@ export function LandingPage() {
                 Portfolio Tracker
               </h1>
             </div>
-            <MarketStatusBadge status={getMarketStatus()} />
+            <div className="flex items-center gap-3">
+              <MarketStatusBadge status={getMarketStatus()} />
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>

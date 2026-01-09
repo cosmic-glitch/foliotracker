@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { TrendingUp, Home } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
+import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
   marketStatus?: MarketStatus;
@@ -29,6 +30,7 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
           </div>
           <div className="flex items-center gap-3">
             {marketStatus && <MarketStatusBadge status={marketStatus} />}
+            <ThemeToggle />
             <Link to="/" className="p-2 hover:bg-card rounded-lg transition-colors" title="All Portfolios">
               <Home className="w-5 h-5 text-text-secondary" />
             </Link>

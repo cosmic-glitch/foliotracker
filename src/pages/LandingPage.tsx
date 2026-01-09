@@ -123,7 +123,7 @@ export function LandingPage() {
             Track your portfolio value with zero hassle.
           </p>
           <ul className="text-text-secondary text-sm space-y-1">
-            <li>• Manually enter your holdings — no transaction history or brokerage connection needed</li>
+            <li>• Just enter your current holdings — no transaction history or brokerage connection needed</li>
             <li>• Pick an ID for your portfolio — no email, no real name, no way for anyone to know it's you</li>
             <li>• Mark it private or leave it public for friends to see</li>
           </ul>

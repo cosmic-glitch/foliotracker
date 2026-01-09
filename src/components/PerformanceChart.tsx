@@ -78,8 +78,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       }));
     }
 
-    // Always set the last point's value to currentValue (ensures chart ends at displayed total)
-    if (currentValue && points.length > 0) {
+    // For 7D/30D views, update the last point to match currentValue (ensures chart ends at displayed total)
+    // Skip this for 1D intraday view - let historical data be self-consistent to avoid spikes
+    if (currentValue && points.length > 0 && chartView !== '1D') {
       points[points.length - 1] = {
         ...points[points.length - 1],
         value: currentValue,

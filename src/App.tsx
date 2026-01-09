@@ -153,6 +153,7 @@ function App() {
               totalValue={data.totalValue}
               dayChange={data.totalDayChange}
               dayChangePercent={data.totalDayChangePercent}
+              totalGainPercent={data.totalGainPercent}
               benchmark={data.benchmark}
             />
             <PerformanceChart

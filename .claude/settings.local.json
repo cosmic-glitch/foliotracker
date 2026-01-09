@@ -38,7 +38,11 @@
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
       "Bash(gh issue create:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(gh api:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }

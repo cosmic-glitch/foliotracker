@@ -35,6 +35,7 @@ interface PortfolioResponse {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  totalGainPercent: number | null;
   holdings: Holding[];
   lastUpdated: string;
   marketStatus: string;
@@ -217,6 +218,19 @@ export default async function handler(
     // Sort by value descending
     holdings.sort((a, b) => b.value - a.value);
 
+    // Calculate total gain % from holdings with cost basis
+    let totalCostBasis = 0;
+    let totalValueWithCostBasis = 0;
+    for (const holding of holdings) {
+      if (holding.costBasis !== null) {
+        totalCostBasis += holding.costBasis;
+        totalValueWithCostBasis += holding.value;
+      }
+    }
+    const totalGainPercent = totalCostBasis > 0
+      ? ((totalValueWithCostBasis - totalCostBasis) / totalCostBasis) * 100
+      : null;
+
     // Fetch S&P 500 benchmark data from Yahoo Finance
     let benchmark: BenchmarkData | null = null;
     try {
@@ -238,6 +252,7 @@ export default async function handler(
       totalValue,
       totalDayChange,
       totalDayChangePercent,
+      totalGainPercent,
       holdings,
       lastUpdated: new Date().toISOString(),
       marketStatus: getMarketStatus(),

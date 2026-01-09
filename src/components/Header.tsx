@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Home, Share2, Check } from 'lucide-react';
+import { TrendingUp, Home, Share2, Check, Pencil, Trash2 } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
 import { ThemeToggle } from './ThemeToggle';
@@ -9,9 +9,11 @@ interface HeaderProps {
   marketStatus?: MarketStatus;
   portfolioId?: string;
   displayName?: string | null;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
-export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) {
+export function Header({ marketStatus, portfolioId, displayName, onEdit, onDelete }: HeaderProps) {
   const [copied, setCopied] = useState(false);
 
   // If we have a portfolioId but no displayName yet, show generic title while loading
@@ -39,6 +41,26 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
           </div>
           <div className="flex items-center gap-3">
             {marketStatus && <MarketStatusBadge status={marketStatus} />}
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-1.5 p-2 hover:bg-card hover:text-accent rounded-lg transition-colors text-sm text-text-secondary"
+                title="Edit portfolio"
+              >
+                <Pencil className="w-5 h-5" />
+                <span>Edit</span>
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="flex items-center gap-1.5 p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-sm text-text-secondary"
+                title="Delete portfolio"
+              >
+                <Trash2 className="w-5 h-5" />
+                <span>Delete</span>
+              </button>
+            )}
             {portfolioId && (
               <button
                 onClick={handleShare}

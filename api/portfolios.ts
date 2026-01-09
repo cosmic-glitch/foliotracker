@@ -19,6 +19,7 @@ const MAX_PORTFOLIOS = 10;
 interface HoldingInput {
   ticker: string;
   value: number; // in dollars
+  costBasis?: number; // in dollars (optional)
 }
 
 interface ParsedHoldings {
@@ -31,6 +32,7 @@ interface ClassifiedHolding extends HoldingInput {
   name?: string;
   instrumentType?: string;
   price?: number;
+  costBasis?: number;
 }
 
 interface ClassificationResult {
@@ -39,7 +41,7 @@ interface ClassificationResult {
 }
 
 function parseHoldingsInput(input: string): ParsedHoldings {
-  const holdingsMap = new Map<string, number>(); // Aggregate by ticker
+  const holdingsMap = new Map<string, { value: number; costBasis?: number }>(); // Aggregate by ticker
   const errors: string[] = [];
   const lines = input.trim().split('\n');
 
@@ -47,20 +49,36 @@ function parseHoldingsInput(input: string): ParsedHoldings {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Support formats: "VUG: 4174.9", "Real Estate: 1526.5", "VUG 4174.9"
-    // First try colon format (allows spaces in name)
-    let match = trimmed.match(/^(.+?):\s*(\d+(?:\.\d+)?)$/);
+    // Support formats:
+    // "VUG: 4174.9" - basic format
+    // "VUG: 4174.9 @ 3500.0" - with cost basis
+    // "Real Estate: 1526.5" - static asset
+    // "VUG 4174.9" - space separator (single-word ticker only)
+
+    // First try colon format with optional @ cost basis
+    let match = trimmed.match(/^(.+?):\s*(\d+(?:\.\d+)?)\s*(?:@\s*(\d+(?:\.\d+)?))?$/);
     if (!match) {
-      // Fallback: single-word ticker with space or comma separator
+      // Fallback: single-word ticker with space or comma separator (no cost basis support)
       match = trimmed.match(/^([A-Za-z0-9.]+)[\s,]+(\d+(?:\.\d+)?)$/);
     }
 
     if (match) {
       const ticker = match[1].trim();
       const value = parseFloat(match[2]) * 1000; // Convert from thousands to dollars
+      const costBasis = match[3] ? parseFloat(match[3]) * 1000 : undefined;
+
       // Aggregate duplicate tickers by summing their values
-      const existing = holdingsMap.get(ticker) || 0;
-      holdingsMap.set(ticker, existing + value);
+      const existing = holdingsMap.get(ticker);
+      if (existing) {
+        holdingsMap.set(ticker, {
+          value: existing.value + value,
+          costBasis: existing.costBasis !== undefined || costBasis !== undefined
+            ? (existing.costBasis || 0) + (costBasis || 0)
+            : undefined,
+        });
+      } else {
+        holdingsMap.set(ticker, { value, costBasis });
+      }
     } else {
       errors.push(`Could not parse line: "${trimmed}"`);
     }
@@ -68,7 +86,7 @@ function parseHoldingsInput(input: string): ParsedHoldings {
 
   // Convert map to array
   const holdings: HoldingInput[] = Array.from(holdingsMap.entries()).map(
-    ([ticker, value]) => ({ ticker, value })
+    ([ticker, data]) => ({ ticker, value: data.value, costBasis: data.costBasis })
   );
 
   return { holdings, errors };
@@ -344,6 +362,7 @@ export default async function handler(
           is_static: false,
           static_value: null,
           instrument_type: holding.instrumentType || 'Other',
+          cost_basis: holding.costBasis ?? null,
         });
       }
 
@@ -355,6 +374,7 @@ export default async function handler(
           is_static: true,
           static_value: holding.value,
           instrument_type: holding.instrumentType || 'Other',
+          cost_basis: holding.costBasis ?? null,
         });
       }
 
@@ -452,6 +472,7 @@ export default async function handler(
           is_static: false,
           static_value: null,
           instrument_type: holding.instrumentType || 'Other',
+          cost_basis: holding.costBasis ?? null,
         });
       }
 
@@ -463,6 +484,7 @@ export default async function handler(
           is_static: true,
           static_value: holding.value,
           instrument_type: holding.instrumentType || 'Other',
+          cost_basis: holding.costBasis ?? null,
         });
       }
 

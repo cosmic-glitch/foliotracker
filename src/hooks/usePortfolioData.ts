@@ -31,6 +31,9 @@ interface ApiPortfolioResponse {
     dayChangePercent: number;
     isStatic: boolean;
     instrumentType: string;
+    costBasis: number | null;
+    profitLoss: number | null;
+    profitLossPercent: number | null;
   }>;
   lastUpdated: string;
   marketStatus: MarketStatus;

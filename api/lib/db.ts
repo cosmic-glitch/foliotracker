@@ -25,6 +25,7 @@ export interface DbHolding {
   is_static: boolean;
   static_value: number | null;
   instrument_type: string | null;
+  cost_basis: number | null;
 }
 
 export interface DbPriceCache {

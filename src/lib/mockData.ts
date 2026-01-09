@@ -53,6 +53,9 @@ function calculateHoldings(): Holding[] {
         dayChangePercent: 0,
         isStatic: true,
         instrumentType,
+        costBasis: null,
+        profitLoss: null,
+        profitLossPercent: null,
       };
     }
 
@@ -82,6 +85,9 @@ function calculateHoldings(): Holding[] {
       dayChangePercent,
       isStatic: false,
       instrumentType,
+      costBasis: null,
+      profitLoss: null,
+      profitLossPercent: null,
     };
   });
 

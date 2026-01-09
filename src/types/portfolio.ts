@@ -10,6 +10,9 @@ export interface Holding {
   dayChangePercent: number;
   isStatic: boolean;
   instrumentType: string;
+  costBasis: number | null;
+  profitLoss: number | null;
+  profitLossPercent: number | null;
 }
 
 export interface HistoricalDataPoint {

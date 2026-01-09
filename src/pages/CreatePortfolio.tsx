@@ -240,6 +240,8 @@ export function CreatePortfolio() {
             <p className="text-xs text-text-secondary mt-2">
               Enter each holding on a new line: TICKER: VALUE (in thousands USD)
               <br />
+              Optional cost basis: TICKER: VALUE @ COST_BASIS (e.g., NVDA: 100 @ 80)
+              <br />
               Non-tradeable assets (like "Real Estate") will be treated as static values.
             </p>
           </div>

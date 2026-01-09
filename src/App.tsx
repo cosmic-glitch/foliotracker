@@ -18,6 +18,7 @@ function App() {
   const navigate = useNavigate();
   const { unlock, getPassword } = useUnlockedPortfolios();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Get stored password if portfolio was previously unlocked
   const storedPassword = portfolioId ? getPassword(portfolioId) : null;
@@ -87,6 +88,41 @@ function App() {
     navigate(`/${portfolioId}/edit`, { state: { password } });
   };
 
+  const handleDelete = () => {
+    if (!portfolioId) return;
+
+    // If we already have a stored password, show delete modal directly
+    // Otherwise show password modal first
+    if (storedPassword) {
+      setShowDeleteModal(true);
+    } else {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleDeleteVerify = async (password: string) => {
+    if (!portfolioId) return;
+
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: portfolioId, password }),
+    });
+
+    const json = await response.json();
+
+    if (response.status === 401) {
+      throw new Error('Invalid password');
+    }
+    if (!response.ok) {
+      throw new Error(json.error || 'Failed to delete portfolio');
+    }
+
+    // Successfully deleted, navigate to home
+    navigate('/');
+  };
+
   if (!portfolioId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -100,7 +136,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} displayName={data?.displayName} />
+      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} displayName={data?.displayName} onEdit={handleEdit} onDelete={handleDelete} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 space-y-6">
         {error && (
@@ -128,7 +164,7 @@ function App() {
             />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <HoldingsTable holdings={data.holdings} onEdit={handleEdit} />
+                <HoldingsTable holdings={data.holdings} />
               </div>
               <div className="lg:col-span-1">
                 <HoldingsByType holdings={data.holdings} />
@@ -165,6 +201,18 @@ function App() {
           confirmLabel="Continue"
           onConfirm={handleEditVerify}
           onCancel={() => setShowEditModal(false)}
+        />
+      )}
+
+      {/* Password modal for deleting */}
+      {showDeleteModal && (
+        <PasswordModal
+          title="Delete Portfolio"
+          description={`Are you sure you want to delete "${data?.displayName || portfolioId}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          confirmVariant="danger"
+          onConfirm={handleDeleteVerify}
+          onCancel={() => setShowDeleteModal(false)}
         />
       )}
     </div>

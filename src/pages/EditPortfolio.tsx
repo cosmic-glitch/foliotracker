@@ -59,8 +59,12 @@ export function EditPortfolio() {
 
         // Convert holdings back to input format
         const holdingsText = data.holdings
-          .map((h: { ticker: string; value: number }) => {
+          .map((h: { ticker: string; value: number; costBasis: number | null }) => {
             const valueInThousands = h.value / 1000;
+            if (h.costBasis !== null) {
+              const costBasisInThousands = h.costBasis / 1000;
+              return `${h.ticker}: ${valueInThousands.toFixed(1)} @ ${costBasisInThousands.toFixed(1)}`;
+            }
             return `${h.ticker}: ${valueInThousands.toFixed(1)}`;
           })
           .join('\n');
@@ -245,6 +249,8 @@ export function EditPortfolio() {
             />
             <p className="text-xs text-text-secondary mt-2">
               Enter each holding on a new line: TICKER: VALUE (in thousands USD)
+              <br />
+              Optional cost basis: TICKER: VALUE @ COST_BASIS (e.g., NVDA: 100 @ 80)
               <br />
               Non-tradeable assets (like "Real Estate") will be treated as
               static values.

@@ -1,10 +1,9 @@
-import { TrendingUp, TrendingDown, Minus, Pencil } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Holding } from '../types/portfolio';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 
 interface HoldingsTableProps {
   holdings: Holding[];
-  onEdit?: () => void;
 }
 
 function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
@@ -49,22 +48,28 @@ function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: n
   );
 }
 
-export function HoldingsTable({ holdings, onEdit }: HoldingsTableProps) {
+function ProfitIndicator({ percent }: { percent: number | null }) {
+  if (percent === null) {
+    return <span className="text-text-secondary">--</span>;
+  }
+
+  const isPositive = percent >= 0;
+  const color = isPositive ? 'text-positive' : 'text-negative';
+
+  return (
+    <span className={`font-medium ${color}`}>
+      {isPositive ? '+' : ''}{percent.toFixed(1)}%
+    </span>
+  );
+}
+
+export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const maxAllocation = Math.max(...holdings.map((h) => h.allocation));
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-border">
         <h2 className="text-lg font-semibold text-text-primary">Holdings</h2>
-        {onEdit && (
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit
-          </button>
-        )}
       </div>
 
       {/* Desktop Table */}
@@ -77,6 +82,9 @@ export function HoldingsTable({ holdings, onEdit }: HoldingsTableProps) {
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Value
+              </th>
+              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                Gain/Loss
               </th>
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
@@ -102,6 +110,9 @@ export function HoldingsTable({ holdings, onEdit }: HoldingsTableProps) {
                   <span className="font-semibold text-text-primary">
                     {formatCurrency(holding.value, true)}
                   </span>
+                </td>
+                <td className="text-right px-4 py-2">
+                  <ProfitIndicator percent={holding.profitLossPercent} />
                 </td>
                 <td className="px-4 py-2">
                   <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
@@ -131,9 +142,15 @@ export function HoldingsTable({ holdings, onEdit }: HoldingsTableProps) {
                 {formatCurrency(holding.value, true)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center mb-2">
               <div className="flex-1 mr-4">
                 <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
+              </div>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-1">
+                <span className="text-text-secondary">Gain/Loss:</span>
+                <ProfitIndicator percent={holding.profitLossPercent} />
               </div>
               <ChangeIndicator
                 value={holding.dayChange}

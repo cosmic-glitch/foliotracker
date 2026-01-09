@@ -17,6 +17,7 @@ export interface DbHolding {
   shares: number;
   is_static: boolean;
   static_value: number | null;
+  cost_basis: number | null;
 }
 
 export interface DbPriceCache {

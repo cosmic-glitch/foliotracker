@@ -18,6 +18,9 @@ interface Holding {
   dayChangePercent: number;
   isStatic: boolean;
   instrumentType: string;
+  costBasis: number | null;
+  profitLoss: number | null;
+  profitLossPercent: number | null;
 }
 
 interface BenchmarkData {
@@ -145,6 +148,13 @@ export default async function handler(
       const dayChangePercent =
         previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
 
+      // Calculate profit/loss if cost basis exists
+      const costBasis = holding.cost_basis;
+      const profitLoss = costBasis !== null ? value - costBasis : null;
+      const profitLossPercent = costBasis !== null && costBasis > 0
+        ? (profitLoss! / costBasis) * 100
+        : null;
+
       holdings.push({
         ticker: holding.ticker,
         name: holding.name,
@@ -157,12 +167,23 @@ export default async function handler(
         dayChangePercent,
         isStatic: false,
         instrumentType: holding.instrument_type || 'Other',
+        costBasis,
+        profitLoss,
+        profitLossPercent,
       });
     }
 
     // Process static holdings
     for (const holding of staticHoldings) {
       const value = holding.static_value || 0;
+
+      // Calculate profit/loss if cost basis exists
+      const costBasis = holding.cost_basis;
+      const profitLoss = costBasis !== null ? value - costBasis : null;
+      const profitLossPercent = costBasis !== null && costBasis > 0
+        ? (profitLoss! / costBasis) * 100
+        : null;
+
       holdings.push({
         ticker: holding.ticker,
         name: holding.name,
@@ -175,6 +196,9 @@ export default async function handler(
         dayChangePercent: 0,
         isStatic: true,
         instrumentType: holding.instrument_type || 'Other',
+        costBasis,
+        profitLoss,
+        profitLossPercent,
       });
     }
 

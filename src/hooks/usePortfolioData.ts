@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isMarketOpen } from '../lib/market-hours';
@@ -76,22 +76,10 @@ async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHi
   return response.json();
 }
 
-export type TimeRange = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y';
-
-export const TIME_RANGE_DAYS: Record<TimeRange, number> = {
-  '1M': 30,
-  '3M': 90,
-  '6M': 180,
-  '1Y': 365,
-  '2Y': 730,
-  '3Y': 1095,
-};
-
-const MAX_DAYS = 1095; // Always fetch 3Y, filter client-side
+const MAX_DAYS = 30; // Fetch 30 days of history
 
 export function usePortfolioData(portfolioId: string, password?: string | null) {
   const queryClient = useQueryClient();
-  const [timeRange, setTimeRange] = useState<TimeRange>('2Y');
 
   // Portfolio query - needs frequent updates for live prices
   // Include password in queryKey so it refetches when password changes
@@ -164,11 +152,6 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     queryClient.invalidateQueries({ queryKey: portfolioKeys.history(portfolioId) });
   }, [queryClient, portfolioId]);
 
-  // Change time range (no refetch needed - filtering is client-side)
-  const changeTimeRange = useCallback((range: TimeRange) => {
-    setTimeRange(range);
-  }, []);
-
   return {
     data,
     isLoading: portfolioQuery.isLoading,
@@ -177,8 +160,6 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     error: portfolioQuery.error?.message || (portfolioQuery.data === null ? 'Portfolio not found' : null),
     requiresAuth,
     privateDisplayName,
-    timeRange,
-    changeTimeRange,
     refresh,
     refreshHistory,
   };

@@ -30,8 +30,6 @@ function App() {
     error,
     requiresAuth,
     privateDisplayName,
-    timeRange,
-    changeTimeRange,
     refresh,
   } = usePortfolioData(portfolioId || '', storedPassword);
 
@@ -122,10 +120,7 @@ function App() {
             />
             <PerformanceChart
               data={data.historicalData}
-              benchmarkData={data.benchmarkHistory}
               isLoading={isHistoryLoading}
-              timeRange={timeRange}
-              onTimeRangeChange={changeTimeRange}
             />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">

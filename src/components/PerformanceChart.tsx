@@ -6,32 +6,24 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
 } from 'recharts';
-import type { HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
-import { type TimeRange, TIME_RANGE_DAYS } from '../hooks/usePortfolioData';
-import { formatChartDate } from '../utils/formatters';
-
-const TIME_RANGES: TimeRange[] = ['1M', '3M', '6M', '1Y', '2Y', '3Y'];
+import type { HistoricalDataPoint } from '../types/portfolio';
+import { formatChartDate, formatCurrency } from '../utils/formatters';
 
 interface PerformanceChartProps {
   data: HistoricalDataPoint[];
-  benchmarkData: BenchmarkHistoryPoint[];
   isLoading?: boolean;
-  timeRange: TimeRange;
-  onTimeRangeChange: (range: TimeRange) => void;
 }
 
 interface ChartDataPoint {
   date: string;
   formattedDate: string;
-  portfolio: number;
-  benchmark: number | null;
+  value: number;
 }
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ value: number; dataKey: string; color: string }>;
+  payload?: Array<{ value: number }>;
   label?: string;
 }
 
@@ -40,88 +32,37 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-text-secondary text-xs mb-2">{label}</p>
-      {payload.map((entry) => (
-        <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
-          {entry.dataKey === 'portfolio' ? 'Portfolio' : 'S&P 500'}:{' '}
-          <span className="font-semibold">
-            {entry.value >= 0 ? '+' : ''}
-            {entry.value.toFixed(2)}%
-          </span>
-        </p>
-      ))}
+      <p className="text-text-secondary text-xs mb-1">{label}</p>
+      <p className="text-sm text-text-primary font-semibold">
+        {formatCurrency(payload[0].value)}
+      </p>
     </div>
   );
 }
 
-export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, onTimeRangeChange }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading }: PerformanceChartProps) {
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
 
-    // Filter data based on selected time range using actual dates, not point count
-    const days = TIME_RANGE_DAYS[timeRange];
+    // Filter to last 30 days
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    // Use local date (not UTC) to avoid timezone issues
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
     const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
 
     const filteredData = data.filter((point) => point.date >= cutoffDateStr);
 
-    if (filteredData.length === 0) return [];
-
-    // Calculate portfolio % change from first day of filtered range
-    const startValue = filteredData[0].value;
-
-    // Create a map of benchmark data by date
-    const benchmarkMap = new Map<string, number>();
-    // Also filter benchmark data by date and recalculate from start of range
-    const filteredBenchmark = benchmarkData.filter((point) => point.date >= cutoffDateStr);
-    const benchmarkStartChange = filteredBenchmark[0]?.percentChange ?? 0;
-    // Convert start percent to multiplier (e.g., 53.5% -> 1.535)
-    const startMultiplier = 1 + benchmarkStartChange / 100;
-    for (const point of filteredBenchmark) {
-      // Calculate proper compound return from the start of the filtered range
-      // If start was +53.5% and current is +78.4% (both relative to original base),
-      // actual return = (1.784 / 1.535 - 1) * 100 = 16.2%
-      const currentMultiplier = 1 + point.percentChange / 100;
-      benchmarkMap.set(point.date, (currentMultiplier / startMultiplier - 1) * 100);
-    }
-
     return filteredData.map((point): ChartDataPoint => ({
       date: point.date,
       formattedDate: formatChartDate(point.date),
-      portfolio: ((point.value - startValue) / startValue) * 100,
-      benchmark: benchmarkMap.get(point.date) ?? null,
+      value: point.value,
     }));
-  }, [data, benchmarkData, timeRange]);
-
-  // Time range selector buttons
-  const TimeRangeButtons = () => (
-    <div className="flex gap-1">
-      {TIME_RANGES.map((range) => (
-        <button
-          key={range}
-          onClick={() => onTimeRangeChange(range)}
-          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-            timeRange === range
-              ? 'bg-accent text-white'
-              : 'bg-card-hover text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          {range}
-        </button>
-      ))}
-    </div>
-  );
+  }, [data]);
 
   // Show loading state
   if (isLoading) {
     return (
       <div className="bg-card rounded-2xl p-6 border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Performance</h2>
-          <TimeRangeButtons />
-        </div>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
         <div className="h-64 md:h-72 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -135,10 +76,7 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
   if (chartData.length === 0) {
     return (
       <div className="bg-card rounded-2xl p-6 border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Performance</h2>
-          <TimeRangeButtons />
-        </div>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
         <div className="h-64 flex items-center justify-center text-text-secondary">
           No historical data available
         </div>
@@ -146,49 +84,16 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
     );
   }
 
-  // Calculate min/max for Y axis
-  const allValues = chartData.flatMap((d) => [d.portfolio, d.benchmark].filter((v): v is number => v !== null));
-  const minValue = Math.min(...allValues, 0);
-  const maxValue = Math.max(...allValues, 0);
-  const padding = Math.max((maxValue - minValue) * 0.15, 1);
-
-  // Get final values for legend (find last non-null values)
-  const lastPoint = chartData[chartData.length - 1];
-  const portfolioChange = lastPoint?.portfolio ?? 0;
-  // Find the last non-null benchmark value (dates may not align perfectly)
-  let benchmarkChange = 0;
-  for (let i = chartData.length - 1; i >= 0; i--) {
-    const bm = chartData[i].benchmark;
-    if (bm !== null) {
-      benchmarkChange = bm;
-      break;
-    }
-  }
+  // Calculate min/max for Y axis with some padding
+  const values = chartData.map((d) => d.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue;
+  const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
 
   return (
     <div className="bg-card rounded-2xl p-6 border border-border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-text-primary">Performance</h2>
-          <TimeRangeButtons />
-        </div>
-        <div className="flex gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-blue-500 rounded" />
-            <span className="text-text-secondary">Portfolio</span>
-            <span className={`font-medium ${portfolioChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {portfolioChange >= 0 ? '+' : ''}{portfolioChange.toFixed(2)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-purple-500 rounded" />
-            <span className="text-text-secondary">S&P 500</span>
-            <span className={`font-medium ${benchmarkChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {benchmarkChange >= 0 ? '+' : ''}{benchmarkChange.toFixed(2)}%
-            </span>
-          </div>
-        </div>
-      </div>
+      <h2 className="text-lg font-semibold text-text-primary mb-4">Last 30 Days</h2>
       <div className="h-64 md:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -208,34 +113,21 @@ export function PerformanceChart({ data, benchmarkData, isLoading, timeRange, on
               axisLine={false}
               tickLine={false}
               tick={{ fill: '#94a3b8', fontSize: 12 }}
-              tickFormatter={(value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`}
-              width={55}
+              tickFormatter={(value) => formatCurrency(value, true)}
+              width={65}
             />
-            <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
             <Tooltip content={<CustomTooltip />} />
             <Line
               type="monotone"
-              dataKey="portfolio"
+              dataKey="value"
               stroke="#3b82f6"
               strokeWidth={2}
               dot={false}
               name="Portfolio"
             />
-            <Line
-              type="monotone"
-              dataKey="benchmark"
-              stroke="#a855f7"
-              strokeWidth={2}
-              dot={false}
-              name="S&P 500"
-              connectNulls
-            />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-3 text-xs text-amber-500">
-        Historical performance is calculated assuming your current holdings remained unchanged during the selected time range. For meaningful results, select a period where you made no changes to your portfolio.
-      </p>
     </div>
   );
 }

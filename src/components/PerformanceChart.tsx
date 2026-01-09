@@ -62,10 +62,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
         value: point.value,
       }));
     } else {
-      // 7D or 30D: Filter to last N days, format as date
-      const days = chartView === '7D' ? 7 : 30;
+      // 30D: Filter to last 30 days, format as date
       const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - days);
+      cutoffDate.setDate(cutoffDate.getDate() - 30);
       const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
 
       const filteredData = data.filter((point) => point.date >= cutoffDateStr);
@@ -78,7 +77,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       }));
     }
 
-    // For 7D/30D views, update the last point to match currentValue (ensures chart ends at displayed total)
+    // For 30D view, update the last point to match currentValue (ensures chart ends at displayed total)
     // Skip this for 1D intraday view - let historical data be self-consistent to avoid spikes
     if (currentValue && points.length > 0 && chartView !== '1D') {
       points[points.length - 1] = {
@@ -102,16 +101,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
           }`}
         >
           1D
-        </button>
-        <button
-          onClick={() => onViewChange('7D')}
-          className={`px-3 py-1 text-sm font-medium transition-colors ${
-            chartView === '7D'
-              ? 'bg-accent text-white'
-              : 'bg-card text-text-secondary hover:bg-background'
-          }`}
-        >
-          7D
         </button>
         <button
           onClick={() => onViewChange('30D')}

@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isMarketOpen } from '../lib/market-hours';
 
-export type ChartView = '1D' | '7D' | '30D';
+export type ChartView = '1D' | '30D';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -110,11 +110,11 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     refetchIntervalInBackground: true,
   });
 
-  // History query (7D/30D) - very stable, rarely needs refresh
+  // History query (30D) - very stable, rarely needs refresh
   const historyQuery = useQuery({
     queryKey: portfolioKeys.history(portfolioId),
     queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS),
-    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '7D' || chartView === '30D'),
+    enabled: !!portfolioId && !!portfolioQuery.data && chartView === '30D',
     staleTime: 24 * 60 * 60 * 1000, // Fresh for 24 hours
     gcTime: 7 * 24 * 60 * 60 * 1000, // Keep in cache for 7 days
     refetchOnMount: false, // Don't refetch on every mount
@@ -134,6 +134,16 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     // Auto-refresh every 5 minutes when market is open
     refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : false,
   });
+
+  // Switch to 30D view when market is not open (after initial data load)
+  useEffect(() => {
+    if (portfolioQuery.data && !('requiresAuth' in portfolioQuery.data)) {
+      const marketStatus = portfolioQuery.data.marketStatus;
+      if (marketStatus && marketStatus !== 'open') {
+        setChartView('30D');
+      }
+    }
+  }, [portfolioQuery.data]);
 
   // Check if response is a private portfolio requiring auth
   const requiresAuth = useMemo(() => {
@@ -155,7 +165,7 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     if (chartView === '1D') {
       return intradayQuery.data?.data || [];
     }
-    // Both 7D and 30D use history data (filtering done in chart component)
+    // 30D uses history data
     return historyQuery.data?.data || [];
   }, [chartView, intradayQuery.data, historyQuery.data]);
 
@@ -193,7 +203,7 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
   // Chart loading state depends on current view
   const isChartLoading = chartView === '1D'
     ? intradayQuery.isLoading
-    : historyQuery.isLoading; // 7D and 30D both use history query
+    : historyQuery.isLoading;
 
   return {
     data,

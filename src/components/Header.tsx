@@ -42,22 +42,26 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
             {portfolioId && (
               <button
                 onClick={handleShare}
-                className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors"
+                className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-sm"
                 title="Copy link"
               >
                 {copied ? (
                   <>
                     <Check className="w-5 h-5 text-positive" />
-                    <span className="text-sm text-positive">Copied!</span>
+                    <span className="text-positive">Copied!</span>
                   </>
                 ) : (
-                  <Share2 className="w-5 h-5 text-text-secondary" />
+                  <>
+                    <Share2 className="w-5 h-5 text-text-secondary" />
+                    <span className="text-text-secondary">Share</span>
+                  </>
                 )}
               </button>
             )}
             <ThemeToggle />
-            <Link to="/" className="p-2 hover:bg-card rounded-lg transition-colors" title="All Portfolios">
-              <Home className="w-5 h-5 text-text-secondary" />
+            <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">
+              <Home className="w-5 h-5" />
+              <span>Home</span>
             </Link>
           </div>
         </div>

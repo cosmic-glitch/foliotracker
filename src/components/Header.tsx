@@ -4,6 +4,7 @@ import { TrendingUp, Home, Share2, Check } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
 import { ThemeToggle } from './ThemeToggle';
+import { useToast } from '../context/ToastContext';
 
 interface HeaderProps {
   marketStatus?: MarketStatus;
@@ -13,6 +14,7 @@ interface HeaderProps {
 
 export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) {
   const [copied, setCopied] = useState(false);
+  const { showToast } = useToast();
 
   // If we have a portfolioId but no displayName yet, show generic title while loading
   const title = portfolioId
@@ -22,6 +24,7 @@ export function Header({ marketStatus, portfolioId, displayName }: HeaderProps) 
   const handleShare = async () => {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
+    showToast('Link copied!');
     setTimeout(() => setCopied(false), 2000);
   };
 

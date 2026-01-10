@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Pencil, Trash2, Lock, LogIn, LogOut, User } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { TrendingUp, Plus, Users, Pencil, Lock, LogIn, LogOut, User, Globe, Settings } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
+import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 
@@ -16,6 +16,7 @@ interface Portfolio {
   dayChange: number | null;
   dayChangePercent: number | null;
   is_private: boolean;
+  visibility: 'public' | 'private' | 'selective';
 }
 
 interface PortfoliosResponse {
@@ -27,8 +28,12 @@ interface PortfoliosResponse {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-async function fetchPortfolios(): Promise<PortfoliosResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/portfolios`, { cache: 'default' });
+async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosResponse> {
+  const url = new URL(`${API_BASE_URL}/api/portfolios`, window.location.origin);
+  if (loggedInAs) {
+    url.searchParams.set('logged_in_as', loggedInAs);
+  }
+  const response = await fetch(url.toString(), { cache: 'default' });
   if (!response.ok) throw new Error('Failed to fetch portfolios');
   return response.json();
 }
@@ -43,59 +48,18 @@ function formatCompactValue(value: number): string {
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { loggedInAs, login, logout } = useLoggedInPortfolio();
-  const [deleteTarget, setDeleteTarget] = useState<Portfolio | null>(null);
-  const [editTarget, setEditTarget] = useState<Portfolio | null>(null);
+  const { loggedInAs, login, logout, getPassword } = useLoggedInPortfolio();
   const [loginTarget, setLoginTarget] = useState<Portfolio | null>(null);
+  const [showPermissions, setShowPermissions] = useState(false);
 
   // Use TanStack Query for auto-refresh
   const { data, isLoading, error } = useQuery({
-    queryKey: ['portfolios'],
-    queryFn: fetchPortfolios,
+    queryKey: ['portfolios', loggedInAs],
+    queryFn: () => fetchPortfolios(loggedInAs),
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
   });
-
-  const handleDelete = async (password: string) => {
-    if (!deleteTarget) return;
-
-    const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: deleteTarget.id, password }),
-    });
-
-    if (!response.ok) {
-      const json = await response.json();
-      throw new Error(json.error || 'Failed to delete portfolio');
-    }
-
-    // Invalidate cache to refetch updated list
-    queryClient.invalidateQueries({ queryKey: ['portfolios'] });
-    setDeleteTarget(null);
-  };
-
-  const handleEditVerify = async (password: string) => {
-    if (!editTarget) return;
-
-    // Verify password via PUT with empty update (will fail validation but after password check)
-    // Or we can add a verify-only endpoint. For now, navigate to edit page with password in state.
-    const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editTarget.id, password, holdings: '' }),
-    });
-
-    // If password is wrong, we'll get 401. If password is right, we'll get 400 (empty holdings).
-    if (response.status === 401) {
-      throw new Error('Invalid password');
-    }
-
-    // Password verified, navigate to edit page
-    navigate(`/${editTarget.id}/edit`, { state: { password } });
-  };
 
   const handleLogin = async (password: string) => {
     if (!loginTarget) return;
@@ -135,24 +99,14 @@ export function LandingPage() {
             </div>
             <div className="flex items-center gap-3">
               {loggedInAs && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
-                    <User className="w-3.5 h-3.5 text-accent" />
-                    <span className="text-sm font-medium text-accent">
-                      {loggedInAs.toUpperCase()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    Logout
-                  </button>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
+                  <User className="w-3.5 h-3.5 text-accent" />
+                  <span className="text-sm font-medium text-accent">
+                    {loggedInAs.toUpperCase()}
+                  </span>
                 </div>
               )}
               <MarketStatusBadge status={getMarketStatus()} />
-              <ThemeToggle />
             </div>
           </div>
         </div>
@@ -166,8 +120,8 @@ export function LandingPage() {
           </p>
           <ul className="text-text-secondary text-sm space-y-1">
             <li>• Just enter your current holdings — no transaction history or brokerage connection needed</li>
-            <li>• Pick an ID for your portfolio — no email, no real name, no way for anyone to know it's you</li>
-            <li>• Mark it private or leave it public for friends to see</li>
+            <li>• Pick a user ID — no email, no real name, no way for anyone to know it's you</li>
+            <li>• Keep it public, private, or invite-only for select friends</li>
           </ul>
         </div>
 
@@ -179,11 +133,14 @@ export function LandingPage() {
 
         {/* Portfolios List */}
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <Users className="w-5 h-5 text-text-secondary" />
-            <h3 className="text-lg font-semibold text-text-primary">
-              Portfolios
-            </h3>
+          {/* Table Header */}
+          <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-border items-center">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-text-secondary" />
+              <span className="text-sm font-medium text-text-secondary">User</span>
+            </div>
+            <div className="w-24 text-sm font-medium text-text-secondary">Access</div>
+            <div className="text-sm font-medium text-text-secondary text-right">Actions</div>
           </div>
 
           {isLoading ? (
@@ -195,90 +152,121 @@ export function LandingPage() {
               No portfolios yet. Be the first to create one!
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {data?.portfolios.map((portfolio) => {
-                const isPrivate = portfolio.is_private && portfolio.totalValue === null;
-                const isPositive = (portfolio.dayChange ?? 0) >= 0;
-                const changeColor = isPositive ? 'text-positive' : 'text-negative';
-                const sign = isPositive ? '+' : '';
+            <>
+              {/* Table Rows */}
+              <div className="divide-y divide-border">
+                {data?.portfolios.map((portfolio) => {
+                  const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
+                  const isPositive = (portfolio.dayChange ?? 0) >= 0;
+                  const changeColor = isPositive ? 'text-positive' : 'text-negative';
+                  const sign = isPositive ? '+' : '';
 
-                return (
-                  <div
-                    key={portfolio.id}
-                    className="flex items-center justify-between p-4 hover:bg-card-hover transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text-primary flex items-center gap-2">
-                        {portfolio.id.toUpperCase()}
-                        {portfolio.is_private && (
-                          <>
-                            <Lock className="w-3.5 h-3.5 text-amber-500" />
-                            <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full">
-                              Private
+                  return (
+                    <div
+                      key={portfolio.id}
+                      className="grid grid-cols-[1fr_auto_auto] gap-4 items-center p-4 hover:bg-card-hover transition-colors"
+                    >
+                      {/* User Column */}
+                      <div className="min-w-0">
+                        <p className="font-medium text-text-primary">
+                          {portfolio.id.toUpperCase()}
+                        </p>
+                        {shouldBlurValues ? (
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+                              $X,XXX,XXX
                             </span>
+                            <span className="text-sm text-positive blur-sm select-none">
+                              +$X.Xk (+X.XX%)
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-lg font-semibold text-text-primary">
+                              ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                            <span className={`text-sm ${changeColor}`}>
+                              {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Access Column */}
+                      <div className="w-24 flex justify-start">
+                        {portfolio.visibility === 'public' && (
+                          <span className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full">
+                            <Globe className="w-3 h-3" />
+                            Public
+                          </span>
+                        )}
+                        {portfolio.visibility === 'private' && (
+                          <span className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full">
+                            <Lock className="w-3 h-3" />
+                            Private
+                          </span>
+                        )}
+                        {portfolio.visibility === 'selective' && (
+                          <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full">
+                            <Users className="w-3 h-3" />
+                            Invite
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions Column */}
+                      <div className="flex items-center gap-2">
+                        {(portfolio.visibility === 'public' ||
+                          loggedInAs === portfolio.id.toLowerCase() ||
+                          (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
+                          <Link
+                            to={`/${portfolio.id}`}
+                            className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
+                          >
+                            View →
+                          </Link>
+                        )}
+                        {loggedInAs === portfolio.id.toLowerCase() && (
+                          <>
+                            <button
+                              onClick={() => navigate(`/${portfolio.id}/edit`, { state: { password: getPassword() } })}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setShowPermissions(true)}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                              Permissions
+                            </button>
                           </>
                         )}
-                      </p>
-                      {isPrivate ? (
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-                            $X,XXX,XXX
-                          </span>
-                          <span className="text-sm text-positive blur-sm select-none">
-                            +$X.Xk (+X.XX%)
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-lg font-semibold text-text-primary">
-                            ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </span>
-                          <span className={`text-sm ${changeColor}`}>
-                            {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
-                          </span>
-                        </div>
-                      )}
+                        {loggedInAs === portfolio.id.toLowerCase() ? (
+                          <button
+                            onClick={logout}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
+                          >
+                            <LogOut className="w-3.5 h-3.5" />
+                            Logout
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setLoginTarget(portfolio)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                          >
+                            <LogIn className="w-3.5 h-3.5" />
+                            Login
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {loggedInAs === portfolio.id.toLowerCase() ? (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-accent text-sm">
-                          <User className="w-3.5 h-3.5" />
-                          Logged in
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setLoginTarget(portfolio)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                        >
-                          <LogIn className="w-3.5 h-3.5" />
-                          Login
-                        </button>
-                      )}
-                      <Link
-                        to={`/${portfolio.id}`}
-                        className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
-                      >
-                        View →
-                      </Link>
-                      <button
-                        onClick={() => setEditTarget(portfolio)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(portfolio)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
@@ -289,33 +277,10 @@ export function LandingPage() {
             className="flex items-center justify-center gap-2 w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 px-4 rounded-xl transition-colors mt-6"
           >
             <Plus className="w-5 h-5" />
-            Create New Portfolio
+            Add Your Portfolio
           </Link>
         )}
       </main>
-
-      {/* Delete Modal */}
-      {deleteTarget && (
-        <PasswordModal
-          title="Delete Portfolio"
-          description={`Are you sure you want to delete "${deleteTarget.id.toUpperCase()}"? This action cannot be undone.`}
-          confirmLabel="Delete"
-          confirmVariant="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-
-      {/* Edit Modal */}
-      {editTarget && (
-        <PasswordModal
-          title="Edit Portfolio"
-          description={`Enter the password to edit "${editTarget.id.toUpperCase()}".`}
-          confirmLabel="Continue"
-          onConfirm={handleEditVerify}
-          onCancel={() => setEditTarget(null)}
-        />
-      )}
 
       {/* Login Modal */}
       {loginTarget && (
@@ -325,6 +290,15 @@ export function LandingPage() {
           confirmLabel="Login"
           onConfirm={handleLogin}
           onCancel={() => setLoginTarget(null)}
+        />
+      )}
+
+      {/* Permissions Modal */}
+      {showPermissions && loggedInAs && (
+        <PermissionsModal
+          portfolioId={loggedInAs}
+          password={getPassword() || ''}
+          onClose={() => setShowPermissions(false)}
         />
       )}
     </div>

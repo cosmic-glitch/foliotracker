@@ -86,7 +86,7 @@ export async function createPortfolio(
   id: string,
   password: string,
   displayName?: string,
-  isPrivate?: boolean
+  visibility: Visibility = 'public'
 ): Promise<void> {
   const count = await getPortfolioCount();
   if (count >= MAX_PORTFOLIOS) {
@@ -99,7 +99,8 @@ export async function createPortfolio(
     id,
     display_name: displayName || null,
     password_hash: passwordHash,
-    is_private: isPrivate ?? false,
+    is_private: visibility === 'private',
+    visibility,
   });
 
   if (error) throw error;

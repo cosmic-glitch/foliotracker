@@ -1,25 +1,21 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Home, Share2, Check, Pencil, Trash2, Settings, User } from 'lucide-react';
+import { TrendingUp, Home, Share2, Check, Pencil, Settings, User } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
-import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
   marketStatus?: MarketStatus;
   portfolioId?: string;
   loggedInAs?: string | null;
   onEdit?: () => void;
-  onDelete?: () => void;
   onPermissions?: () => void;
 }
 
-export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onDelete, onPermissions }: HeaderProps) {
+export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions }: HeaderProps) {
   const [copied, setCopied] = useState(false);
 
-  const title = portfolioId
-    ? portfolioId.toUpperCase()
-    : 'Folio Tracker';
+  const title = 'Folio Tracker';
 
   const handleShare = async () => {
     await navigator.clipboard.writeText(window.location.href);
@@ -70,16 +66,6 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onDelete
                 <span>Edit</span>
               </button>
             )}
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                className="flex items-center gap-1.5 p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-sm text-text-secondary"
-                title="Delete portfolio"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>Delete</span>
-              </button>
-            )}
             {portfolioId && (
               <button
                 onClick={handleShare}
@@ -99,7 +85,6 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onDelete
                 )}
               </button>
             )}
-            <ThemeToggle />
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">
               <Home className="w-5 h-5" />
               <span>Home</span>

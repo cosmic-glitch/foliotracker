@@ -59,3 +59,7 @@ Copy `.env.example` to `.env`. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
 - `FMP_API_KEY` - Stock prices (Financial Modeling Prep)
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
+
+## Workflow
+
+- Always deploy automatically after changes are made and build succeeds (`vercel --prod`)

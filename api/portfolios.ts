@@ -12,6 +12,9 @@ import {
   getCachedPrices,
   updatePriceCache,
   updatePortfolioSettings,
+  isAllowedViewer,
+  setPortfolioViewers,
+  type Visibility,
 } from './lib/db.js';
 import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/finnhub.js';
 
@@ -183,6 +186,7 @@ export default async function handler(
   try {
     if (req.method === 'GET') {
       // List all portfolios with summary data
+      const loggedInAs = req.query.logged_in_as as string | undefined;
       const portfolios = await getPortfolios();
       const count = await getPortfolioCount();
       const cachedPrices = await getCachedPrices();
@@ -214,11 +218,23 @@ export default async function handler(
             ? (totalDayChange / previousTotalValue) * 100
             : 0;
 
+          // Determine if values should be hidden
+          let hideValues = false;
+          if (portfolio.visibility === 'private') {
+            // Private: always hide unless viewer is the owner
+            hideValues = loggedInAs?.toLowerCase() !== portfolio.id.toLowerCase();
+          } else if (portfolio.visibility === 'selective') {
+            // Selective: hide unless viewer is owner or in allowed list
+            const isOwner = loggedInAs?.toLowerCase() === portfolio.id.toLowerCase();
+            const isAllowed = loggedInAs ? await isAllowedViewer(portfolio.id, loggedInAs) : false;
+            hideValues = !isOwner && !isAllowed;
+          }
+
           return {
             ...portfolio,
-            totalValue: portfolio.is_private ? null : totalValue,
-            dayChange: portfolio.is_private ? null : totalDayChange,
-            dayChangePercent: portfolio.is_private ? null : dayChangePercent,
+            totalValue: hideValues ? null : totalValue,
+            dayChange: hideValues ? null : totalDayChange,
+            dayChangePercent: hideValues ? null : dayChangePercent,
           };
         })
       );
@@ -234,7 +250,7 @@ export default async function handler(
 
     if (req.method === 'POST') {
       // Create new portfolio (or preview classification)
-      const { id, displayName, password, holdings: holdingsInput, isPrivate } = req.body;
+      const { id, displayName, password, holdings: holdingsInput, visibility, viewers } = req.body;
       const isPreview = req.query.preview === 'true';
 
       // Parse holdings first (needed for both preview and create)
@@ -357,8 +373,15 @@ export default async function handler(
       }
 
       // Create portfolio and add holdings
-      await createPortfolio(cleanId, password, displayName, isPrivate ?? false);
+      const validVisibility: Visibility = ['public', 'private', 'selective'].includes(visibility) ? visibility : 'public';
+      await createPortfolio(cleanId, password, displayName, validVisibility);
       await setHoldings(cleanId, dbHoldings);
+
+      // Set viewers if selective visibility
+      if (validVisibility === 'selective' && Array.isArray(viewers)) {
+        const validViewers = viewers.filter((v: unknown) => typeof v === 'string').map((v: string) => v.toLowerCase());
+        await setPortfolioViewers(cleanId, validViewers);
+      }
 
       res.status(201).json({
         id: cleanId,

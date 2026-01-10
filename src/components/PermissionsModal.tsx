@@ -14,27 +14,37 @@ interface PermissionsModalProps {
 export function PermissionsModal({ portfolioId, password, onClose }: PermissionsModalProps) {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
-  const [newViewer, setNewViewer] = useState('');
+  const [selectedViewer, setSelectedViewer] = useState('');
+  const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch current permissions on mount
+  // Fetch current permissions and all portfolios on mount
   useEffect(() => {
-    async function fetchPermissions() {
+    async function fetchData() {
       try {
-        const url = new URL(`${API_BASE_URL}/api/permissions`, window.location.origin);
-        url.searchParams.set('id', portfolioId);
-        url.searchParams.set('password', password);
+        // Fetch permissions
+        const permUrl = new URL(`${API_BASE_URL}/api/permissions`, window.location.origin);
+        permUrl.searchParams.set('id', portfolioId);
+        permUrl.searchParams.set('password', password);
 
-        const response = await fetch(url.toString());
-        if (!response.ok) {
+        const permResponse = await fetch(permUrl.toString());
+        if (!permResponse.ok) {
           throw new Error('Failed to load permissions');
         }
 
-        const data = await response.json();
-        setVisibility(data.visibility);
-        setViewers(data.viewers || []);
+        const permData = await permResponse.json();
+        setVisibility(permData.visibility);
+        setViewers(permData.viewers || []);
+
+        // Fetch all portfolios
+        const portfoliosResponse = await fetch(`${API_BASE_URL}/api/portfolios`);
+        if (portfoliosResponse.ok) {
+          const portfoliosData = await portfoliosResponse.json();
+          const ids = portfoliosData.portfolios.map((p: { id: string }) => p.id.toLowerCase());
+          setAllPortfolios(ids);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load permissions');
       } finally {
@@ -42,24 +52,24 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
       }
     }
 
-    fetchPermissions();
+    fetchData();
   }, [portfolioId, password]);
 
   const handleAddViewer = () => {
-    const viewerId = newViewer.trim().toLowerCase();
-    if (!viewerId) return;
-    if (viewers.includes(viewerId)) {
-      setError('This portfolio is already in the list');
+    if (!selectedViewer) return;
+    if (viewers.includes(selectedViewer)) {
+      setError('This user is already in the list');
       return;
     }
-    if (viewerId === portfolioId.toLowerCase()) {
-      setError('You cannot add yourself as a viewer');
-      return;
-    }
-    setViewers([...viewers, viewerId]);
-    setNewViewer('');
+    setViewers([...viewers, selectedViewer]);
+    setSelectedViewer('');
     setError(null);
   };
+
+  // Get available portfolios (exclude self and already added viewers)
+  const availablePortfolios = allPortfolios.filter(
+    (id) => id !== portfolioId.toLowerCase() && !viewers.includes(id)
+  );
 
   const handleRemoveViewer = (viewerId: string) => {
     setViewers(viewers.filter((v) => v !== viewerId));
@@ -189,7 +199,7 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
                   <Users className={`w-5 h-5 ${visibility === 'selective' ? 'text-accent' : 'text-text-secondary'}`} />
                   <div>
                     <p className="font-medium text-text-primary">Selective</p>
-                    <p className="text-xs text-text-secondary">Only specific portfolios (when logged in)</p>
+                    <p className="text-xs text-text-secondary">Only specific users (when logged in)</p>
                   </div>
                 </label>
               </div>
@@ -202,21 +212,26 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
                   Allowed Viewers
                 </label>
                 <p className="text-xs text-text-secondary">
-                  Add portfolio IDs that can view this portfolio when they're logged in.
+                  Add users who can view this portfolio when they're logged in.
                 </p>
 
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newViewer}
-                    onChange={(e) => setNewViewer(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddViewer()}
-                    placeholder="Enter portfolio ID"
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-                  />
+                  <select
+                    value={selectedViewer}
+                    onChange={(e) => setSelectedViewer(e.target.value)}
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                  >
+                    <option value="">Select a user</option>
+                    {availablePortfolios.map((id) => (
+                      <option key={id} value={id}>
+                        {id.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={handleAddViewer}
-                    className="px-3 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg transition-colors"
+                    disabled={!selectedViewer}
+                    className="px-3 py-2 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                   </button>

@@ -263,12 +263,11 @@ export function EditPortfolio() {
               required
             />
             <p className="text-xs text-text-secondary mt-2">
-              Enter each holding on a new line: TICKER: VALUE (in thousands USD)
+              Enter each holding on a new line: TICKER: VALUE
               <br />
               Optional cost basis: TICKER: VALUE @ COST_BASIS (e.g., NVDA: 100 @ 80)
               <br />
-              Non-tradeable assets (like "Real Estate") will be treated as
-              static values.
+              All values in thousands USD. Non-tradeable assets (like "Real Estate") will be treated as static values.
             </p>
           </div>
 

@@ -75,7 +75,7 @@ export function PasswordModal({
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter portfolio password"
+              placeholder="Enter password"
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent"
               required
               autoFocus

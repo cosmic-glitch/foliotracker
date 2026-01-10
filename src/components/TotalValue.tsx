@@ -50,7 +50,7 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
                     {formatChange(totalGain, true)}
                   </span>
                   <span className={`text-sm ${gainColor}`}>
-                    {formatPercent(totalGainPercent)} total
+                    unrealized gain
                   </span>
                 </div>
               </div>

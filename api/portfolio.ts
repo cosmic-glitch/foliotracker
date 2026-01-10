@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword } from './lib/db.js';
-import { getMultipleYahooQuotes, getYahooQuote } from './lib/finnhub.js';
+import { getMultipleQuotes, getQuote } from './lib/finnhub.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -117,9 +117,9 @@ export default async function handler(
       }
     }
 
-    // Fetch fresh prices from Yahoo Finance (handles stocks, ETFs, and mutual funds)
+    // Fetch fresh prices from FMP (stocks, ETFs) and CNBC (mutual funds)
     if (tickersToRefresh.length > 0) {
-      const quotes = await getMultipleYahooQuotes(tickersToRefresh);
+      const quotes = await getMultipleQuotes(tickersToRefresh);
 
       // Update cache
       for (const [ticker, quote] of quotes) {
@@ -235,10 +235,10 @@ export default async function handler(
       ? ((totalValueWithCostBasis - totalCostBasis) / totalCostBasis) * 100
       : null;
 
-    // Fetch S&P 500 benchmark data from Yahoo Finance
+    // Fetch S&P 500 benchmark data from FMP
     let benchmark: BenchmarkData | null = null;
     try {
-      const spyQuote = await getYahooQuote(BENCHMARK_TICKER);
+      const spyQuote = await getQuote(BENCHMARK_TICKER);
       if (spyQuote && spyQuote.previousClose > 0) {
         benchmark = {
           ticker: BENCHMARK_TICKER,

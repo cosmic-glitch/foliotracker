@@ -16,7 +16,7 @@ A multi-portfolio stock tracker with real-time prices and historical performance
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS, Recharts
 - **Backend:** Vercel Serverless Functions
 - **Database:** Supabase (PostgreSQL)
-- **APIs:** Finnhub (stocks/ETFs), CNBC (mutual funds), Yahoo Finance (historical data)
+- **APIs:** FMP (stocks/ETFs quotes & historical), CNBC (mutual funds), Twelve Data (symbol info)
 
 ## Setup
 
@@ -24,7 +24,7 @@ A multi-portfolio stock tracker with real-time prices and historical performance
 
 - Node.js 18+
 - Supabase account
-- Finnhub API key (free tier works)
+- FMP API key (financialmodelingprep.com)
 
 ### Installation
 
@@ -42,7 +42,7 @@ Copy `.env.example` to `.env` and fill in your values:
 # Backend (Vercel Serverless)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_service_key
-FINNHUB_API_KEY=your_finnhub_api_key
+FMP_API_KEY=your_fmp_api_key
 
 # Frontend (optional - for direct Supabase access)
 VITE_SUPABASE_URL=https://your-project.supabase.co

@@ -342,7 +342,3 @@ export async function getMultipleQuotes(
   return results;
 }
 
-// Legacy exports for backwards compatibility
-export type YahooQuote = Quote;
-export const getYahooQuote = getQuote;
-export const getMultipleYahooQuotes = getMultipleQuotes;

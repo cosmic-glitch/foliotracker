@@ -203,7 +203,7 @@ export default async function handler(
       existingDates.get(price.ticker)!.add(price.date);
     }
 
-    // Fetch missing historical data from Finnhub
+    // Fetch missing historical data from FMP
     const allPrices = new Map<string, Map<string, number>>();
 
     // Initialize with existing data

@@ -1,6 +1,5 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
-import type { BenchmarkData } from '../types/portfolio';
 
 interface TotalValueProps {
   totalValue: number;
@@ -8,17 +7,13 @@ interface TotalValueProps {
   dayChangePercent: number;
   totalGain: number | null;
   totalGainPercent: number | null;
-  benchmark: BenchmarkData | null;
 }
 
-export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent, benchmark }: TotalValueProps) {
+export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent }: TotalValueProps) {
   const isPositive = dayChange >= 0;
   const DayIcon = isPositive ? TrendingUp : TrendingDown;
   const dayChangeColor = isPositive ? 'text-positive' : 'text-negative';
   const dayBgColor = isPositive ? 'bg-positive/10' : 'bg-negative/10';
-
-  const benchmarkIsPositive = benchmark ? benchmark.dayChangePercent >= 0 : true;
-  const benchmarkColor = benchmarkIsPositive ? 'text-positive' : 'text-negative';
 
   const gainIsPositive = totalGain !== null ? totalGain >= 0 : true;
   const GainIcon = gainIsPositive ? TrendingUp : TrendingDown;
@@ -36,16 +31,21 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {totalGain !== null && totalGainPercent !== null && (
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
-              <GainIcon className={`w-5 h-5 ${gainColor}`} />
-              <div className="flex flex-col">
-                <span className={`text-lg font-semibold ${gainColor}`}>
-                  {formatChange(totalGain, true)}
-                </span>
-                <span className={`text-sm ${gainColor}`}>
-                  {formatPercent(totalGainPercent)} total*
-                </span>
+            <div className="flex flex-col">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
+                <GainIcon className={`w-5 h-5 ${gainColor}`} />
+                <div className="flex flex-col">
+                  <span className={`text-lg font-semibold ${gainColor}`}>
+                    {formatChange(totalGain, true)}
+                  </span>
+                  <span className={`text-sm ${gainColor}`}>
+                    {formatPercent(totalGainPercent)} total
+                  </span>
+                </div>
               </div>
+              <p className="text-xs text-text-secondary mt-1 text-center">
+                *Holdings with cost basis
+              </p>
             </div>
           )}
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
@@ -59,23 +59,8 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
               </span>
             </div>
           </div>
-          {benchmark && (
-            <div className="flex flex-col items-center px-4 py-3 rounded-xl bg-background border border-border">
-              <span className={`text-lg font-semibold ${benchmarkColor}`}>
-                {benchmark.dayChangePercent >= 0 ? '+' : ''}{benchmark.dayChangePercent.toFixed(2)}%
-              </span>
-              <span className="text-xs text-text-secondary">
-                {benchmark.name}
-              </span>
-            </div>
-          )}
         </div>
       </div>
-      {totalGain !== null && (
-        <p className="text-xs text-text-secondary mt-3">
-          *Total gain/loss from holdings with cost basis
-        </p>
-      )}
     </div>
   );
 }

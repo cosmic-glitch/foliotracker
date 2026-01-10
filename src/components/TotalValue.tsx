@@ -31,19 +31,6 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className="flex flex-wrap items-center gap-3">
-            {totalGain !== null && totalGainPercent !== null && (
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
-                <GainIcon className={`w-5 h-5 ${gainColor}`} />
-                <div className="flex flex-col">
-                  <span className={`text-lg font-semibold ${gainColor}`}>
-                    {formatChange(totalGain, true)}
-                  </span>
-                  <span className={`text-sm ${gainColor}`}>
-                    {formatPercent(totalGainPercent)} total*
-                  </span>
-                </div>
-              </div>
-            )}
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
               <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
               <div className="flex flex-col">
@@ -55,10 +42,23 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
                 </span>
               </div>
             </div>
+            {totalGain !== null && totalGainPercent !== null && (
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
+                <GainIcon className={`w-5 h-5 ${gainColor}`} />
+                <div className="flex flex-col">
+                  <span className={`text-lg font-semibold ${gainColor}`}>
+                    {formatChange(totalGain, true)}
+                  </span>
+                  <span className={`text-sm ${gainColor}`}>
+                    {formatPercent(totalGainPercent)} total
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
           {totalGain !== null && (
             <p className="text-xs text-text-secondary">
-              *Holdings with cost basis
+              only for holdings with a cost basis
             </p>
           )}
         </div>

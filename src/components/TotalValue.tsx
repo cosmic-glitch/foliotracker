@@ -29,9 +29,9 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
             {formatCurrency(totalValue)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {totalGain !== null && totalGainPercent !== null && (
-            <div className="flex flex-col">
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center gap-3">
+            {totalGain !== null && totalGainPercent !== null && (
               <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
                 <GainIcon className={`w-5 h-5 ${gainColor}`} />
                 <div className="flex flex-col">
@@ -39,26 +39,28 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
                     {formatChange(totalGain, true)}
                   </span>
                   <span className={`text-sm ${gainColor}`}>
-                    {formatPercent(totalGainPercent)} total
+                    {formatPercent(totalGainPercent)} total*
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-text-secondary mt-1 text-center">
-                *Holdings with cost basis
-              </p>
-            </div>
-          )}
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
-            <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
-            <div className="flex flex-col">
-              <span className={`text-lg font-semibold ${dayChangeColor}`}>
-                {formatChange(dayChange, true)}
-              </span>
-              <span className={`text-sm ${dayChangeColor}`}>
-                {formatPercent(dayChangePercent)} today
-              </span>
+            )}
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
+              <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
+              <div className="flex flex-col">
+                <span className={`text-lg font-semibold ${dayChangeColor}`}>
+                  {formatChange(dayChange, true)}
+                </span>
+                <span className={`text-sm ${dayChangeColor}`}>
+                  {formatPercent(dayChangePercent)} today
+                </span>
+              </div>
             </div>
           </div>
+          {totalGain !== null && (
+            <p className="text-xs text-text-secondary">
+              *Holdings with cost basis
+            </p>
+          )}
         </div>
       </div>
     </div>

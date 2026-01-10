@@ -48,18 +48,19 @@ function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: n
   );
 }
 
-function ProfitIndicator({ percent }: { percent: number | null }) {
-  if (percent === null) {
+function ProfitIndicator({ value, percent }: { value: number | null; percent: number | null }) {
+  if (value === null || percent === null) {
     return <span className="text-text-secondary">--</span>;
   }
 
-  const isPositive = percent >= 0;
+  const isPositive = value >= 0;
   const color = isPositive ? 'text-positive' : 'text-negative';
 
   return (
-    <span className={`font-medium ${color}`}>
-      {isPositive ? '+' : ''}{percent.toFixed(1)}%
-    </span>
+    <div className={`flex flex-col items-end ${color}`}>
+      <span className="font-medium">{formatChange(value, true)}</span>
+      <span className="text-sm opacity-75">{isPositive ? '+' : ''}{percent.toFixed(1)}%</span>
+    </div>
   );
 }
 
@@ -112,7 +113,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </span>
                 </td>
                 <td className="text-right px-4 py-2">
-                  <ProfitIndicator percent={holding.profitLossPercent} />
+                  <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
                 </td>
                 <td className="px-4 py-2">
                   <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
@@ -150,7 +151,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             <div className="flex justify-between items-center text-sm">
               <div className="flex items-center gap-1">
                 <span className="text-text-secondary">Gain/Loss:</span>
-                <ProfitIndicator percent={holding.profitLossPercent} />
+                <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
               </div>
               <ChangeIndicator
                 value={holding.dayChange}

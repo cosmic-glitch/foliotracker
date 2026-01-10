@@ -94,10 +94,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 className="border-b border-border last:border-0 hover:bg-card-hover transition-colors"
               >
                 <td className="px-4 py-2">
-                  <div>
-                    <p className="font-semibold text-text-primary">{holding.ticker}</p>
-                    <p className="text-sm text-text-secondary">{holding.name}</p>
-                  </div>
+                  <p className="font-semibold text-text-primary">{holding.ticker}</p>
                 </td>
                 <td className="text-right px-4 py-2">
                   <span className="font-semibold text-text-primary">
@@ -127,10 +124,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         {holdings.map((holding) => (
           <div key={holding.ticker} className="p-3">
             <div className="flex justify-between items-start mb-2">
-              <div>
-                <p className="font-semibold text-text-primary">{holding.ticker}</p>
-                <p className="text-sm text-text-secondary">{holding.name}</p>
-              </div>
+              <p className="font-semibold text-text-primary">{holding.ticker}</p>
               <span className="font-semibold text-text-primary">
                 {formatCurrency(holding.value, true)}
               </span>

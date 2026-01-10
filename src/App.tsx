@@ -164,8 +164,14 @@ function App() {
               currentValue={data.totalValue}
               marketStatus={data.marketStatus}
             />
-            <HoldingsTable holdings={data.holdings} />
-            <HoldingsByType holdings={data.holdings} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <HoldingsTable holdings={data.holdings} />
+              </div>
+              <div className="lg:col-span-1">
+                <HoldingsByType holdings={data.holdings} />
+              </div>
+            </div>
           </>
         ) : null}
       </main>

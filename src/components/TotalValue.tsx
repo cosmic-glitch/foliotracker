@@ -29,20 +29,20 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
             {formatCurrency(totalValue)}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
-              <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
-              <div className="flex flex-col">
-                <span className={`text-lg font-semibold ${dayChangeColor}`}>
-                  {formatChange(dayChange, true)}
-                </span>
-                <span className={`text-sm ${dayChangeColor}`}>
-                  {formatPercent(dayChangePercent)} today
-                </span>
-              </div>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
+            <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
+            <div className="flex flex-col">
+              <span className={`text-lg font-semibold ${dayChangeColor}`}>
+                {formatChange(dayChange, true)}
+              </span>
+              <span className={`text-sm ${dayChangeColor}`}>
+                {formatPercent(dayChangePercent)} today
+              </span>
             </div>
-            {totalGain !== null && totalGainPercent !== null && (
+          </div>
+          {totalGain !== null && totalGainPercent !== null && (
+            <div className="flex flex-col gap-1">
               <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${gainBgColor}`}>
                 <GainIcon className={`w-5 h-5 ${gainColor}`} />
                 <div className="flex flex-col">
@@ -54,12 +54,10 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
                   </span>
                 </div>
               </div>
-            )}
-          </div>
-          {totalGain !== null && (
-            <p className="text-xs text-text-secondary">
-              only for holdings with a cost basis
-            </p>
+              <p className="text-xs text-text-secondary max-w-[140px] text-right">
+                excludes holdings with no cost basis specified
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -1,4 +1,3 @@
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Holding } from '../types/portfolio';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 
@@ -8,23 +7,16 @@ interface HoldingsTableProps {
 
 function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
   if (value === 0) {
-    return (
-      <div className="flex items-center gap-1 text-text-secondary">
-        <Minus className="w-4 h-4" />
-        <span>--</span>
-      </div>
-    );
+    return <span className="text-text-secondary">--</span>;
   }
 
   const isPositive = value >= 0;
-  const Icon = isPositive ? TrendingUp : TrendingDown;
   const color = isPositive ? 'text-positive' : 'text-negative';
 
   return (
-    <div className={`flex items-center gap-1 ${color}`}>
-      <Icon className="w-4 h-4" />
+    <div className={`flex flex-col items-end ${color}`}>
       <span className="font-medium">{formatChange(value, true)}</span>
-      <span className="text-sm opacity-75">({formatPercent(percent)})</span>
+      <span className="text-sm opacity-75">{formatPercent(percent)}</span>
     </div>
   );
 }

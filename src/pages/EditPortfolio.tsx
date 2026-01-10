@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -21,13 +22,14 @@ interface ClassificationPreview {
 
 export function EditPortfolio() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const location = useLocation();
   const password = (location.state as LocationState)?.password;
 
   const [holdings, setHoldings] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +56,6 @@ export function EditPortfolio() {
         if (!response.ok) throw new Error('Failed to fetch portfolio');
 
         const data = await response.json();
-        setDisplayName(data.displayName || '');
         setIsPrivate(data.isPrivate ?? false);
 
         // Convert holdings back to input format
@@ -129,6 +130,7 @@ export function EditPortfolio() {
           password,
           holdings,
           isPrivate,
+          ...(newPassword && { newPassword }),
         }),
       });
 
@@ -137,6 +139,9 @@ export function EditPortfolio() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update portfolio');
       }
+
+      // Invalidate caches so data recalculates with new holdings
+      queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
 
       // Redirect to the portfolio view
       navigate(`/${portfolioId}`);
@@ -196,16 +201,8 @@ export function EditPortfolio() {
 
           {/* Portfolio Info */}
           <div className="bg-card rounded-xl border border-border p-4">
-            <p className="text-sm text-text-secondary mb-1">Portfolio ID</p>
-            <p className="font-medium text-text-primary">{portfolioId}</p>
-            {displayName && (
-              <>
-                <p className="text-sm text-text-secondary mt-3 mb-1">
-                  Display Name
-                </p>
-                <p className="font-medium text-text-primary">{displayName}</p>
-              </>
-            )}
+            <p className="text-sm text-text-secondary mb-1">Portfolio</p>
+            <p className="font-medium text-text-primary">{portfolioId?.toUpperCase()}</p>
           </div>
 
           {/* Private Toggle */}
@@ -233,6 +230,24 @@ export function EditPortfolio() {
                 />
               </button>
             </div>
+          </div>
+
+          {/* Change Password */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              New Password (optional)
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent"
+              placeholder="Leave blank to keep current password"
+              minLength={4}
+            />
+            <p className="text-xs text-text-secondary mt-2">
+              Enter a new password (minimum 4 characters) to change your portfolio password.
+            </p>
           </div>
 
           {/* Holdings */}

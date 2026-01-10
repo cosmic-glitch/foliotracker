@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword } from './lib/db.js';
+import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword, isAllowedViewer, Visibility } from './lib/db.js';
 import { getMultipleQuotes, getQuote } from './lib/finnhub.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
@@ -42,6 +42,7 @@ interface PortfolioResponse {
   marketStatus: string;
   benchmark: BenchmarkData | null;
   isPrivate: boolean;
+  visibility: Visibility;
 }
 
 export default async function handler(
@@ -78,16 +79,18 @@ export default async function handler(
       return;
     }
 
-    // Handle private portfolio authentication
-    if (portfolio.is_private) {
-      const password = req.query.password as string;
+    // Handle visibility-based authentication
+    const password = req.query.password as string;
+    const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
+    if (portfolio.visibility === 'private') {
+      // Private portfolios require password
       if (!password) {
-        // Return minimal info to indicate portfolio exists but is private
         res.status(200).json({
           portfolioId,
           displayName: portfolio.display_name,
           isPrivate: true,
+          visibility: portfolio.visibility,
           requiresAuth: true,
         });
         return;
@@ -98,7 +101,23 @@ export default async function handler(
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
+    } else if (portfolio.visibility === 'selective') {
+      // Selective portfolios require either password or being an allowed viewer
+      const hasPassword = password && await verifyPortfolioPassword(portfolioId, password);
+      const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
+
+      if (!hasPassword && !isViewer) {
+        res.status(200).json({
+          portfolioId,
+          displayName: portfolio.display_name,
+          isPrivate: false,
+          visibility: portfolio.visibility,
+          requiresAuth: true,
+        });
+        return;
+      }
     }
+    // Public portfolios: no auth required
 
     // Get holdings from database
     const dbHoldings = await getHoldings(portfolioId);
@@ -262,7 +281,8 @@ export default async function handler(
       lastUpdated: new Date().toISOString(),
       marketStatus: getMarketStatus(),
       benchmark,
-      isPrivate: portfolio.is_private,
+      isPrivate: portfolio.visibility === 'private',
+      visibility: portfolio.visibility,
     };
 
     // Cache response for 1 minute

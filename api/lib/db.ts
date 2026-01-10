@@ -10,12 +10,21 @@ const MAX_PORTFOLIOS = 10;
 const SALT_ROUNDS = 10;
 const ADMIN_HASH = '$2b$10$PHYCpLb5/4zFCetogpu3G.U3oNv6M6z7hHoL/wzaWVxSk.kq8Uucm';
 
+export type Visibility = 'public' | 'private' | 'selective';
+
 export interface DbPortfolio {
   id: string;
   display_name: string | null;
   password_hash: string;
   created_at: string;
   is_private: boolean;
+  visibility: Visibility;
+}
+
+export interface DbPortfolioViewer {
+  portfolio_id: string;
+  viewer_id: string;
+  created_at: string;
 }
 
 export interface DbHolding {
@@ -46,7 +55,7 @@ export interface DbDailyPrice {
 export async function getPortfolios(): Promise<Omit<DbPortfolio, 'password_hash'>[]> {
   const { data, error } = await supabase
     .from('portfolios')
-    .select('id, display_name, created_at, is_private')
+    .select('id, display_name, created_at, is_private, visibility')
     .order('created_at', { ascending: true });
 
   if (error) throw error;
@@ -133,7 +142,7 @@ export async function deletePortfolio(id: string): Promise<void> {
 
 export async function updatePortfolioSettings(
   id: string,
-  settings: { is_private?: boolean; display_name?: string }
+  settings: { is_private?: boolean; display_name?: string; password_hash?: string; visibility?: Visibility }
 ): Promise<void> {
   const { error } = await supabase
     .from('portfolios')
@@ -245,4 +254,57 @@ export async function upsertDailyPrice(
   );
 
   if (error) throw error;
+}
+
+// Portfolio viewers functions (for selective visibility)
+export async function getPortfolioViewers(portfolioId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('portfolio_viewers')
+    .select('viewer_id')
+    .eq('portfolio_id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+  return (data || []).map((row) => row.viewer_id);
+}
+
+export async function setPortfolioViewers(
+  portfolioId: string,
+  viewerIds: string[]
+): Promise<void> {
+  const normalizedId = portfolioId.toLowerCase();
+
+  // Delete existing viewers
+  const { error: deleteError } = await supabase
+    .from('portfolio_viewers')
+    .delete()
+    .eq('portfolio_id', normalizedId);
+
+  if (deleteError) throw deleteError;
+
+  // Insert new viewers
+  if (viewerIds.length > 0) {
+    const { error: insertError } = await supabase.from('portfolio_viewers').insert(
+      viewerIds.map((viewerId) => ({
+        portfolio_id: normalizedId,
+        viewer_id: viewerId.toLowerCase(),
+      }))
+    );
+
+    if (insertError) throw insertError;
+  }
+}
+
+export async function isAllowedViewer(
+  portfolioId: string,
+  viewerId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('portfolio_viewers')
+    .select('viewer_id')
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .eq('viewer_id', viewerId.toLowerCase())
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return !!data;
 }

@@ -28,7 +28,6 @@ interface ClassificationPreview {
 export function CreatePortfolio() {
   const navigate = useNavigate();
   const [portfolioId, setPortfolioId] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [holdings, setHoldings] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -82,7 +81,6 @@ export function CreatePortfolio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: portfolioId,
-          displayName: displayName || undefined,
           password,
           holdings,
           isPrivate,
@@ -161,21 +159,6 @@ export function CreatePortfolio() {
             <p className="text-xs text-text-secondary mt-2">
               2-20 characters, lowercase letters, numbers, and hyphens only
             </p>
-          </div>
-
-          {/* Display Name */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Display Name (optional)
-            </label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="John's Portfolio"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent"
-              maxLength={50}
-            />
           </div>
 
           {/* Password */}

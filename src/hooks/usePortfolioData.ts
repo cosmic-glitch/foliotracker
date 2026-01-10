@@ -45,7 +45,8 @@ interface ApiPortfolioResponse {
 interface PrivatePortfolioResponse {
   portfolioId: string;
   displayName: string | null;
-  isPrivate: true;
+  isPrivate: boolean;
+  visibility: 'public' | 'private' | 'selective';
   requiresAuth: true;
 }
 
@@ -60,12 +61,16 @@ export const portfolioKeys = {
 // Fetch functions with HTTP cache support
 async function fetchPortfolioApi(
   portfolioId: string,
-  password?: string | null
+  password?: string | null,
+  loggedInAs?: string | null
 ): Promise<ApiPortfolioResponse | PrivatePortfolioResponse | null> {
   const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
   url.searchParams.set('id', portfolioId);
   if (password) {
     url.searchParams.set('password', password);
+  }
+  if (loggedInAs) {
+    url.searchParams.set('logged_in_as', loggedInAs);
   }
 
   const response = await fetch(url.toString(), { cache: 'default' });
@@ -76,9 +81,10 @@ async function fetchPortfolioApi(
 }
 
 async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHistoryResponse> {
+  // Don't use browser HTTP cache - history depends on current holdings which can change
   const response = await fetch(
     `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&days=${days}`,
-    { cache: 'default' } // Leverage browser HTTP cache (24hr for history)
+    { cache: 'no-store' }
   );
   if (!response.ok) throw new Error('Failed to fetch history');
   return response.json();
@@ -95,15 +101,15 @@ async function fetchIntradayApi(portfolioId: string): Promise<ApiHistoryResponse
 
 const MAX_DAYS = 30; // Fetch 30 days of history
 
-export function usePortfolioData(portfolioId: string, password?: string | null) {
+export function usePortfolioData(portfolioId: string, password?: string | null, loggedInAs?: string | null) {
   const queryClient = useQueryClient();
   const [chartView, setChartView] = useState<ChartView>('1D');
 
   // Portfolio query - needs frequent updates for live prices
-  // Include password in queryKey so it refetches when password changes
+  // Include password and loggedInAs in queryKey so it refetches when they change
   const portfolioQuery = useQuery({
-    queryKey: [...portfolioKeys.detail(portfolioId), password ?? 'no-auth'],
-    queryFn: () => fetchPortfolioApi(portfolioId, password),
+    queryKey: [...portfolioKeys.detail(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchPortfolioApi(portfolioId, password, loggedInAs),
     enabled: !!portfolioId,
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
@@ -112,16 +118,16 @@ export function usePortfolioData(portfolioId: string, password?: string | null) 
     refetchIntervalInBackground: true,
   });
 
-  // History query (30D) - very stable, rarely needs refresh
+  // History query (30D) - refetch when switching to this view
   const historyQuery = useQuery({
     queryKey: portfolioKeys.history(portfolioId),
     queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS),
     enabled: !!portfolioId && !!portfolioQuery.data && chartView === '30D',
-    staleTime: 24 * 60 * 60 * 1000, // Fresh for 24 hours
-    gcTime: 7 * 24 * 60 * 60 * 1000, // Keep in cache for 7 days
-    refetchOnMount: false, // Don't refetch on every mount
+    staleTime: 5 * 60 * 1000, // Fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
-    refetchInterval: false, // No auto-refresh for history
+    refetchInterval: false,
   });
 
   // Intraday query (1D) - fetched fresh each time

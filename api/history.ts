@@ -354,9 +354,8 @@ export default async function handler(
       lastUpdated: new Date().toISOString(),
     };
 
-    // Cache aggressively - historical data is very stable
-    // Browser: 24 hours, CDN: 1 hour, stale-while-revalidate: 24 hours
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400');
+    // No caching - history depends on current holdings which can change anytime
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(response);
   } catch (error) {
     console.error('History API error:', error);

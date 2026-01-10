@@ -8,17 +8,21 @@ import {
   HoldingsByType,
   Footer,
   LoadingSkeleton,
+  PermissionsModal,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
+import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
   const { unlock, getPassword } = useUnlockedPortfolios();
+  const { loggedInAs, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
   // Get stored password if portfolio was previously unlocked
   const storedPassword = portfolioId ? getPassword(portfolioId) : null;
@@ -30,11 +34,10 @@ function App() {
     isRefreshing,
     error,
     requiresAuth,
-    privateDisplayName,
     chartView,
     setChartView,
     refresh,
-  } = usePortfolioData(portfolioId || '', storedPassword);
+  } = usePortfolioData(portfolioId || '', storedPassword, loggedInAs);
 
   const handleUnlock = async (password: string) => {
     if (!portfolioId) return;
@@ -100,6 +103,14 @@ function App() {
     }
   };
 
+  const handlePermissions = () => {
+    if (!portfolioId) return;
+    // Only allow permissions if logged in as this portfolio
+    if (loggedInAs === portfolioId.toLowerCase()) {
+      setShowPermissionsModal(true);
+    }
+  };
+
   const handleDeleteVerify = async (password: string) => {
     if (!portfolioId) return;
 
@@ -136,7 +147,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} displayName={data?.displayName} onEdit={handleEdit} onDelete={handleDelete} />
+      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onDelete={handleDelete} onPermissions={handlePermissions} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 space-y-6">
         {error && (
@@ -188,7 +199,7 @@ function App() {
       {requiresAuth && (
         <PasswordModal
           title="Private Portfolio"
-          description={`"${privateDisplayName || portfolioId}" is a private portfolio. Enter the password to view details.`}
+          description={`"${portfolioId.toUpperCase()}" is a private portfolio. Enter the password to view details.`}
           confirmLabel="Unlock"
           onConfirm={handleUnlock}
           onCancel={() => navigate('/')}
@@ -210,11 +221,20 @@ function App() {
       {showDeleteModal && (
         <PasswordModal
           title="Delete Portfolio"
-          description={`Are you sure you want to delete "${data?.displayName || portfolioId}"? This action cannot be undone.`}
+          description={`Are you sure you want to delete "${portfolioId.toUpperCase()}"? This action cannot be undone.`}
           confirmLabel="Delete"
           confirmVariant="danger"
           onConfirm={handleDeleteVerify}
           onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {/* Permissions modal */}
+      {showPermissionsModal && portfolioId && loggedInAs === portfolioId.toLowerCase() && (
+        <PermissionsModal
+          portfolioId={portfolioId}
+          password={getLoginPassword() || ''}
+          onClose={() => setShowPermissionsModal(false)}
         />
       )}
     </div>

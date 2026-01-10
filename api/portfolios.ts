@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import bcrypt from 'bcryptjs';
 import {
   getPortfolios,
   getPortfolio,
@@ -368,7 +369,7 @@ export default async function handler(
 
     if (req.method === 'PUT') {
       // Update existing portfolio (or preview classification)
-      const { id, password, holdings: holdingsInput, isPrivate } = req.body;
+      const { id, password, holdings: holdingsInput, isPrivate, newPassword } = req.body;
       const isPreview = req.query.preview === 'true';
 
       if (!id || typeof id !== 'string') {
@@ -465,9 +466,16 @@ export default async function handler(
         });
       }
 
-      // Update privacy setting if provided
+      // Update portfolio settings (privacy and/or password)
+      const settings: { is_private?: boolean; password_hash?: string } = {};
       if (typeof isPrivate === 'boolean') {
-        await updatePortfolioSettings(id, { is_private: isPrivate });
+        settings.is_private = isPrivate;
+      }
+      if (newPassword && typeof newPassword === 'string' && newPassword.length >= 4) {
+        settings.password_hash = await bcrypt.hash(newPassword, 10);
+      }
+      if (Object.keys(settings).length > 0) {
+        await updatePortfolioSettings(id, settings);
       }
 
       await setHoldings(id, dbHoldings);

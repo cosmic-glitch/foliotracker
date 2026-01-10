@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Pencil, Trash2, Lock } from 'lucide-react';
+import { TrendingUp, Plus, Users, Pencil, Trash2, Lock, LogIn, LogOut, User } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
+import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 
 interface Portfolio {
   id: string;
@@ -43,8 +44,10 @@ function formatCompactValue(value: number): string {
 export function LandingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { loggedInAs, login, logout } = useLoggedInPortfolio();
   const [deleteTarget, setDeleteTarget] = useState<Portfolio | null>(null);
   const [editTarget, setEditTarget] = useState<Portfolio | null>(null);
+  const [loginTarget, setLoginTarget] = useState<Portfolio | null>(null);
 
   // Use TanStack Query for auto-refresh
   const { data, isLoading, error } = useQuery({
@@ -94,6 +97,28 @@ export function LandingPage() {
     navigate(`/${editTarget.id}/edit`, { state: { password } });
   };
 
+  const handleLogin = async (password: string) => {
+    if (!loginTarget) return;
+
+    // Verify password via the portfolio API
+    const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
+    url.searchParams.set('id', loginTarget.id);
+    url.searchParams.set('password', password);
+
+    const response = await fetch(url.toString());
+
+    if (response.status === 401) {
+      throw new Error('Invalid password');
+    }
+    if (!response.ok) {
+      throw new Error('Failed to verify password');
+    }
+
+    // Password is valid, log in
+    login(loginTarget.id, password);
+    setLoginTarget(null);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -105,10 +130,27 @@ export function LandingPage() {
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
               <h1 className="text-xl font-semibold text-text-primary">
-                Portfolio Tracker
+                Folio Tracker
               </h1>
             </div>
             <div className="flex items-center gap-3">
+              {loggedInAs && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
+                    <User className="w-3.5 h-3.5 text-accent" />
+                    <span className="text-sm font-medium text-accent">
+                      {loggedInAs.toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={logout}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Logout
+                  </button>
+                </div>
+              )}
               <MarketStatusBadge status={getMarketStatus()} />
               <ThemeToggle />
             </div>
@@ -167,7 +209,7 @@ export function LandingPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-text-primary flex items-center gap-2">
-                        {portfolio.display_name || portfolio.id}
+                        {portfolio.id.toUpperCase()}
                         {portfolio.is_private && (
                           <>
                             <Lock className="w-3.5 h-3.5 text-amber-500" />
@@ -198,6 +240,20 @@ export function LandingPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {loggedInAs === portfolio.id.toLowerCase() ? (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-accent text-sm">
+                          <User className="w-3.5 h-3.5" />
+                          Logged in
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setLoginTarget(portfolio)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          Login
+                        </button>
+                      )}
                       <Link
                         to={`/${portfolio.id}`}
                         className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
@@ -242,7 +298,7 @@ export function LandingPage() {
       {deleteTarget && (
         <PasswordModal
           title="Delete Portfolio"
-          description={`Are you sure you want to delete "${deleteTarget.display_name || deleteTarget.id}"? This action cannot be undone.`}
+          description={`Are you sure you want to delete "${deleteTarget.id.toUpperCase()}"? This action cannot be undone.`}
           confirmLabel="Delete"
           confirmVariant="danger"
           onConfirm={handleDelete}
@@ -254,10 +310,21 @@ export function LandingPage() {
       {editTarget && (
         <PasswordModal
           title="Edit Portfolio"
-          description={`Enter the password to edit "${editTarget.display_name || editTarget.id}".`}
+          description={`Enter the password to edit "${editTarget.id.toUpperCase()}".`}
           confirmLabel="Continue"
           onConfirm={handleEditVerify}
           onCancel={() => setEditTarget(null)}
+        />
+      )}
+
+      {/* Login Modal */}
+      {loginTarget && (
+        <PasswordModal
+          title="Login"
+          description={`Enter the password for "${loginTarget.id.toUpperCase()}" to log in.`}
+          confirmLabel="Login"
+          onConfirm={handleLogin}
+          onCancel={() => setLoginTarget(null)}
         />
       )}
     </div>

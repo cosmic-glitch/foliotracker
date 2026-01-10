@@ -22,7 +22,7 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
 
   return (
     <div className="bg-card rounded-2xl p-6 md:p-8 border border-border">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
           <p className="text-text-secondary text-sm font-medium mb-2">Total Portfolio Value</p>
           <p className="text-4xl md:text-5xl font-bold text-text-primary tracking-tight">

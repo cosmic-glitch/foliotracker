@@ -16,7 +16,7 @@ A multi-portfolio stock tracker with real-time prices and historical performance
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS, Recharts
 - **Backend:** Vercel Serverless Functions
 - **Database:** Supabase (PostgreSQL)
-- **APIs:** FMP (stocks/ETFs quotes & historical), CNBC (mutual funds), Twelve Data (symbol info)
+- **APIs:** FMP (Financial Modeling Prep) for all quotes, symbol info, and historical data
 
 ## Setup
 

@@ -117,7 +117,7 @@ export default async function handler(
       }
     }
 
-    // Fetch fresh prices from FMP (stocks, ETFs) and CNBC (mutual funds)
+    // Fetch fresh prices from FMP (stocks, ETFs, mutual funds)
     if (tickersToRefresh.length > 0) {
       const quotes = await getMultipleQuotes(tickersToRefresh);
 

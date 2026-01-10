@@ -35,7 +35,7 @@ vercel --prod    # Deploy to production
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE)
 - `api/history.ts` - Historical price data
 - `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/finnhub.ts` - Stock price API (FMP for stocks/ETFs, CNBC for mutual funds, Twelve Data for names)
+- `api/lib/finnhub.ts` - Stock price API (FMP for all quotes and symbol info)
 - `api/lib/cache.ts` - Price cache staleness logic
 
 ### Database (Supabase PostgreSQL)
@@ -44,9 +44,7 @@ vercel --prod    # Deploy to production
 - `price_cache` table: ticker, current_price, previous_close, updated_at
 
 ### External APIs
-- **FMP (Financial Modeling Prep)** - Real-time stock/ETF prices and historical data
-- **CNBC** - Mutual fund NAV prices (no API key needed)
-- **Twelve Data** - Symbol search for company names and instrument types
+- **FMP (Financial Modeling Prep)** - All quotes (stocks, ETFs, mutual funds), symbol info, and historical data
 
 ## Key Patterns
 

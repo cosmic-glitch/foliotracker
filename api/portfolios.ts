@@ -12,7 +12,7 @@ import {
   updatePriceCache,
   updatePortfolioSettings,
 } from './lib/db.js';
-import { getMultipleQuotes, getSymbolInfo, isMutualFund, getMutualFundQuote, getQuote } from './lib/finnhub.js';
+import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/finnhub.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -130,7 +130,7 @@ async function classifyHoldings(
       continue;
     }
 
-    // Try FMP for stocks/ETFs
+    // Try FMP for all symbols (stocks, ETFs, mutual funds)
     try {
       const quote = await getQuote(holding.ticker);
       if (quote && quote.currentPrice > 0) {
@@ -150,30 +150,7 @@ async function classifyHoldings(
         continue;
       }
     } catch (e) {
-      // FMP lookup failed, try CNBC for mutual funds
-    }
-
-    // Try CNBC for mutual funds
-    if (isMutualFund(holding.ticker)) {
-      try {
-        const mfQuote = await getMutualFundQuote(holding.ticker);
-        if (mfQuote && mfQuote.price > 0) {
-          tradeable.push({
-            ...holding,
-            isStatic: false,
-            name: holding.ticker,
-            instrumentType: 'Mutual Fund',
-            price: mfQuote.price,
-          });
-          priceMap.set(holding.ticker, {
-            current_price: mfQuote.price,
-            previous_close: mfQuote.previousClose,
-          });
-          continue;
-        }
-      } catch (e) {
-        // CNBC lookup failed
-      }
+      // FMP lookup failed
     }
 
     // Fallback to static

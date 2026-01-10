@@ -86,7 +86,7 @@ async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHi
 
 async function fetchIntradayApi(portfolioId: string): Promise<ApiHistoryResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&interval=5m`,
+    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&interval=1m`,
     { cache: 'no-store' } // Always fetch fresh for intraday
   );
   if (!response.ok) throw new Error('Failed to fetch intraday data');

@@ -25,7 +25,7 @@ interface HistoryResponse {
 
 const BENCHMARK_TICKER = 'SPY';
 
-// Handle intraday (5-minute interval) data - no caching
+// Handle intraday (1-minute interval) data - no caching
 async function handleIntraday(
   req: VercelRequest,
   res: VercelResponse,
@@ -43,7 +43,7 @@ async function handleIntraday(
 
   // Fetch intraday data for all tradeable holdings in parallel
   const fetchPromises = tradeableHoldings.map((holding) =>
-    getHistoricalData(holding.ticker, startOfDay, now, '5m').then((data) => ({
+    getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
       ticker: holding.ticker,
       shares: holding.shares,
       data,
@@ -167,7 +167,7 @@ export default async function handler(
   try {
     const days = parseInt(req.query.days as string) || 30;
     const portfolioId = req.query.id as string;
-    const interval = (req.query.interval as string) === '5m' ? '5m' : '1d';
+    const interval = (req.query.interval as string) === '1m' ? '1m' : '1d';
 
     if (!portfolioId) {
       res.status(400).json({ error: 'Portfolio ID is required' });
@@ -175,7 +175,7 @@ export default async function handler(
     }
 
     // For intraday data, use a separate code path (no caching)
-    if (interval === '5m') {
+    if (interval === '1m') {
       return handleIntraday(req, res, portfolioId);
     }
 

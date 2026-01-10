@@ -1,8 +1,8 @@
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY!;
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const FMP_API_KEY = process.env.FMP_API_KEY!;
+const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const CNBC_BASE_URL = 'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol';
 
-// Known mutual funds that need CNBC API instead of Finnhub
+// Known mutual funds that need CNBC API instead of FMP
 const MUTUAL_FUNDS = ['VWUAX', 'VMFXX', 'VFIAX', 'VTSAX', 'VBTLX', 'VTIAX', 'VIGAX', 'VVIAX'];
 
 export function isMutualFund(symbol: string): boolean {
@@ -53,198 +53,197 @@ export async function getMutualFundQuote(symbol: string): Promise<CNBCQuote | nu
   }
 }
 
-export interface FinnhubQuote {
-  c: number; // Current price
-  d: number; // Change
-  dp: number; // Percent change
-  h: number; // High price of the day
-  l: number; // Low price of the day
-  o: number; // Open price of the day
-  pc: number; // Previous close price
-  t: number; // Timestamp
+// FMP Quote interface
+export interface FMPQuote {
+  symbol: string;
+  name: string;
+  price: number;
+  changesPercentage: number;
+  change: number;
+  dayLow: number;
+  dayHigh: number;
+  yearHigh: number;
+  yearLow: number;
+  marketCap: number;
+  priceAvg50: number;
+  priceAvg200: number;
+  exchange: string;
+  volume: number;
+  avgVolume: number;
+  open: number;
+  previousClose: number;
+  eps: number;
+  pe: number;
+  earningsAnnouncement: string;
+  sharesOutstanding: number;
+  timestamp: number;
 }
 
-export interface FinnhubCandle {
-  c: number[]; // Close prices
-  h: number[]; // High prices
-  l: number[]; // Low prices
-  o: number[]; // Open prices
-  s: string; // Status
-  t: number[]; // Timestamps
-  v: number[]; // Volume
-}
-
-export async function getQuote(symbol: string): Promise<FinnhubQuote | null> {
-  try {
-    const response = await fetch(
-      `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`
-    );
-
-    if (!response.ok) {
-      console.error(`Finnhub API error for ${symbol}: ${response.status}`);
-      return null;
-    }
-
-    const data: FinnhubQuote = await response.json();
-
-    // Check if we got valid data (c=0 means no data)
-    if (data.c === 0 && data.pc === 0) {
-      console.warn(`No data returned for ${symbol}`);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error(`Error fetching quote for ${symbol}:`, error);
-    return null;
-  }
-}
-
-export async function getHistoricalData(
-  symbol: string,
-  from: Date,
-  to: Date,
-  interval: '1d' | '5m' = '1d'
-): Promise<{ date: string; close: number }[]> {
-  // Try Yahoo Finance first (free, no API key needed)
-  try {
-    const period1 = Math.floor(from.getTime() / 1000);
-    const period2 = Math.floor(to.getTime() / 1000);
-
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=${interval}`;
-    const response = await fetch(yahooUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const result = data.chart?.result?.[0];
-
-      if (result?.timestamp && result?.indicators?.quote?.[0]?.close) {
-        const timestamps = result.timestamp;
-        const closes = result.indicators.quote[0].close;
-
-        const historicalData: { date: string; close: number }[] = [];
-        for (let i = 0; i < timestamps.length; i++) {
-          if (closes[i] !== null) {
-            // For intraday, use ISO timestamp; for daily, use date only
-            const dateStr = interval === '1d'
-              ? new Date(timestamps[i] * 1000).toISOString().split('T')[0]
-              : new Date(timestamps[i] * 1000).toISOString();
-            historicalData.push({
-              date: dateStr,
-              close: closes[i],
-            });
-          }
-        }
-
-        if (historicalData.length > 0) {
-          return historicalData;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn(`Yahoo Finance error for ${symbol}:`, error);
-  }
-
-  // Fallback to Finnhub (requires paid plan for candles)
-  try {
-    const fromTimestamp = Math.floor(from.getTime() / 1000);
-    const toTimestamp = Math.floor(to.getTime() / 1000);
-    // Map interval to Finnhub resolution: '5m' -> '5', '1d' -> 'D'
-    const resolution = interval === '1d' ? 'D' : interval.replace('m', '');
-
-    const response = await fetch(
-      `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${fromTimestamp}&to=${toTimestamp}&token=${FINNHUB_API_KEY}`
-    );
-
-    if (!response.ok) {
-      console.error(`Finnhub candle API error for ${symbol}: ${response.status}`);
-      return [];
-    }
-
-    const data: FinnhubCandle = await response.json();
-
-    if (data.s !== 'ok' || !data.c || !data.t) {
-      console.warn(`No candle data for ${symbol}`);
-      return [];
-    }
-
-    return data.t.map((timestamp, i) => ({
-      date: interval === '1d'
-        ? new Date(timestamp * 1000).toISOString().split('T')[0]
-        : new Date(timestamp * 1000).toISOString(),
-      close: data.c[i],
-    }));
-  } catch (error) {
-    console.error(`Error fetching historical data for ${symbol}:`, error);
-    return [];
-  }
-}
-
-// Yahoo Finance quote functions (unified source for stocks, ETFs, and mutual funds)
-export interface YahooQuote {
+// Normalized quote interface (consistent across data sources)
+export interface Quote {
   currentPrice: number;
   previousClose: number;
   changePercent: number;
 }
 
-export async function getYahooQuote(symbol: string): Promise<YahooQuote | null> {
+export async function getFMPQuote(symbol: string): Promise<Quote | null> {
   try {
-    // Use chart API with 1d range to get current price and previous close
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1m`;
-    const response = await fetch(yahooUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    });
+    const response = await fetch(
+      `${FMP_BASE_URL}/quote/${symbol}?apikey=${FMP_API_KEY}`
+    );
 
     if (!response.ok) {
-      console.error(`Yahoo Finance API error for ${symbol}: ${response.status}`);
+      console.error(`FMP API error for ${symbol}: ${response.status}`);
       return null;
     }
 
-    const data = await response.json();
-    const meta = data.chart?.result?.[0]?.meta;
+    const data: FMPQuote[] = await response.json();
 
-    if (!meta || !meta.regularMarketPrice) {
-      console.warn(`No Yahoo data for ${symbol}`);
+    if (!data || data.length === 0 || !data[0].price) {
+      console.warn(`No FMP data for ${symbol}`);
       return null;
     }
 
-    const currentPrice = meta.regularMarketPrice;
-    const previousClose = meta.chartPreviousClose || meta.previousClose || currentPrice;
-    const changePercent = previousClose > 0
-      ? ((currentPrice - previousClose) / previousClose) * 100
-      : 0;
-
+    const quote = data[0];
     return {
-      currentPrice,
-      previousClose,
-      changePercent,
+      currentPrice: quote.price,
+      previousClose: quote.previousClose,
+      changePercent: quote.changesPercentage,
     };
   } catch (error) {
-    console.error(`Error fetching Yahoo quote for ${symbol}:`, error);
+    console.error(`Error fetching FMP quote for ${symbol}:`, error);
     return null;
   }
 }
 
-export async function getMultipleYahooQuotes(
+export async function getMultipleFMPQuotes(
   symbols: string[]
-): Promise<Map<string, YahooQuote>> {
-  const results = new Map<string, YahooQuote>();
+): Promise<Map<string, Quote>> {
+  const results = new Map<string, Quote>();
 
-  // Fetch in parallel
-  const promises = symbols.map((symbol) =>
-    getYahooQuote(symbol).then((quote) => ({ symbol, quote }))
-  );
-  const resolved = await Promise.all(promises);
+  if (symbols.length === 0) {
+    return results;
+  }
 
-  for (const { symbol, quote } of resolved) {
-    if (quote) {
-      results.set(symbol, quote);
+  try {
+    // FMP supports batch quotes with comma-separated symbols
+    const symbolList = symbols.join(',');
+    const response = await fetch(
+      `${FMP_BASE_URL}/quote/${symbolList}?apikey=${FMP_API_KEY}`
+    );
+
+    if (!response.ok) {
+      console.error(`FMP batch API error: ${response.status}`);
+      return results;
     }
+
+    const data: FMPQuote[] = await response.json();
+
+    if (!data || !Array.isArray(data)) {
+      console.warn('Invalid FMP batch response');
+      return results;
+    }
+
+    for (const quote of data) {
+      if (quote.price) {
+        results.set(quote.symbol, {
+          currentPrice: quote.price,
+          previousClose: quote.previousClose,
+          changePercent: quote.changesPercentage,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching FMP batch quotes:', error);
   }
 
   return results;
+}
+
+// Historical data functions
+export async function getHistoricalData(
+  symbol: string,
+  from: Date,
+  to: Date,
+  interval: '1d' | '1m' = '1d'
+): Promise<{ date: string; close: number }[]> {
+  try {
+    if (interval === '1m') {
+      // Use FMP 1-minute intraday endpoint
+      const response = await fetch(
+        `${FMP_BASE_URL}/historical-chart/1min/${symbol}?apikey=${FMP_API_KEY}`
+      );
+
+      if (!response.ok) {
+        console.error(`FMP intraday API error for ${symbol}: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.warn(`No FMP intraday data for ${symbol}`);
+        return [];
+      }
+
+      // FMP returns data in reverse chronological order, so reverse it
+      // Filter to only include data within the date range
+      const fromTime = from.getTime();
+      const toTime = to.getTime();
+
+      const historicalData: { date: string; close: number }[] = [];
+      for (let i = data.length - 1; i >= 0; i--) {
+        const point = data[i];
+        const pointTime = new Date(point.date).getTime();
+
+        if (pointTime >= fromTime && pointTime <= toTime && point.close !== null) {
+          historicalData.push({
+            date: point.date,
+            close: point.close,
+          });
+        }
+      }
+
+      return historicalData;
+    } else {
+      // Use FMP daily historical endpoint
+      const fromStr = from.toISOString().split('T')[0];
+      const toStr = to.toISOString().split('T')[0];
+
+      const response = await fetch(
+        `${FMP_BASE_URL}/historical-price-full/${symbol}?from=${fromStr}&to=${toStr}&apikey=${FMP_API_KEY}`
+      );
+
+      if (!response.ok) {
+        console.error(`FMP daily API error for ${symbol}: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+
+      if (!data || !data.historical || data.historical.length === 0) {
+        console.warn(`No FMP daily data for ${symbol}`);
+        return [];
+      }
+
+      // FMP returns data in reverse chronological order, so reverse it
+      const historicalData: { date: string; close: number }[] = [];
+      for (let i = data.historical.length - 1; i >= 0; i--) {
+        const point = data.historical[i];
+        if (point.close !== null) {
+          historicalData.push({
+            date: point.date,
+            close: point.close,
+          });
+        }
+      }
+
+      return historicalData;
+    }
+  } catch (error) {
+    console.error(`Error fetching historical data for ${symbol}:`, error);
+    return [];
+  }
 }
 
 // Use Twelve Data for fetching company/fund names (covers stocks, ETFs, and mutual funds)
@@ -292,30 +291,58 @@ export async function getCompanyName(symbol: string): Promise<string | null> {
   return info?.name || null;
 }
 
+// Unified quote function that handles both regular stocks and mutual funds
+export async function getQuote(symbol: string): Promise<Quote | null> {
+  if (isMutualFund(symbol)) {
+    const cnbcQuote = await getMutualFundQuote(symbol);
+    if (cnbcQuote) {
+      return {
+        currentPrice: cnbcQuote.price,
+        previousClose: cnbcQuote.previousClose,
+        changePercent: cnbcQuote.changePercent,
+      };
+    }
+    return null;
+  }
+  return getFMPQuote(symbol);
+}
+
 export async function getMultipleQuotes(
   symbols: string[]
-): Promise<Map<string, FinnhubQuote>> {
-  const results = new Map<string, FinnhubQuote>();
+): Promise<Map<string, Quote>> {
+  const results = new Map<string, Quote>();
 
-  // Fetch in parallel but respect rate limits
-  const batchSize = 10;
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    const batch = symbols.slice(i, i + batchSize);
-    const promises = batch.map((symbol) => getQuote(symbol));
-    const quotes = await Promise.all(promises);
+  // Separate mutual funds from regular stocks
+  const mutualFunds = symbols.filter(isMutualFund);
+  const regularStocks = symbols.filter((s) => !isMutualFund(s));
 
-    batch.forEach((symbol, index) => {
-      const quote = quotes[index];
-      if (quote) {
-        results.set(symbol, quote);
-      }
-    });
-
-    // Small delay between batches to avoid rate limiting
-    if (i + batchSize < symbols.length) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+  // Fetch mutual funds via CNBC (in parallel)
+  const mutualFundPromises = mutualFunds.map(async (symbol) => {
+    const quote = await getMutualFundQuote(symbol);
+    if (quote) {
+      results.set(symbol, {
+        currentPrice: quote.price,
+        previousClose: quote.previousClose,
+        changePercent: quote.changePercent,
+      });
     }
+  });
+
+  // Fetch regular stocks via FMP batch endpoint
+  const [fmpQuotes] = await Promise.all([
+    getMultipleFMPQuotes(regularStocks),
+    Promise.all(mutualFundPromises),
+  ]);
+
+  // Merge FMP results
+  for (const [symbol, quote] of fmpQuotes) {
+    results.set(symbol, quote);
   }
 
   return results;
 }
+
+// Legacy exports for backwards compatibility
+export type YahooQuote = Quote;
+export const getYahooQuote = getQuote;
+export const getMultipleYahooQuotes = getMultipleQuotes;

@@ -130,27 +130,27 @@ async function classifyHoldings(
       continue;
     }
 
-    // Try Finnhub for stocks/ETFs
+    // Try FMP for stocks/ETFs
     try {
       const quote = await getQuote(holding.ticker);
-      if (quote && quote.c > 0) {
+      if (quote && quote.currentPrice > 0) {
         const symbolInfo = await getSymbolInfo(holding.ticker);
         tradeable.push({
           ...holding,
           isStatic: false,
           name: symbolInfo?.name || holding.ticker,
           instrumentType: symbolInfo?.instrumentType || 'Other',
-          price: quote.c,
+          price: quote.currentPrice,
         });
         // Update price map for later use
         priceMap.set(holding.ticker, {
-          current_price: quote.c,
-          previous_close: quote.pc,
+          current_price: quote.currentPrice,
+          previous_close: quote.previousClose,
         });
         continue;
       }
     } catch (e) {
-      // Finnhub lookup failed, try CNBC for mutual funds
+      // FMP lookup failed, try CNBC for mutual funds
     }
 
     // Try CNBC for mutual funds

@@ -156,7 +156,7 @@ export function LandingPage() {
                 return (
                   <div
                     key={portfolio.id}
-                    className="flex items-center justify-between p-4 hover:bg-card-hover transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-4 hover:bg-card-hover transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-text-primary flex items-center gap-2">
@@ -200,7 +200,7 @@ export function LandingPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {(portfolio.visibility === 'public' ||
                         loggedInAs === portfolio.id.toLowerCase() ||
                         (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
@@ -218,14 +218,14 @@ export function LandingPage() {
                             className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                            Edit
+                            <span className="hidden sm:inline">Edit</span>
                           </button>
                           <button
                             onClick={() => setShowPermissions(true)}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                           >
                             <Settings className="w-3.5 h-3.5" />
-                            Permissions
+                            <span className="hidden sm:inline">Permissions</span>
                           </button>
                         </>
                       )}
@@ -235,7 +235,7 @@ export function LandingPage() {
                           className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
                         >
                           <LogOut className="w-3.5 h-3.5" />
-                          Logout
+                          <span className="hidden sm:inline">Logout</span>
                         </button>
                       ) : (
                         <button
@@ -243,7 +243,7 @@ export function LandingPage() {
                           className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                         >
                           <LogIn className="w-3.5 h-3.5" />
-                          Login
+                          <span className="hidden sm:inline">Login</span>
                         </button>
                       )}
                     </div>

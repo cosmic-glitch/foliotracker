@@ -28,6 +28,7 @@ vercel --prod    # Deploy to production
 - `src/pages/` - LandingPage, CreatePortfolio, EditPortfolio
 - `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, etc.)
 - `src/hooks/usePortfolioData.ts` - Data fetching hook for portfolio API
+- `src/hooks/useLoggedInPortfolio.ts` - Manages portfolio login state (localStorage)
 - `src/types/portfolio.ts` - TypeScript interfaces for Holding, PortfolioData
 
 ### Backend (Vercel Serverless Functions)
@@ -39,8 +40,9 @@ vercel --prod    # Deploy to production
 - `api/lib/cache.ts` - Price cache staleness logic
 
 ### Database (Supabase PostgreSQL)
-- `portfolios` table: id, display_name, password_hash, created_at
-- `holdings` table: portfolio_id, ticker, name, shares, is_static, static_value, instrument_type
+- `portfolios` table: id, display_name, password_hash, is_private, visibility, created_at
+- `holdings` table: portfolio_id, ticker, name, shares, is_static, static_value, instrument_type, cost_basis
+- `portfolio_viewers` table: portfolio_id, viewer_id (for selective visibility)
 - `price_cache` table: ticker, current_price, previous_close, updated_at
 
 ### External APIs
@@ -52,6 +54,18 @@ vercel --prod    # Deploy to production
 - `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
 - Price cache refreshes based on market hours (more frequent when open)
+- Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
+- Unrealized gain shown as both absolute value and percentage
+
+## Authentication & Permissions
+
+- **Portfolio Login**: Users can "log in" to their portfolio using their password (stored in localStorage)
+- **Three visibility modes**:
+  - `public` - Anyone can view
+  - `private` - Only owner with password
+  - `selective` - Owner + specific invited users (when logged in)
+- **Admin override**: `ADMIN_PASSWORD` env var allows viewing any private portfolio
+- `useLoggedInPortfolio` hook manages login state across the app
 
 ## Environment Variables
 
@@ -59,6 +73,7 @@ Copy `.env.example` to `.env`. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
 - `FMP_API_KEY` - Stock prices (Financial Modeling Prep)
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
+- `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios
 
 ## Workflow
 

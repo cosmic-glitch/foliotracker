@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useToast } from '../context/ToastContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -30,6 +31,7 @@ export function EditPortfolio() {
   const location = useLocation();
   const password = (location.state as LocationState)?.password;
   const { logout } = useLoggedInPortfolio();
+  const { showToast } = useToast();
 
   const [holdings, setHoldings] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -218,18 +220,24 @@ export function EditPortfolio() {
         throw new Error(data.error || 'Failed to delete portfolio');
       }
 
-      // Log out the user to clear session storage
-      logout();
-
-      // Invalidate caches before navigation
+      // Invalidate caches before logout and navigation
       await queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
       await queryClient.invalidateQueries({ queryKey: ['portfolios'] });
 
-      // Redirect to landing page
-      navigate('/');
+      // Log out the user to clear session storage
+      logout();
+
+      // Close the modal and show success message
+      setShowDeleteConfirmation(false);
+      showToast('Portfolio deleted successfully');
+
+      // Redirect to landing page after a brief delay to show the toast
+      setTimeout(() => {
+        navigate('/');
+      }, 300);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
+      // Keep modal open on error so user can see the error message
       setIsDeleting(false);
     }
   };
@@ -579,6 +587,7 @@ export function EditPortfolio() {
               <button
                 onClick={() => setShowDeleteConfirmation(false)}
                 className="p-1 hover:bg-card-hover rounded-lg transition-colors"
+                aria-label="Close dialog"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>

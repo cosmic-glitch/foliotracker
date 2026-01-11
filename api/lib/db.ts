@@ -132,6 +132,22 @@ export async function deletePortfolio(id: string): Promise<void> {
 
   if (holdingsError) throw holdingsError;
 
+  // Delete portfolio viewers where this portfolio is being viewed
+  const { error: viewersError } = await supabase
+    .from('portfolio_viewers')
+    .delete()
+    .eq('portfolio_id', normalizedId);
+
+  if (viewersError) throw viewersError;
+
+  // Delete viewer references where this portfolio is viewing others
+  const { error: asViewerError } = await supabase
+    .from('portfolio_viewers')
+    .delete()
+    .eq('viewer_id', normalizedId);
+
+  if (asViewerError) throw asViewerError;
+
   // Delete the portfolio
   const { error } = await supabase
     .from('portfolios')

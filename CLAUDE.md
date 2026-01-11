@@ -36,7 +36,7 @@ vercel --prod    # Deploy to production
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE)
 - `api/history.ts` - Historical price data
 - `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/finnhub.ts` - Stock price API (FMP for all quotes and symbol info)
+- `api/lib/fmp.ts` - Stock price API (FMP for all quotes and symbol info)
 - `api/lib/cache.ts` - Price cache staleness logic
 
 ### Database (Supabase PostgreSQL)

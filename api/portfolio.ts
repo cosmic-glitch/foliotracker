@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, Visibility } from './lib/db.js';
-import { getMultipleQuotes, getQuote } from './lib/finnhub.js';
+import { getMultipleQuotes, getQuote } from './lib/fmp.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
 const BENCHMARK_TICKER = 'SPY';

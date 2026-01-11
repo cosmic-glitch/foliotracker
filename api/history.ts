@@ -5,7 +5,7 @@ import {
   upsertDailyPrice,
   getCachedPrices,
 } from './lib/db.js';
-import { getHistoricalData } from './lib/finnhub.js';
+import { getHistoricalData } from './lib/fmp.js';
 
 interface HistoricalDataPoint {
   date: string;

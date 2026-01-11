@@ -81,7 +81,7 @@ vercel --prod    # Deploy to production
 │   ├── history.ts        # Historical price data
 │   └── lib/
 │       ├── db.ts         # Supabase client
-│       └── finnhub.ts    # Stock price APIs
+│       └── fmp.ts        # Stock price APIs
 ├── src/
 │   ├── components/       # React components
 │   ├── hooks/            # Custom hooks

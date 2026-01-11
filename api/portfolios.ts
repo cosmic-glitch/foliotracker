@@ -16,7 +16,7 @@ import {
   setPortfolioViewers,
   type Visibility,
 } from './lib/db.js';
-import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/finnhub.js';
+import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/fmp.js';
 
 const MAX_PORTFOLIOS = 10;
 

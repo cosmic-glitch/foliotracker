@@ -224,8 +224,8 @@ export function EditPortfolio() {
       }
 
       // Clear all cached data for this portfolio
-      queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
-      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      await queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
+      await queryClient.invalidateQueries({ queryKey: ['portfolios'] });
 
       // Log out and go to home page
       logout();

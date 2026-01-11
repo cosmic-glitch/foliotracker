@@ -120,25 +120,25 @@ async function classifyHoldings(
   const staticHoldings: ClassifiedHolding[] = [];
 
   for (const holding of holdings) {
-    // Check if we already have a cached price
-    const cachedPrice = priceMap.get(holding.ticker);
-    if (cachedPrice && cachedPrice.current_price > 0) {
-      const symbolInfo = await getSymbolInfo(holding.ticker);
-      tradeable.push({
-        ...holding,
-        isStatic: false,
-        name: symbolInfo?.name || holding.ticker,
-        instrumentType: symbolInfo?.instrumentType || 'Other',
-        price: cachedPrice.current_price,
-      });
-      continue;
-    }
-
-    // Try FMP for all symbols (stocks, ETFs, mutual funds)
     try {
+      // Check if we already have a cached price
+      const cachedPrice = priceMap.get(holding.ticker);
+      if (cachedPrice && cachedPrice.current_price > 0) {
+        const symbolInfo = await getSymbolInfo(holding.ticker).catch(() => null);
+        tradeable.push({
+          ...holding,
+          isStatic: false,
+          name: symbolInfo?.name || holding.ticker,
+          instrumentType: symbolInfo?.instrumentType || 'Other',
+          price: cachedPrice.current_price,
+        });
+        continue;
+      }
+
+      // Try FMP for all symbols (stocks, ETFs, mutual funds)
       const quote = await getQuote(holding.ticker);
       if (quote && quote.currentPrice > 0) {
-        const symbolInfo = await getSymbolInfo(holding.ticker);
+        const symbolInfo = await getSymbolInfo(holding.ticker).catch(() => null);
         tradeable.push({
           ...holding,
           isStatic: false,
@@ -154,7 +154,7 @@ async function classifyHoldings(
         continue;
       }
     } catch (e) {
-      // FMP lookup failed
+      console.error(`Error classifying ${holding.ticker}:`, e);
     }
 
     // Fallback to static

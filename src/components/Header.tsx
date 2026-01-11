@@ -12,8 +12,6 @@ interface HeaderProps {
 }
 
 export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions }: HeaderProps) {
-  const title = 'Folio Tracker';
-
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 py-4">
@@ -22,8 +20,16 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
             <Link to="/" className="p-2 bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors" title="All Portfolios">
               <TrendingUp className="w-6 h-6 text-accent" />
             </Link>
-            <h1 className="text-xl font-semibold text-text-primary">
-              {title}
+            <h1 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <Link to="/" className="hover:text-accent transition-colors">
+                Folio Tracker
+              </Link>
+              {portfolioId && (
+                <>
+                  <span className="text-text-secondary font-normal">›</span>
+                  <span>{portfolioId.toUpperCase()}</span>
+                </>
+              )}
             </h1>
           </div>
           <div className="flex items-center gap-3">

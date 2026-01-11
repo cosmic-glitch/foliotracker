@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
+import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -28,6 +29,7 @@ export function EditPortfolio() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const location = useLocation();
   const password = (location.state as LocationState)?.password;
+  const { logout } = useLoggedInPortfolio();
 
   const [holdings, setHoldings] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -216,15 +218,17 @@ export function EditPortfolio() {
         throw new Error(data.error || 'Failed to delete portfolio');
       }
 
-      // Invalidate caches
-      queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
-      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      // Log out the user to clear session storage
+      logout();
+
+      // Invalidate caches before navigation
+      await queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
+      await queryClient.invalidateQueries({ queryKey: ['portfolios'] });
 
       // Redirect to landing page
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-      setShowDeleteConfirmation(false);
     } finally {
       setIsDeleting(false);
     }

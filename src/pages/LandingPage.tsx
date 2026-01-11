@@ -115,13 +115,10 @@ export function LandingPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Intro */}
         <div className="mb-8">
-          <p className="text-text-primary text-lg mb-3">
-            Track your portfolio value with zero hassle.
-          </p>
           <ul className="text-text-secondary text-sm space-y-1">
-            <li>• Just enter your current holdings — no transaction history or brokerage connection needed</li>
-            <li>• Pick a user ID — no email, no real name, no way for anyone to know it's you</li>
-            <li>• Keep it public, private, or invite-only for select friends</li>
+            <li>• Pick a user ID — no email or real name needed</li>
+            <li>• Enter your current holdings — no transaction history or brokerage connection needed</li>
+            <li>• Mark your portfolio as public, private, or invite-only for select friends</li>
           </ul>
         </div>
 
@@ -133,14 +130,11 @@ export function LandingPage() {
 
         {/* Portfolios List */}
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
-          {/* Table Header */}
-          <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-border items-center">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-text-secondary" />
-              <span className="text-sm font-medium text-text-secondary">User</span>
-            </div>
-            <div className="w-24 text-sm font-medium text-text-secondary">Access</div>
-            <div className="text-sm font-medium text-text-secondary text-right">Actions</div>
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+            <Users className="w-5 h-5 text-text-secondary" />
+            <h3 className="text-lg font-semibold text-text-primary">
+              Users
+            </h3>
           </div>
 
           {isLoading ? (
@@ -152,48 +146,21 @@ export function LandingPage() {
               No portfolios yet. Be the first to create one!
             </div>
           ) : (
-            <>
-              {/* Table Rows */}
-              <div className="divide-y divide-border">
-                {data?.portfolios.map((portfolio) => {
-                  const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
-                  const isPositive = (portfolio.dayChange ?? 0) >= 0;
-                  const changeColor = isPositive ? 'text-positive' : 'text-negative';
-                  const sign = isPositive ? '+' : '';
+            <div className="divide-y divide-border">
+              {data?.portfolios.map((portfolio) => {
+                const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
+                const isPositive = (portfolio.dayChange ?? 0) >= 0;
+                const changeColor = isPositive ? 'text-positive' : 'text-negative';
+                const sign = isPositive ? '+' : '';
 
-                  return (
-                    <div
-                      key={portfolio.id}
-                      className="grid grid-cols-[1fr_auto_auto] gap-4 items-center p-4 hover:bg-card-hover transition-colors"
-                    >
-                      {/* User Column */}
-                      <div className="min-w-0">
-                        <p className="font-medium text-text-primary">
-                          {portfolio.id.toUpperCase()}
-                        </p>
-                        {shouldBlurValues ? (
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-                              $X,XXX,XXX
-                            </span>
-                            <span className="text-sm text-positive blur-sm select-none">
-                              +$X.Xk (+X.XX%)
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="text-lg font-semibold text-text-primary">
-                              ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                            <span className={`text-sm ${changeColor}`}>
-                              {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Access Column */}
-                      <div className="w-24 flex justify-start">
+                return (
+                  <div
+                    key={portfolio.id}
+                    className="flex items-center justify-between p-4 hover:bg-card-hover transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary flex items-center gap-2">
+                        {portfolio.id.toUpperCase()}
                         {portfolio.visibility === 'public' && (
                           <span className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full">
                             <Globe className="w-3 h-3" />
@@ -209,64 +176,81 @@ export function LandingPage() {
                         {portfolio.visibility === 'selective' && (
                           <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full">
                             <Users className="w-3 h-3" />
-                            Invite
+                            By Invite
                           </span>
                         )}
-                      </div>
-
-                      {/* Actions Column */}
-                      <div className="flex items-center gap-2">
-                        {(portfolio.visibility === 'public' ||
-                          loggedInAs === portfolio.id.toLowerCase() ||
-                          (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
-                          <Link
-                            to={`/${portfolio.id}`}
-                            className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
-                          >
-                            View →
-                          </Link>
-                        )}
-                        {loggedInAs === portfolio.id.toLowerCase() && (
-                          <>
-                            <button
-                              onClick={() => navigate(`/${portfolio.id}/edit`, { state: { password: getPassword() } })}
-                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => setShowPermissions(true)}
-                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                            >
-                              <Settings className="w-3.5 h-3.5" />
-                              Permissions
-                            </button>
-                          </>
-                        )}
-                        {loggedInAs === portfolio.id.toLowerCase() ? (
+                      </p>
+                      {shouldBlurValues ? (
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+                            $X,XXX,XXX
+                          </span>
+                          <span className="text-sm text-positive blur-sm select-none">
+                            +$X.Xk (+X.XX%)
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-lg font-semibold text-text-primary">
+                            ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                          <span className={`text-sm ${changeColor}`}>
+                            {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(portfolio.visibility === 'public' ||
+                        loggedInAs === portfolio.id.toLowerCase() ||
+                        (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
+                        <Link
+                          to={`/${portfolio.id}`}
+                          className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
+                        >
+                          View →
+                        </Link>
+                      )}
+                      {loggedInAs === portfolio.id.toLowerCase() && (
+                        <>
                           <button
-                            onClick={logout}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
-                          >
-                            <LogOut className="w-3.5 h-3.5" />
-                            Logout
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setLoginTarget(portfolio)}
+                            onClick={() => navigate(`/${portfolio.id}/edit`, { state: { password: getPassword() } })}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                           >
-                            <LogIn className="w-3.5 h-3.5" />
-                            Login
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={() => setShowPermissions(true)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            Permissions
+                          </button>
+                        </>
+                      )}
+                      {loggedInAs === portfolio.id.toLowerCase() ? (
+                        <button
+                          onClick={logout}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Logout
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setLoginTarget(portfolio)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          Login
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 

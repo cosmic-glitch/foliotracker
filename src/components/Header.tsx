@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Home, Share2, Check, Pencil, Settings, User } from 'lucide-react';
+import { TrendingUp, Home, Pencil, Settings, User } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
 
@@ -13,15 +12,7 @@ interface HeaderProps {
 }
 
 export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions }: HeaderProps) {
-  const [copied, setCopied] = useState(false);
-
   const title = 'Folio Tracker';
-
-  const handleShare = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
@@ -64,25 +55,6 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
               >
                 <Pencil className="w-5 h-5" />
                 <span>Edit</span>
-              </button>
-            )}
-            {portfolioId && (
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-sm"
-                title="Copy link"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-5 h-5 text-positive" />
-                    <span className="text-positive">Portfolio link copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-5 h-5 text-text-secondary" />
-                    <span className="text-text-secondary">Share</span>
-                  </>
-                )}
               </button>
             )}
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">

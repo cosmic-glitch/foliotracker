@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X } from 'lucide-react';
+import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -20,6 +20,8 @@ interface ClassificationPreview {
   static: StaticHoldingPreview[];
 }
 
+type Visibility = 'public' | 'private' | 'selective';
+
 export function EditPortfolio() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -28,7 +30,10 @@ export function EditPortfolio() {
   const password = (location.state as LocationState)?.password;
 
   const [holdings, setHoldings] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
+  const [visibility, setVisibility] = useState<Visibility>('public');
+  const [viewers, setViewers] = useState<string[]>([]);
+  const [selectedViewer, setSelectedViewer] = useState('');
+  const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,7 +61,8 @@ export function EditPortfolio() {
         if (!response.ok) throw new Error('Failed to fetch portfolio');
 
         const data = await response.json();
-        setIsPrivate(data.isPrivate ?? false);
+        setVisibility(data.visibility ?? 'public');
+        setViewers(data.viewers ?? []);
 
         // Convert holdings back to input format
         const holdingsText = data.holdings
@@ -81,6 +87,39 @@ export function EditPortfolio() {
 
     fetchPortfolio();
   }, [portfolioId, password, navigate]);
+
+  // Fetch all portfolios for viewer selection
+  useEffect(() => {
+    async function fetchPortfolios() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/portfolios`);
+        if (response.ok) {
+          const data = await response.json();
+          const ids = data.portfolios.map((p: { id: string }) => p.id.toLowerCase());
+          setAllPortfolios(ids);
+        }
+      } catch (err) {
+        console.error('Failed to fetch portfolios:', err);
+      }
+    }
+    fetchPortfolios();
+  }, []);
+
+  // Get available portfolios (exclude the one being edited and already added viewers)
+  const availablePortfolios = allPortfolios.filter(
+    (id) => id !== portfolioId?.toLowerCase() && !viewers.includes(id)
+  );
+
+  const handleAddViewer = () => {
+    if (!selectedViewer) return;
+    if (viewers.includes(selectedViewer)) return;
+    setViewers([...viewers, selectedViewer]);
+    setSelectedViewer('');
+  };
+
+  const handleRemoveViewer = (viewerId: string) => {
+    setViewers(viewers.filter((v) => v !== viewerId));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,7 +168,8 @@ export function EditPortfolio() {
           id: portfolioId,
           password,
           holdings,
-          isPrivate,
+          visibility,
+          viewers: visibility === 'selective' ? viewers : [],
           ...(newPassword && { newPassword }),
         }),
       });
@@ -205,33 +245,6 @@ export function EditPortfolio() {
             <p className="font-medium text-text-primary">{portfolioId?.toUpperCase()}</p>
           </div>
 
-          {/* Private Toggle */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-sm font-medium text-text-primary">
-                  Private Portfolio
-                </label>
-                <p className="text-xs text-text-secondary mt-1">
-                  Hide portfolio values on the homepage. Password required to view details.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPrivate(!isPrivate)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  isPrivate ? 'bg-accent' : 'bg-border'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                    isPrivate ? 'translate-x-5' : ''
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
           {/* Change Password */}
           <div className="bg-card rounded-xl border border-border p-4">
             <label className="block text-sm font-medium text-text-primary mb-2">
@@ -269,6 +282,136 @@ export function EditPortfolio() {
               <br />
               All values in thousands USD. Non-tradeable assets (like "Real Estate") will be treated as static values.
             </p>
+          </div>
+
+          {/* Visibility */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <label className="block text-sm font-medium text-text-primary mb-3">
+              Who can view this portfolio?
+            </label>
+
+            <div className="space-y-2">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  visibility === 'public'
+                    ? 'border-accent bg-accent/5'
+                    : 'border-border hover:bg-card-hover'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="public"
+                  checked={visibility === 'public'}
+                  onChange={(e) => setVisibility(e.target.value as Visibility)}
+                  className="sr-only"
+                />
+                <Globe className={`w-5 h-5 ${visibility === 'public' ? 'text-accent' : 'text-text-secondary'}`} />
+                <div>
+                  <p className="font-medium text-text-primary">Public</p>
+                  <p className="text-xs text-text-secondary">Anyone can view</p>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  visibility === 'private'
+                    ? 'border-accent bg-accent/5'
+                    : 'border-border hover:bg-card-hover'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="private"
+                  checked={visibility === 'private'}
+                  onChange={(e) => setVisibility(e.target.value as Visibility)}
+                  className="sr-only"
+                />
+                <Lock className={`w-5 h-5 ${visibility === 'private' ? 'text-accent' : 'text-text-secondary'}`} />
+                <div>
+                  <p className="font-medium text-text-primary">Private</p>
+                  <p className="text-xs text-text-secondary">Only you (with password)</p>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  visibility === 'selective'
+                    ? 'border-accent bg-accent/5'
+                    : 'border-border hover:bg-card-hover'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="selective"
+                  checked={visibility === 'selective'}
+                  onChange={(e) => setVisibility(e.target.value as Visibility)}
+                  className="sr-only"
+                />
+                <Users className={`w-5 h-5 ${visibility === 'selective' ? 'text-accent' : 'text-text-secondary'}`} />
+                <div>
+                  <p className="font-medium text-text-primary">Selective</p>
+                  <p className="text-xs text-text-secondary">Only specific users (when logged in)</p>
+                </div>
+              </label>
+            </div>
+
+            {/* Viewers List (only for selective) */}
+            {visibility === 'selective' && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-text-secondary">
+                  Add users who can view this portfolio when they're logged in.
+                </p>
+
+                <div className="flex gap-2">
+                  <select
+                    value={selectedViewer}
+                    onChange={(e) => setSelectedViewer(e.target.value)}
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                  >
+                    <option value="">Select a user</option>
+                    {availablePortfolios.map((id) => (
+                      <option key={id} value={id}>
+                        {id.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddViewer}
+                    disabled={!selectedViewer}
+                    className="px-3 py-2 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {viewers.length > 0 ? (
+                  <div className="bg-background rounded-lg border border-border divide-y divide-border">
+                    {viewers.map((viewerId) => (
+                      <div key={viewerId} className="flex items-center justify-between px-3 py-2">
+                        <span className="text-text-primary font-medium">
+                          {viewerId.toUpperCase()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveViewer(viewerId)}
+                          className="p-1 hover:bg-negative/10 hover:text-negative rounded transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4 text-text-secondary hover:text-negative" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary text-center py-4 bg-background rounded-lg border border-border">
+                    No viewers added yet
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Submit */}

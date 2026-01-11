@@ -392,7 +392,7 @@ export default async function handler(
 
     if (req.method === 'PUT') {
       // Update existing portfolio (or preview classification)
-      const { id, password, holdings: holdingsInput, isPrivate, newPassword } = req.body;
+      const { id, password, holdings: holdingsInput, visibility, viewers, newPassword } = req.body;
       const isPreview = req.query.preview === 'true';
 
       if (!id || typeof id !== 'string') {
@@ -489,16 +489,26 @@ export default async function handler(
         });
       }
 
-      // Update portfolio settings (privacy and/or password)
-      const settings: { is_private?: boolean; password_hash?: string } = {};
-      if (typeof isPrivate === 'boolean') {
-        settings.is_private = isPrivate;
+      // Update portfolio settings (visibility and/or password)
+      const settings: { is_private?: boolean; visibility?: Visibility; password_hash?: string } = {};
+      if (visibility && ['public', 'private', 'selective'].includes(visibility)) {
+        settings.visibility = visibility as Visibility;
+        settings.is_private = visibility === 'private';
       }
       if (newPassword && typeof newPassword === 'string' && newPassword.length >= 4) {
         settings.password_hash = await bcrypt.hash(newPassword, 10);
       }
       if (Object.keys(settings).length > 0) {
         await updatePortfolioSettings(id, settings);
+      }
+
+      // Update viewers if selective visibility
+      if (visibility === 'selective' && Array.isArray(viewers)) {
+        const validViewers = viewers.filter((v: unknown) => typeof v === 'string').map((v: string) => v.toLowerCase());
+        await setPortfolioViewers(id, validViewers);
+      } else if (visibility && visibility !== 'selective') {
+        // Clear viewers if switching away from selective
+        await setPortfolioViewers(id, []);
       }
 
       await setHoldings(id, dbHoldings);

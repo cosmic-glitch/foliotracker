@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword, isAllowedViewer, Visibility } from './lib/db.js';
+import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, Visibility } from './lib/db.js';
 import { getMultipleQuotes, getQuote } from './lib/finnhub.js';
 import { isCacheStale, getMarketStatus } from './lib/cache.js';
 
@@ -43,6 +43,7 @@ interface PortfolioResponse {
   benchmark: BenchmarkData | null;
   isPrivate: boolean;
   visibility: Visibility;
+  viewers?: string[];
 }
 
 export default async function handler(
@@ -269,6 +270,9 @@ export default async function handler(
       console.warn('Could not fetch benchmark data:', error);
     }
 
+    // Fetch viewers if selective visibility
+    const viewers = portfolio.visibility === 'selective' ? await getPortfolioViewers(portfolioId) : undefined;
+
     const response: PortfolioResponse = {
       portfolioId,
       displayName: portfolio.display_name,
@@ -283,6 +287,7 @@ export default async function handler(
       benchmark,
       isPrivate: portfolio.visibility === 'private',
       visibility: portfolio.visibility,
+      viewers,
     };
 
     // Cache response for 1 minute

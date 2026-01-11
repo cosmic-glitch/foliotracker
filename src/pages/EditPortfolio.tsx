@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, ArrowLeft, Loader2, AlertTriangle, X, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
+import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useToast } from '../context/ToastContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -28,6 +30,8 @@ export function EditPortfolio() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const location = useLocation();
   const password = (location.state as LocationState)?.password;
+  const { logout } = useLoggedInPortfolio();
+  const { showToast } = useToast();
 
   const [holdings, setHoldings] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -40,6 +44,8 @@ export function EditPortfolio() {
   const [error, setError] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [preview, setPreview] = useState<ClassificationPreview | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // If no password in state, redirect back to landing
@@ -195,6 +201,45 @@ export function EditPortfolio() {
 
   const handleConfirm = () => {
     savePortfolio();
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: portfolioId, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete portfolio');
+      }
+
+      // Invalidate caches before logout and navigation
+      await queryClient.invalidateQueries({ queryKey: ['portfolio', portfolioId] });
+      await queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+
+      // Log out the user to clear session storage
+      logout();
+
+      // Close the modal and show success message
+      setShowDeleteConfirmation(false);
+      showToast('Portfolio deleted successfully');
+
+      // Redirect to landing page after a brief delay to show the toast
+      setTimeout(() => {
+        navigate('/');
+      }, 300);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      // Keep modal open on error so user can see the error message
+      setIsDeleting(false);
+    }
   };
 
   const formatValue = (value: number) => {
@@ -438,6 +483,22 @@ export function EditPortfolio() {
               )}
             </button>
           </div>
+
+          {/* Delete Portfolio */}
+          <div className="bg-card rounded-xl border border-negative/30 p-4 mt-8">
+            <h3 className="text-sm font-medium text-negative mb-2">Danger Zone</h3>
+            <p className="text-xs text-text-secondary mb-4">
+              Once you delete a portfolio, there is no going back. Please be certain.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirmation(true)}
+              className="w-full bg-negative/10 hover:bg-negative/20 border border-negative/30 text-negative font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Portfolio
+            </button>
+          </div>
         </form>
       </main>
 
@@ -503,6 +564,64 @@ export function EditPortfolio() {
                   </>
                 ) : (
                   'Confirm & Save'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-negative/10 rounded-lg">
+                  <Trash2 className="w-5 h-5 text-negative" />
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary">
+                  Delete Portfolio
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="p-1 hover:bg-card-hover rounded-lg transition-colors"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            <p className="text-sm text-text-secondary mb-4">
+              Are you sure you want to delete <span className="font-semibold text-text-primary">{portfolioId?.toUpperCase()}</span>? This action cannot be undone and all portfolio data will be permanently removed.
+            </p>
+
+            {error && (
+              <div className="bg-negative/10 border border-negative/20 rounded-lg px-4 py-3 text-negative text-sm mb-4">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="flex-1 bg-card-hover hover:bg-border text-text-primary font-medium py-2.5 px-4 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 bg-negative hover:bg-negative/90 disabled:bg-negative/50 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Portfolio'
                 )}
               </button>
             </div>

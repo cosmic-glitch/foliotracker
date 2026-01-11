@@ -326,17 +326,15 @@ export default async function handler(
         return;
       }
 
-      // Update price cache for tradeable holdings
+      // Update price cache for tradeable holdings (always upsert to ensure DB is updated)
       for (const holding of classification.tradeable) {
         if (holding.price) {
           const cached = priceMap.get(holding.ticker);
-          if (!cached) {
-            await updatePriceCache(
-              holding.ticker,
-              holding.price,
-              priceMap.get(holding.ticker)?.previous_close || holding.price
-            );
-          }
+          await updatePriceCache(
+            holding.ticker,
+            holding.price,
+            cached?.previous_close || holding.price
+          );
         }
       }
 
@@ -443,17 +441,15 @@ export default async function handler(
         return;
       }
 
-      // Update price cache for tradeable holdings
+      // Update price cache for tradeable holdings (always upsert to ensure DB is updated)
       for (const holding of classification.tradeable) {
         if (holding.price) {
           const cached = priceMap.get(holding.ticker);
-          if (!cached) {
-            await updatePriceCache(
-              holding.ticker,
-              holding.price,
-              priceMap.get(holding.ticker)?.previous_close || holding.price
-            );
-          }
+          await updatePriceCache(
+            holding.ticker,
+            holding.price,
+            cached?.previous_close || holding.price
+          );
         }
       }
 

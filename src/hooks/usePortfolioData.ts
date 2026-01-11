@@ -73,7 +73,7 @@ async function fetchPortfolioApi(
     url.searchParams.set('logged_in_as', loggedInAs);
   }
 
-  const response = await fetch(url.toString(), { cache: 'default' });
+  const response = await fetch(url.toString(), { cache: 'no-store' });
   if (response.status === 404) return null;
   if (response.status === 401) throw new Error('Invalid password');
   if (!response.ok) throw new Error('Failed to fetch portfolio');

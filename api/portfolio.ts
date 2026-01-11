@@ -290,8 +290,8 @@ export default async function handler(
       viewers,
     };
 
-    // Cache response for 1 minute
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    // Don't cache - portfolio data changes frequently and should always be fresh
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(response);
   } catch (error) {
     console.error('Portfolio API error:', error);

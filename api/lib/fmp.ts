@@ -173,36 +173,37 @@ export async function getHistoricalData(
 ): Promise<{ date: string; close: number }[]> {
   try {
     if (interval === '1m') {
-      // Intraday endpoint (note: may be restricted on some plans)
-      const response = await fetch(
-        `${FMP_STABLE_URL}/historical-chart/1min/${symbol}?apikey=${FMP_API_KEY}`
-      );
+      // Use Yahoo Finance for intraday (free, no API key needed)
+      const period1 = Math.floor(from.getTime() / 1000);
+      const period2 = Math.floor(to.getTime() / 1000);
+      const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1m`;
+
+      const response = await fetch(yahooUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
 
       if (!response.ok) {
-        console.error(`FMP intraday API error for ${symbol}: ${response.status}`);
+        console.error(`Yahoo Finance intraday API error for ${symbol}: ${response.status}`);
         return [];
       }
 
       const data = await response.json();
+      const result = data.chart?.result?.[0];
 
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        console.warn(`No FMP intraday data for ${symbol}`);
+      if (!result?.timestamp || !result?.indicators?.quote?.[0]?.close) {
+        console.warn(`No Yahoo Finance intraday data for ${symbol}`);
         return [];
       }
 
-      // FMP returns data in reverse chronological order, so reverse it
-      const fromTime = from.getTime();
-      const toTime = to.getTime();
+      const timestamps = result.timestamp;
+      const closes = result.indicators.quote[0].close;
 
       const historicalData: { date: string; close: number }[] = [];
-      for (let i = data.length - 1; i >= 0; i--) {
-        const point = data[i];
-        const pointTime = new Date(point.date).getTime();
-
-        if (pointTime >= fromTime && pointTime <= toTime && point.close !== null) {
+      for (let i = 0; i < timestamps.length; i++) {
+        if (closes[i] !== null) {
           historicalData.push({
-            date: point.date,
-            close: point.close,
+            date: new Date(timestamps[i] * 1000).toISOString(),
+            close: closes[i],
           });
         }
       }

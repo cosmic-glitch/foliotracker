@@ -130,11 +130,12 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
     refetchInterval: false,
   });
 
-  // Intraday query (1D) - fetched fresh each time
+  // Intraday query - always fetched when market is open (used as ground truth for total value)
   const intradayQuery = useQuery({
     queryKey: portfolioKeys.intraday(portfolioId),
     queryFn: () => fetchIntradayApi(portfolioId),
-    enabled: !!portfolioId && !!portfolioQuery.data && chartView === '1D',
+    // Fetch when viewing 1D OR when market is open (for accurate total value)
+    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isMarketOpen()),
     staleTime: 0, // Always stale - fetch fresh
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: true,
@@ -183,10 +184,19 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
     // If it's a private portfolio requiring auth, return null for data
     if ('requiresAuth' in portfolioQuery.data) return null;
     const p = portfolioQuery.data;
+
+    // When market is open and we have intraday data, use it as ground truth
+    // This ensures consistent total when switching between 1D/30D views
+    const intradayData = intradayQuery.data?.data || [];
+    let displayTotalValue = p.totalValue;
+    if (p.marketStatus === 'open' && intradayData.length > 0) {
+      displayTotalValue = intradayData[intradayData.length - 1].value;
+    }
+
     return {
       portfolioId: p.portfolioId,
       displayName: p.displayName,
-      totalValue: p.totalValue,
+      totalValue: displayTotalValue,
       totalDayChange: p.totalDayChange,
       totalDayChangePercent: p.totalDayChangePercent,
       totalGain: p.totalGain,
@@ -198,7 +208,7 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
       marketStatus: p.marketStatus,
       benchmark: p.benchmark,
     };
-  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark]);
+  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data]);
 
   // Refresh only portfolio prices (not history - it rarely changes)
   const refresh = useCallback(() => {

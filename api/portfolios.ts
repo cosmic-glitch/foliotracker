@@ -17,7 +17,6 @@ import {
   type Visibility,
 } from './lib/db.js';
 import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/fmp.js';
-import { isCacheStale } from './lib/cache.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -190,50 +189,13 @@ export default async function handler(
       const loggedInAs = req.query.logged_in_as as string | undefined;
       const portfolios = await getPortfolios();
       const count = await getPortfolioCount();
-
-      // Pre-fetch all holdings to collect all tickers
-      const portfolioHoldings = await Promise.all(
-        portfolios.map(async (p) => ({
-          portfolio: p,
-          holdings: await getHoldings(p.id),
-        }))
-      );
-
-      // Collect unique tickers from all portfolios
-      const allTickers = new Set<string>();
-      for (const { holdings } of portfolioHoldings) {
-        for (const h of holdings) {
-          if (!h.is_static) allTickers.add(h.ticker);
-        }
-      }
-
-      // Get cached prices and check for stale ones
       const cachedPrices = await getCachedPrices();
-      const staleTickers: string[] = [];
-      for (const ticker of allTickers) {
-        const cached = cachedPrices.get(ticker);
-        if (!cached || isCacheStale(cached)) {
-          staleTickers.push(ticker);
-        }
-      }
 
-      // Refresh stale prices from FMP
-      if (staleTickers.length > 0) {
-        const freshQuotes = await getMultipleQuotes(staleTickers);
-        for (const [ticker, quote] of freshQuotes) {
-          await updatePriceCache(ticker, quote.currentPrice, quote.previousClose);
-          cachedPrices.set(ticker, {
-            ticker,
-            current_price: quote.currentPrice,
-            previous_close: quote.previousClose,
-            updated_at: new Date().toISOString(),
-          });
-        }
-      }
-
-      // Calculate summary for each portfolio using fresh prices
+      // Calculate summary for each portfolio
       const portfoliosWithSummary = await Promise.all(
-        portfolioHoldings.map(async ({ portfolio, holdings }) => {
+        portfolios.map(async (portfolio) => {
+          const holdings = await getHoldings(portfolio.id);
+
           let totalValue = 0;
           let totalDayChange = 0;
 

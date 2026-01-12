@@ -77,4 +77,9 @@ Copy `.env.example` to `.env`. Required:
 
 ## Workflow
 
-- Always deploy automatically after changes are made and build succeeds (`vercel --prod`)
+- **Preview-first deployment**: Always deploy to preview URL first, never directly to production
+  1. Make changes and run `npm run build` to verify no errors
+  2. Deploy to preview: `vercel` (without --prod)
+  3. Provide preview URL to user for manual testing
+  4. **Wait for user sign-off** before proceeding
+  5. Only after approval: `vercel --prod` to deploy to production

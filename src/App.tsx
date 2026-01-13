@@ -19,7 +19,7 @@ function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
   const { unlock, getPassword } = useUnlockedPortfolios();
-  const { loggedInAs, getPassword: getLoginPassword } = useLoggedInPortfolio();
+  const { loggedInAs, login, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
@@ -59,6 +59,7 @@ function App() {
 
     // Password is valid, store it and the hook will refetch
     unlock(portfolioId, password);
+    login(portfolioId, password);
   };
 
   const handleEdit = () => {

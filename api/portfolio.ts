@@ -84,6 +84,15 @@ export default async function handler(
     const password = req.query.password as string;
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
+    // If password is provided, verify it regardless of visibility (for login flow)
+    if (password) {
+      const isValid = await verifyPortfolioPassword(portfolioId, password);
+      if (!isValid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
+    }
+
     if (portfolio.visibility === 'private') {
       // Private portfolios require password
       if (!password) {

@@ -1,5 +1,5 @@
-import { getHoldings, getCachedPrices } from './db.js';
-import { getHistoricalData } from './fmp.js';
+import { getHoldings } from './db.js';
+import { getHistoricalData, getMultipleQuotes } from './fmp.js';
 
 export interface IntradayValue {
   totalValue: number;
@@ -24,39 +24,43 @@ export async function getIntradayPortfolioValue(
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
 
-  // Fetch intraday data for all tradeable holdings in parallel
-  const fetchPromises = tradeableHoldings.map((holding) =>
-    getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
-      ticker: holding.ticker,
-      shares: holding.shares,
-      data,
-    }))
-  );
+  // Fetch intraday data and FMP quotes in parallel
+  const tickers = tradeableHoldings.map((h) => h.ticker);
 
-  const results = await Promise.all(fetchPromises);
-
-  // Get cached prices for holdings without intraday data (e.g., mutual funds) and for previous close
-  const cachedPrices = await getCachedPrices();
+  const [intradayResults, fmpQuotes] = await Promise.all([
+    // Fetch intraday data for all tradeable holdings
+    Promise.all(
+      tradeableHoldings.map((holding) =>
+        getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
+          ticker: holding.ticker,
+          shares: holding.shares,
+          data,
+        }))
+      )
+    ),
+    // Fetch FMP quotes for previous_close and fallback current prices
+    getMultipleQuotes(tickers),
+  ]);
 
   // Track holdings with and without intraday data
   let constantValue = 0;
   let previousCloseTotal = 0;
-  const holdingsWithData: typeof results = [];
+  const holdingsWithData: typeof intradayResults = [];
 
-  for (const result of results) {
-    const cached = cachedPrices.get(result.ticker);
+  for (const result of intradayResults) {
+    const quote = fmpQuotes.get(result.ticker);
 
     if (result.data.length === 0) {
-      // No intraday data - use cached price for current value
-      if (cached) {
-        constantValue += result.shares * cached.current_price;
-        previousCloseTotal += result.shares * cached.previous_close;
+      // No intraday data - use FMP quote for current value
+      if (quote) {
+        constantValue += result.shares * quote.currentPrice;
+        previousCloseTotal += result.shares * quote.previousClose;
       }
     } else {
       holdingsWithData.push(result);
       // Still need previous close for day change calculation
-      if (cached) {
-        previousCloseTotal += result.shares * cached.previous_close;
+      if (quote) {
+        previousCloseTotal += result.shares * quote.previousClose;
       }
     }
   }

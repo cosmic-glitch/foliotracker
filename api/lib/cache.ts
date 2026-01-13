@@ -1,5 +1,3 @@
-import type { DbPriceCache } from './db.js';
-
 // US Eastern timezone utilities
 function getETOffset(): number {
   const now = new Date();
@@ -72,21 +70,6 @@ export function isAfterHours(): boolean {
   const afterHoursClose = 20 * 60;
 
   return totalMinutes >= marketClose && totalMinutes < afterHoursClose;
-}
-
-export function getCacheTTL(): number {
-  if (isMarketOpen()) return 5 * 60 * 1000;
-  if (isPreMarket()) return 5 * 60 * 1000;
-  if (isAfterHours()) return 15 * 60 * 1000;
-  return 60 * 60 * 1000;
-}
-
-export function isCacheStale(cachedPrice: DbPriceCache): boolean {
-  const updatedAt = new Date(cachedPrice.updated_at).getTime();
-  const now = Date.now();
-  const ttl = getCacheTTL();
-
-  return now - updatedAt > ttl;
 }
 
 export function getMarketStatus(): 'open' | 'pre-market' | 'after-hours' | 'closed' {

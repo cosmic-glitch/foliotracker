@@ -76,10 +76,11 @@ export async function getQuote(symbol: string): Promise<Quote | null> {
     }
 
     const quote = data[0];
+    // Fall back to current price if previousClose is null (e.g., money market funds like VMFXX)
     return {
       currentPrice: quote.price,
-      previousClose: quote.previousClose,
-      changePercent: quote.changePercentage,
+      previousClose: quote.previousClose ?? quote.price,
+      changePercent: quote.changePercentage ?? 0,
     };
   } catch (error) {
     console.error(`Error fetching FMP quote for ${symbol}:`, error);
@@ -96,36 +97,21 @@ export async function getMultipleQuotes(
     return results;
   }
 
-  try {
-    // FMP stable endpoint supports comma-separated symbols
-    const symbolList = symbols.join(',');
-    const response = await fetch(
-      `${FMP_STABLE_URL}/quote?symbol=${symbolList}&apikey=${FMP_API_KEY}`
-    );
-
-    if (!response.ok) {
-      console.error(`FMP batch API error: ${response.status}`);
-      return results;
+  // FMP stable endpoint doesn't support comma-separated symbols, fetch each individually in parallel
+  const fetchPromises = symbols.map(async (symbol) => {
+    const quote = await getQuote(symbol);
+    if (quote) {
+      return { symbol, quote };
     }
+    return null;
+  });
 
-    const data: FMPStableQuote[] = await response.json();
+  const responses = await Promise.all(fetchPromises);
 
-    if (!data || !Array.isArray(data)) {
-      console.warn('Invalid FMP batch response');
-      return results;
+  for (const response of responses) {
+    if (response) {
+      results.set(response.symbol, response.quote);
     }
-
-    for (const quote of data) {
-      if (quote.price) {
-        results.set(quote.symbol, {
-          currentPrice: quote.price,
-          previousClose: quote.previousClose,
-          changePercent: quote.changePercentage,
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching FMP batch quotes:', error);
   }
 
   return results;

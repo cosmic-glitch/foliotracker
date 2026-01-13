@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getHoldings, getPortfolio, getCachedPrices, updatePriceCache, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, Visibility } from './lib/db.js';
+import { getHoldings, getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, Visibility } from './lib/db.js';
 import { getMultipleQuotes, getQuote } from './lib/fmp.js';
-import { isCacheStale, getMarketStatus } from './lib/cache.js';
+import { getMarketStatus } from './lib/cache.js';
 
 const BENCHMARK_TICKER = 'SPY';
 const BENCHMARK_NAME = 'S&P 500';
@@ -122,50 +122,28 @@ export default async function handler(
 
     // Get holdings from database
     const dbHoldings = await getHoldings(portfolioId);
-    const cachedPrices = await getCachedPrices();
 
     // Separate tradeable and static holdings
     const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
     const staticHoldings = dbHoldings.filter((h) => h.is_static);
 
-    // Check which prices need refreshing
-    const tickersToRefresh: string[] = [];
-    for (const holding of tradeableHoldings) {
-      const cached = cachedPrices.get(holding.ticker);
-      if (!cached || isCacheStale(cached)) {
-        tickersToRefresh.push(holding.ticker);
-      }
-    }
-
-    // Fetch fresh prices from FMP (stocks, ETFs, mutual funds)
-    if (tickersToRefresh.length > 0) {
-      const quotes = await getMultipleQuotes(tickersToRefresh);
-
-      // Update cache
-      for (const [ticker, quote] of quotes) {
-        await updatePriceCache(ticker, quote.currentPrice, quote.previousClose);
-        cachedPrices.set(ticker, {
-          ticker,
-          current_price: quote.currentPrice,
-          previous_close: quote.previousClose,
-          updated_at: new Date().toISOString(),
-        });
-      }
-    }
+    // Fetch fresh prices from FMP for all tradeable holdings
+    const tickers = tradeableHoldings.map((h) => h.ticker);
+    const quotes = await getMultipleQuotes(tickers);
 
     // Build holdings response
     const holdings: Holding[] = [];
 
     // Process tradeable holdings
     for (const holding of tradeableHoldings) {
-      const cached = cachedPrices.get(holding.ticker);
-      if (!cached) {
+      const quote = quotes.get(holding.ticker);
+      if (!quote) {
         console.warn(`No price data for ${holding.ticker}`);
         continue;
       }
 
-      const value = holding.shares * cached.current_price;
-      const previousValue = holding.shares * cached.previous_close;
+      const value = holding.shares * quote.currentPrice;
+      const previousValue = holding.shares * quote.previousClose;
       const dayChange = value - previousValue;
       const dayChangePercent =
         previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
@@ -181,8 +159,8 @@ export default async function handler(
         ticker: holding.ticker,
         name: holding.name,
         shares: holding.shares,
-        currentPrice: cached.current_price,
-        previousClose: cached.previous_close,
+        currentPrice: quote.currentPrice,
+        previousClose: quote.previousClose,
         value,
         allocation: 0, // Calculated later
         dayChange,

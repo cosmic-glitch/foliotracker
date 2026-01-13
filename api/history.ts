@@ -3,9 +3,8 @@ import {
   getHoldings,
   getDailyPrices,
   upsertDailyPrice,
-  getCachedPrices,
 } from './lib/db.js';
-import { getHistoricalData } from './lib/fmp.js';
+import { getHistoricalData, getMultipleQuotes } from './lib/fmp.js';
 
 interface HistoricalDataPoint {
   date: string;
@@ -41,30 +40,32 @@ async function handleIntraday(
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
 
-  // Fetch intraday data for all tradeable holdings in parallel
-  const fetchPromises = tradeableHoldings.map((holding) =>
-    getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
-      ticker: holding.ticker,
-      shares: holding.shares,
-      data,
-    }))
-  );
+  // Fetch intraday data and FMP quotes in parallel
+  const tickers = tradeableHoldings.map((h) => h.ticker);
 
-  const results = await Promise.all(fetchPromises);
-
-  // Get cached prices for holdings without intraday data (e.g., mutual funds)
-  const cachedPrices = await getCachedPrices();
+  const [intradayResults, fmpQuotes] = await Promise.all([
+    Promise.all(
+      tradeableHoldings.map((holding) =>
+        getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
+          ticker: holding.ticker,
+          shares: holding.shares,
+          data,
+        }))
+      )
+    ),
+    getMultipleQuotes(tickers),
+  ]);
 
   // Identify holdings without intraday data and calculate their constant value
   let constantValue = 0;
-  const holdingsWithData: typeof results = [];
+  const holdingsWithData: typeof intradayResults = [];
 
-  for (const result of results) {
+  for (const result of intradayResults) {
     if (result.data.length === 0) {
-      // No intraday data - use cached price
-      const cached = cachedPrices.get(result.ticker);
-      if (cached) {
-        constantValue += result.shares * cached.current_price;
+      // No intraday data - use FMP quote
+      const quote = fmpQuotes.get(result.ticker);
+      if (quote) {
+        constantValue += result.shares * quote.currentPrice;
       }
     } else {
       holdingsWithData.push(result);

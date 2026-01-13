@@ -38,13 +38,6 @@ export interface DbHolding {
   cost_basis: number | null;
 }
 
-export interface DbPriceCache {
-  ticker: string;
-  current_price: number;
-  previous_close: number;
-  updated_at: string;
-}
-
 export interface DbDailyPrice {
   ticker: string;
   date: string;
@@ -190,36 +183,6 @@ export async function setHoldings(
 
     if (insertError) throw insertError;
   }
-}
-
-export async function getCachedPrices(): Promise<Map<string, DbPriceCache>> {
-  const { data, error } = await supabase.from('price_cache').select('*');
-
-  if (error) throw error;
-
-  const map = new Map<string, DbPriceCache>();
-  for (const price of data || []) {
-    map.set(price.ticker, price);
-  }
-  return map;
-}
-
-export async function updatePriceCache(
-  ticker: string,
-  currentPrice: number,
-  previousClose: number
-): Promise<void> {
-  const { error } = await supabase.from('price_cache').upsert(
-    {
-      ticker,
-      current_price: currentPrice,
-      previous_close: previousClose,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'ticker' }
-  );
-
-  if (error) throw error;
 }
 
 export async function getDailyPrices(

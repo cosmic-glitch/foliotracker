@@ -9,8 +9,6 @@ import {
   setHoldings,
   getHoldings,
   verifyPortfolioPassword,
-  getCachedPrices,
-  updatePriceCache,
   updatePortfolioSettings,
   isAllowedViewer,
   setPortfolioViewers,
@@ -114,28 +112,13 @@ function getStaticInstrumentType(ticker: string): string {
 
 // Smart classification: try price lookups, fallback to static
 async function classifyHoldings(
-  holdings: HoldingInput[],
-  priceMap: Map<string, { current_price: number; previous_close: number }>
+  holdings: HoldingInput[]
 ): Promise<ClassificationResult> {
   const tradeable: ClassifiedHolding[] = [];
   const staticHoldings: ClassifiedHolding[] = [];
 
   for (const holding of holdings) {
     try {
-      // Check if we already have a cached price
-      const cachedPrice = priceMap.get(holding.ticker);
-      if (cachedPrice && cachedPrice.current_price > 0) {
-        const symbolInfo = await getSymbolInfo(holding.ticker).catch(() => null);
-        tradeable.push({
-          ...holding,
-          isStatic: false,
-          name: symbolInfo?.name || holding.ticker,
-          instrumentType: symbolInfo?.instrumentType || 'Other',
-          price: cachedPrice.current_price,
-        });
-        continue;
-      }
-
       // Try FMP for all symbols (stocks, ETFs, mutual funds)
       const quote = await getQuote(holding.ticker);
       if (quote && quote.currentPrice > 0) {
@@ -146,11 +129,6 @@ async function classifyHoldings(
           name: symbolInfo?.name || holding.ticker,
           instrumentType: symbolInfo?.instrumentType || 'Other',
           price: quote.currentPrice,
-        });
-        // Update price map for later use
-        priceMap.set(holding.ticker, {
-          current_price: quote.currentPrice,
-          previous_close: quote.previousClose,
         });
         continue;
       }
@@ -191,7 +169,23 @@ export default async function handler(
       const useIntraday = req.query.intraday === 'true';
       const portfolios = await getPortfolios();
       const count = await getPortfolioCount();
-      const cachedPrices = await getCachedPrices();
+
+      // Collect all unique tickers across all portfolios for batch FMP fetch
+      const allHoldingsMap = new Map<string, Awaited<ReturnType<typeof getHoldings>>>();
+      const allTickers = new Set<string>();
+
+      for (const portfolio of portfolios) {
+        const holdings = await getHoldings(portfolio.id);
+        allHoldingsMap.set(portfolio.id, holdings);
+        for (const holding of holdings) {
+          if (!holding.is_static) {
+            allTickers.add(holding.ticker);
+          }
+        }
+      }
+
+      // Fetch fresh quotes from FMP for all tickers
+      const quotes = await getMultipleQuotes(Array.from(allTickers));
 
       // Calculate summary for each portfolio
       const portfoliosWithSummary = await Promise.all(
@@ -229,11 +223,11 @@ export default async function handler(
                 dayChangePercent: intradayValue.dayChangePercent,
               };
             }
-            // Fall through to cached prices if intraday not available
+            // Fall through to FMP quotes if intraday not available
           }
 
-          // Use cached prices (default behavior)
-          const holdings = await getHoldings(portfolio.id);
+          // Use FMP quotes
+          const holdings = allHoldingsMap.get(portfolio.id) || [];
 
           let totalValue = 0;
           let totalDayChange = 0;
@@ -242,10 +236,10 @@ export default async function handler(
             if (holding.is_static) {
               totalValue += holding.static_value || 0;
             } else {
-              const price = cachedPrices.get(holding.ticker);
-              if (price) {
-                const value = holding.shares * price.current_price;
-                const previousValue = holding.shares * price.previous_close;
+              const quote = quotes.get(holding.ticker);
+              if (quote) {
+                const value = holding.shares * quote.currentPrice;
+                const previousValue = holding.shares * quote.previousClose;
                 totalValue += value;
                 totalDayChange += value - previousValue;
               }
@@ -266,10 +260,8 @@ export default async function handler(
         })
       );
 
-      // No caching for intraday data
-      if (useIntraday) {
-        res.setHeader('Cache-Control', 'no-store');
-      }
+      // Always no-cache since we're always fetching fresh data
+      res.setHeader('Cache-Control', 'no-store');
 
       res.status(200).json({
         portfolios: portfoliosWithSummary,
@@ -303,8 +295,7 @@ export default async function handler(
       }
 
       // Use smart classification to determine which holdings are tradeable vs static
-      const priceMap = await getCachedPrices();
-      const classification = await classifyHoldings(parsedHoldings, priceMap);
+      const classification = await classifyHoldings(parsedHoldings);
 
       // If preview mode, return the classification without saving
       if (isPreview) {
@@ -352,22 +343,10 @@ export default async function handler(
       }
 
       // Check portfolio limit
-      const count = await getPortfolioCount();
-      if (count >= MAX_PORTFOLIOS) {
+      const portfolioCount = await getPortfolioCount();
+      if (portfolioCount >= MAX_PORTFOLIOS) {
         res.status(400).json({ error: 'Maximum number of portfolios reached (10)' });
         return;
-      }
-
-      // Update price cache for tradeable holdings (always upsert to ensure DB is updated)
-      for (const holding of classification.tradeable) {
-        if (holding.price) {
-          const cached = priceMap.get(holding.ticker);
-          await updatePriceCache(
-            holding.ticker,
-            holding.price,
-            cached?.previous_close || holding.price
-          );
-        }
       }
 
       // Build database holdings from classification
@@ -450,8 +429,7 @@ export default async function handler(
       }
 
       // Use smart classification to determine which holdings are tradeable vs static
-      const priceMap = await getCachedPrices();
-      const classification = await classifyHoldings(parsedHoldings, priceMap);
+      const classification = await classifyHoldings(parsedHoldings);
 
       // If preview mode, return the classification without saving
       if (isPreview) {
@@ -471,18 +449,6 @@ export default async function handler(
           })),
         });
         return;
-      }
-
-      // Update price cache for tradeable holdings (always upsert to ensure DB is updated)
-      for (const holding of classification.tradeable) {
-        if (holding.price) {
-          const cached = priceMap.get(holding.ticker);
-          await updatePriceCache(
-            holding.ticker,
-            holding.price,
-            cached?.previous_close || holding.price
-          );
-        }
       }
 
       // Build database holdings from classification

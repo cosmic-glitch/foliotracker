@@ -57,7 +57,42 @@ function inferInstrumentType(exchange: string, industry: string): string {
   return 'Common Stock';
 }
 
-export async function getQuote(symbol: string): Promise<Quote | null> {
+// Yahoo Finance quote (faster, no API key required)
+async function getYahooQuote(symbol: string): Promise<Quote | null> {
+  try {
+    const response = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+
+    if (!response.ok) {
+      console.error(`Yahoo API error for ${symbol}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const meta = data.chart?.result?.[0]?.meta;
+
+    if (!meta?.regularMarketPrice) {
+      console.warn(`No Yahoo data for ${symbol}`);
+      return null;
+    }
+
+    const currentPrice = meta.regularMarketPrice;
+    const previousClose = meta.chartPreviousClose ?? currentPrice;
+    const changePercent = previousClose > 0
+      ? ((currentPrice - previousClose) / previousClose) * 100
+      : 0;
+
+    return { currentPrice, previousClose, changePercent };
+  } catch (error) {
+    console.error(`Error fetching Yahoo quote for ${symbol}:`, error);
+    return null;
+  }
+}
+
+// FMP quote (fallback)
+async function getFMPQuote(symbol: string): Promise<Quote | null> {
   try {
     const response = await fetch(
       `${FMP_STABLE_URL}/quote?symbol=${symbol}&apikey=${FMP_API_KEY}`
@@ -76,7 +111,6 @@ export async function getQuote(symbol: string): Promise<Quote | null> {
     }
 
     const quote = data[0];
-    // Fall back to current price if previousClose is null (e.g., money market funds like VMFXX)
     return {
       currentPrice: quote.price,
       previousClose: quote.previousClose ?? quote.price,
@@ -88,6 +122,15 @@ export async function getQuote(symbol: string): Promise<Quote | null> {
   }
 }
 
+export async function getQuote(symbol: string): Promise<Quote | null> {
+  // Try Yahoo Finance first (faster, no API key required)
+  const yahooQuote = await getYahooQuote(symbol);
+  if (yahooQuote) return yahooQuote;
+
+  // Fall back to FMP if Yahoo fails
+  return getFMPQuote(symbol);
+}
+
 export async function getMultipleQuotes(
   symbols: string[]
 ): Promise<Map<string, Quote>> {
@@ -97,7 +140,7 @@ export async function getMultipleQuotes(
     return results;
   }
 
-  // FMP stable endpoint doesn't support comma-separated symbols, fetch each individually in parallel
+  // Fetch each symbol in parallel (Yahoo Finance primary, FMP fallback)
   const fetchPromises = symbols.map(async (symbol) => {
     const quote = await getQuote(symbol);
     if (quote) {

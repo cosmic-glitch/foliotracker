@@ -215,7 +215,7 @@ export async function getHistoricalData(
       const toStr = to.toISOString().split('T')[0];
 
       const response = await fetch(
-        `${FMP_STABLE_URL}/historical-price-full?symbol=${symbol}&from=${fromStr}&to=${toStr}&apikey=${FMP_API_KEY}`
+        `${FMP_STABLE_URL}/historical-price-eod/full?symbol=${symbol}&from=${fromStr}&to=${toStr}&apikey=${FMP_API_KEY}`
       );
 
       if (!response.ok) {
@@ -225,15 +225,16 @@ export async function getHistoricalData(
 
       const data = await response.json();
 
-      if (!data || !data.historical || data.historical.length === 0) {
+      // Stable endpoint returns a flat array, not { historical: [...] }
+      if (!data || !Array.isArray(data) || data.length === 0) {
         console.warn(`No FMP daily data for ${symbol}`);
         return [];
       }
 
       // FMP returns data in reverse chronological order, so reverse it
       const historicalData: { date: string; close: number }[] = [];
-      for (let i = data.historical.length - 1; i >= 0; i--) {
-        const point = data.historical[i];
+      for (let i = data.length - 1; i >= 0; i--) {
+        const point = data[i];
         if (point.close !== null) {
           historicalData.push({
             date: point.date,

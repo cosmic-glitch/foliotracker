@@ -17,6 +17,7 @@ import {
   type Visibility,
 } from './lib/db.js';
 import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/fmp.js';
+import { getIntradayPortfolioValue } from './lib/intraday.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -187,6 +188,7 @@ export default async function handler(
     if (req.method === 'GET') {
       // List all portfolios with summary data
       const loggedInAs = req.query.logged_in_as as string | undefined;
+      const useIntraday = req.query.intraday === 'true';
       const portfolios = await getPortfolios();
       const count = await getPortfolioCount();
       const cachedPrices = await getCachedPrices();
@@ -194,6 +196,43 @@ export default async function handler(
       // Calculate summary for each portfolio
       const portfoliosWithSummary = await Promise.all(
         portfolios.map(async (portfolio) => {
+          // Determine if values should be hidden
+          let hideValues = false;
+          if (portfolio.visibility === 'private') {
+            // Private: always hide unless viewer is the owner
+            hideValues = loggedInAs?.toLowerCase() !== portfolio.id.toLowerCase();
+          } else if (portfolio.visibility === 'selective') {
+            // Selective: hide unless viewer is owner or in allowed list
+            const isOwner = loggedInAs?.toLowerCase() === portfolio.id.toLowerCase();
+            const isAllowed = loggedInAs ? await isAllowedViewer(portfolio.id, loggedInAs) : false;
+            hideValues = !isOwner && !isAllowed;
+          }
+
+          // If hiding values, skip calculation
+          if (hideValues) {
+            return {
+              ...portfolio,
+              totalValue: null,
+              dayChange: null,
+              dayChangePercent: null,
+            };
+          }
+
+          // Try intraday values if requested
+          if (useIntraday) {
+            const intradayValue = await getIntradayPortfolioValue(portfolio.id);
+            if (intradayValue) {
+              return {
+                ...portfolio,
+                totalValue: intradayValue.totalValue,
+                dayChange: intradayValue.dayChange,
+                dayChangePercent: intradayValue.dayChangePercent,
+              };
+            }
+            // Fall through to cached prices if intraday not available
+          }
+
+          // Use cached prices (default behavior)
           const holdings = await getHoldings(portfolio.id);
 
           let totalValue = 0;
@@ -218,26 +257,19 @@ export default async function handler(
             ? (totalDayChange / previousTotalValue) * 100
             : 0;
 
-          // Determine if values should be hidden
-          let hideValues = false;
-          if (portfolio.visibility === 'private') {
-            // Private: always hide unless viewer is the owner
-            hideValues = loggedInAs?.toLowerCase() !== portfolio.id.toLowerCase();
-          } else if (portfolio.visibility === 'selective') {
-            // Selective: hide unless viewer is owner or in allowed list
-            const isOwner = loggedInAs?.toLowerCase() === portfolio.id.toLowerCase();
-            const isAllowed = loggedInAs ? await isAllowedViewer(portfolio.id, loggedInAs) : false;
-            hideValues = !isOwner && !isAllowed;
-          }
-
           return {
             ...portfolio,
-            totalValue: hideValues ? null : totalValue,
-            dayChange: hideValues ? null : totalDayChange,
-            dayChangePercent: hideValues ? null : dayChangePercent,
+            totalValue,
+            dayChange: totalDayChange,
+            dayChangePercent,
           };
         })
       );
+
+      // No caching for intraday data
+      if (useIntraday) {
+        res.setHeader('Cache-Control', 'no-store');
+      }
 
       res.status(200).json({
         portfolios: portfoliosWithSummary,

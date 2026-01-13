@@ -28,12 +28,15 @@ interface PortfoliosResponse {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosResponse> {
+async function fetchPortfolios(loggedInAs: string | null, intraday = false): Promise<PortfoliosResponse> {
   const url = new URL(`${API_BASE_URL}/api/portfolios`, window.location.origin);
   if (loggedInAs) {
     url.searchParams.set('logged_in_as', loggedInAs);
   }
-  const response = await fetch(url.toString(), { cache: 'default' });
+  if (intraday) {
+    url.searchParams.set('intraday', 'true');
+  }
+  const response = await fetch(url.toString(), { cache: intraday ? 'no-store' : 'default' });
   if (!response.ok) throw new Error('Failed to fetch portfolios');
   return response.json();
 }
@@ -60,6 +63,35 @@ export function LandingPage() {
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
   });
+
+  // Fetch intraday values when market is open for more accurate totals
+  const { data: intradayData } = useQuery({
+    queryKey: ['portfolios-intraday', loggedInAs],
+    queryFn: () => fetchPortfolios(loggedInAs, true),
+    enabled: isMarketOpen(),
+    staleTime: 0, // Always refetch
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : false,
+  });
+
+  // Merge intraday values with base data when available
+  const getPortfolioValues = (portfolio: Portfolio) => {
+    if (isMarketOpen() && intradayData) {
+      const intradayPortfolio = intradayData.portfolios.find(p => p.id === portfolio.id);
+      if (intradayPortfolio && intradayPortfolio.totalValue !== null) {
+        return {
+          totalValue: intradayPortfolio.totalValue,
+          dayChange: intradayPortfolio.dayChange,
+          dayChangePercent: intradayPortfolio.dayChangePercent,
+        };
+      }
+    }
+    return {
+      totalValue: portfolio.totalValue,
+      dayChange: portfolio.dayChange,
+      dayChangePercent: portfolio.dayChangePercent,
+    };
+  };
 
   const handleLogin = async (password: string) => {
     if (!loginTarget) return;
@@ -148,8 +180,9 @@ export function LandingPage() {
           ) : (
             <div className="divide-y divide-border">
               {data?.portfolios.map((portfolio) => {
-                const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
-                const isPositive = (portfolio.dayChange ?? 0) >= 0;
+                const values = getPortfolioValues(portfolio);
+                const shouldBlurValues = portfolio.visibility !== 'public' && values.totalValue === null;
+                const isPositive = (values.dayChange ?? 0) >= 0;
                 const changeColor = isPositive ? 'text-positive' : 'text-negative';
                 const sign = isPositive ? '+' : '';
 
@@ -192,10 +225,10 @@ export function LandingPage() {
                       ) : (
                         <div className="flex items-center gap-3 mt-1">
                           <span className="text-lg font-semibold text-text-primary">
-                            ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            ${(values.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </span>
                           <span className={`text-sm ${changeColor}`}>
-                            {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
+                            {sign}{formatCompactValue(Math.abs(values.dayChange ?? 0))} ({sign}{(values.dayChangePercent ?? 0).toFixed(2)}%)
                           </span>
                         </div>
                       )}

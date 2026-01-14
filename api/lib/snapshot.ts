@@ -515,27 +515,63 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
 
   const existingPrices = await getDailyPrices(tickers, 35);
   const historicalPrices = new Map<string, Map<string, number>>();
+  const existingDates = new Map<string, Set<string>>();
 
   for (const price of existingPrices) {
     if (!historicalPrices.has(price.ticker)) {
       historicalPrices.set(price.ticker, new Map());
     }
+    if (!existingDates.has(price.ticker)) {
+      existingDates.set(price.ticker, new Set());
+    }
     historicalPrices.get(price.ticker)!.set(price.date, price.close_price);
+    existingDates.get(price.ticker)!.add(price.date);
   }
 
-  // Fetch fresh historical data for all tickers
-  const fetchPromises = tickers.map(async (ticker) => {
-    const data = await getHistoricalData(ticker, startDate, today);
-    return { ticker, data };
-  });
+  // Check which tickers need fresh historical data (more than 1 day old)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-  const results = await Promise.all(fetchPromises);
-  for (const { ticker, data } of results) {
-    if (!historicalPrices.has(ticker)) {
-      historicalPrices.set(ticker, new Map());
+  const tickersToFetch: string[] = [];
+  for (const ticker of tickers) {
+    const tickerDates = existingDates.get(ticker) || new Set();
+    const sortedDates = Array.from(tickerDates).sort();
+    const mostRecent = sortedDates[sortedDates.length - 1];
+
+    if (tickerDates.size === 0 || (mostRecent && mostRecent < yesterdayStr)) {
+      tickersToFetch.push(ticker);
     }
-    for (const point of data) {
-      historicalPrices.get(ticker)!.set(point.date, point.close);
+  }
+
+  // Fetch missing historical data only for stale tickers
+  if (tickersToFetch.length > 0) {
+    const fetchPromises = tickersToFetch.map(async (ticker) => {
+      const data = await getHistoricalData(ticker, startDate, today);
+      return { ticker, data };
+    });
+
+    const results = await Promise.all(fetchPromises);
+    const cachePromises: Promise<void>[] = [];
+
+    for (const { ticker, data } of results) {
+      if (!historicalPrices.has(ticker)) {
+        historicalPrices.set(ticker, new Map());
+      }
+      const tickerDates = existingDates.get(ticker) || new Set();
+
+      for (const point of data) {
+        historicalPrices.get(ticker)!.set(point.date, point.close);
+        if (!tickerDates.has(point.date)) {
+          cachePromises.push(upsertDailyPrice(ticker, point.date, point.close));
+        }
+      }
+    }
+
+    // Update daily_prices cache
+    if (cachePromises.length > 0) {
+      await Promise.all(cachePromises);
+      console.log(`Cached ${cachePromises.length} daily price records for portfolio ${portfolioId}`);
     }
   }
 

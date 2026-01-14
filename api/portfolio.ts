@@ -37,6 +37,7 @@ interface PortfolioResponse {
   totalGainPercent: number | null;
   holdings: Holding[];
   lastUpdated: string;
+  isStale: boolean;
   marketStatus: string;
   benchmark: BenchmarkData | null;
   isPrivate: boolean;
@@ -166,6 +167,10 @@ export default async function handler(
     // Fetch viewers if selective visibility
     const viewers = portfolio.visibility === 'selective' ? await getPortfolioViewers(portfolioId) : undefined;
 
+    // Check if snapshot is stale (more than 10 minutes old during market hours)
+    const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
+    const isStale = snapshotAge > 10 * 60 * 1000; // Stale if > 10 minutes old
+
     const response: PortfolioResponse = {
       portfolioId,
       displayName: portfolio.display_name,
@@ -176,6 +181,7 @@ export default async function handler(
       totalGainPercent: snapshot.total_gain_percent,
       holdings: snapshot.holdings_json,
       lastUpdated: snapshot.updated_at,
+      isStale,
       marketStatus: snapshot.market_status,
       benchmark,
       isPrivate: portfolio.visibility === 'private',

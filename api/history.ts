@@ -15,6 +15,7 @@ interface HistoryResponse {
   data: HistoricalDataPoint[];
   benchmark: BenchmarkHistoryPoint[];
   lastUpdated: string;
+  isStale: boolean;
 }
 
 export default async function handler(
@@ -54,6 +55,7 @@ export default async function handler(
         data: [],
         benchmark: [],
         lastUpdated: new Date().toISOString(),
+        isStale: true,
       };
       res.status(200).json(response);
       return;
@@ -74,10 +76,15 @@ export default async function handler(
       benchmark = snapshot.benchmark_30d_json || [];
     }
 
+    // Check if snapshot is stale (more than 10 minutes old)
+    const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
+    const isStale = snapshotAge > 10 * 60 * 1000;
+
     const response: HistoryResponse = {
       data,
       benchmark,
       lastUpdated: snapshot.updated_at,
+      isStale,
     };
 
     // Cache for 30 seconds since data is pre-computed

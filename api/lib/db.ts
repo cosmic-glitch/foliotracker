@@ -272,3 +272,141 @@ export async function isAllowedViewer(
   if (error && error.code !== 'PGRST116') throw error;
   return !!data;
 }
+
+// Price cache types and functions
+export interface DbPriceCache {
+  ticker: string;
+  current_price: number;
+  previous_close: number;
+  change_percent: number;
+  updated_at: string;
+}
+
+export async function getCachedPrices(tickers: string[]): Promise<Map<string, DbPriceCache>> {
+  if (tickers.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('price_cache')
+    .select('*')
+    .in('ticker', tickers);
+
+  if (error) throw error;
+
+  const result = new Map<string, DbPriceCache>();
+  for (const row of data || []) {
+    result.set(row.ticker, row);
+  }
+  return result;
+}
+
+export async function upsertPriceCache(
+  prices: Array<{
+    ticker: string;
+    current_price: number;
+    previous_close: number;
+    change_percent: number;
+  }>
+): Promise<void> {
+  if (prices.length === 0) return;
+
+  const { error } = await supabase.from('price_cache').upsert(
+    prices.map((p) => ({
+      ticker: p.ticker,
+      current_price: p.current_price,
+      previous_close: p.previous_close,
+      change_percent: p.change_percent,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: 'ticker' }
+  );
+
+  if (error) throw error;
+}
+
+// Portfolio snapshot types and functions
+export interface SnapshotHolding {
+  ticker: string;
+  name: string;
+  shares: number;
+  currentPrice: number;
+  previousClose: number;
+  value: number;
+  allocation: number;
+  dayChange: number;
+  dayChangePercent: number;
+  isStatic: boolean;
+  instrumentType: string;
+  costBasis: number | null;
+  profitLoss: number | null;
+  profitLossPercent: number | null;
+}
+
+export interface HistoryDataPoint {
+  date: string;
+  value: number;
+}
+
+export interface BenchmarkDataPoint {
+  date: string;
+  percentChange: number;
+}
+
+export interface DbPortfolioSnapshot {
+  portfolio_id: string;
+  total_value: number;
+  day_change: number;
+  day_change_percent: number;
+  total_gain: number | null;
+  total_gain_percent: number | null;
+  holdings_json: SnapshotHolding[];
+  history_30d_json: HistoryDataPoint[] | null;
+  history_1d_json: HistoryDataPoint[] | null;
+  benchmark_30d_json: BenchmarkDataPoint[] | null;
+  market_status: string;
+  updated_at: string;
+}
+
+export async function getPortfolioSnapshot(portfolioId: string): Promise<DbPortfolioSnapshot | null> {
+  const { data, error } = await supabase
+    .from('portfolio_snapshots')
+    .select('*')
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+}
+
+export async function getAllPortfolioSnapshots(): Promise<DbPortfolioSnapshot[]> {
+  const { data, error } = await supabase
+    .from('portfolio_snapshots')
+    .select('*');
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertPortfolioSnapshot(
+  snapshot: Omit<DbPortfolioSnapshot, 'updated_at'>
+): Promise<void> {
+  const { error } = await supabase.from('portfolio_snapshots').upsert(
+    {
+      ...snapshot,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'portfolio_id' }
+  );
+
+  if (error) throw error;
+}
+
+export async function deletePortfolioSnapshot(portfolioId: string): Promise<void> {
+  const { error } = await supabase
+    .from('portfolio_snapshots')
+    .delete()
+    .eq('portfolio_id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}

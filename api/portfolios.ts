@@ -7,15 +7,16 @@ import {
   createPortfolio,
   deletePortfolio,
   setHoldings,
-  getHoldings,
   verifyPortfolioPassword,
   updatePortfolioSettings,
   isAllowedViewer,
   setPortfolioViewers,
+  getAllPortfolioSnapshots,
+  deletePortfolioSnapshot,
   type Visibility,
 } from './lib/db.js';
-import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/fmp.js';
-import { getIntradayPortfolioValue } from './lib/intraday.js';
+import { getSymbolInfo, getQuote } from './lib/fmp.js';
+import { refreshPortfolioSnapshot } from './lib/snapshot.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -111,6 +112,7 @@ function getStaticInstrumentType(ticker: string): string {
 }
 
 // Smart classification: try price lookups, fallback to static
+// Note: This still calls live APIs because we need current price to calculate shares from dollar value
 async function classifyHoldings(
   holdings: HoldingInput[]
 ): Promise<ClassificationResult> {
@@ -164,30 +166,16 @@ export default async function handler(
 
   try {
     if (req.method === 'GET') {
-      // List all portfolios with summary data
+      // List all portfolios with summary data from pre-computed snapshots
       const loggedInAs = req.query.logged_in_as as string | undefined;
-      const useIntraday = req.query.intraday === 'true';
       const portfolios = await getPortfolios();
       const count = await getPortfolioCount();
 
-      // Collect all unique tickers across all portfolios for batch FMP fetch
-      const allHoldingsMap = new Map<string, Awaited<ReturnType<typeof getHoldings>>>();
-      const allTickers = new Set<string>();
+      // Get all snapshots in one query
+      const snapshots = await getAllPortfolioSnapshots();
+      const snapshotMap = new Map(snapshots.map((s) => [s.portfolio_id, s]));
 
-      for (const portfolio of portfolios) {
-        const holdings = await getHoldings(portfolio.id);
-        allHoldingsMap.set(portfolio.id, holdings);
-        for (const holding of holdings) {
-          if (!holding.is_static) {
-            allTickers.add(holding.ticker);
-          }
-        }
-      }
-
-      // Fetch fresh quotes from FMP for all tickers
-      const quotes = await getMultipleQuotes(Array.from(allTickers));
-
-      // Calculate summary for each portfolio
+      // Build response with visibility checks
       const portfoliosWithSummary = await Promise.all(
         portfolios.map(async (portfolio) => {
           // Determine if values should be hidden
@@ -202,7 +190,7 @@ export default async function handler(
             hideValues = !isOwner && !isAllowed;
           }
 
-          // If hiding values, skip calculation
+          // If hiding values, skip returning values
           if (hideValues) {
             return {
               ...portfolio,
@@ -212,56 +200,30 @@ export default async function handler(
             };
           }
 
-          // Try intraday values if requested
-          if (useIntraday) {
-            const intradayValue = await getIntradayPortfolioValue(portfolio.id);
-            if (intradayValue) {
-              return {
-                ...portfolio,
-                totalValue: intradayValue.totalValue,
-                dayChange: intradayValue.dayChange,
-                dayChangePercent: intradayValue.dayChangePercent,
-              };
-            }
-            // Fall through to FMP quotes if intraday not available
+          // Get pre-computed snapshot
+          const snapshot = snapshotMap.get(portfolio.id);
+          if (snapshot) {
+            return {
+              ...portfolio,
+              totalValue: snapshot.total_value,
+              dayChange: snapshot.day_change,
+              dayChangePercent: snapshot.day_change_percent,
+              lastUpdated: snapshot.updated_at,
+            };
           }
 
-          // Use FMP quotes
-          const holdings = allHoldingsMap.get(portfolio.id) || [];
-
-          let totalValue = 0;
-          let totalDayChange = 0;
-
-          for (const holding of holdings) {
-            if (holding.is_static) {
-              totalValue += holding.static_value || 0;
-            } else {
-              const quote = quotes.get(holding.ticker);
-              if (quote) {
-                const value = holding.shares * quote.currentPrice;
-                const previousValue = holding.shares * quote.previousClose;
-                totalValue += value;
-                totalDayChange += value - previousValue;
-              }
-            }
-          }
-
-          const previousTotalValue = totalValue - totalDayChange;
-          const dayChangePercent = previousTotalValue > 0
-            ? (totalDayChange / previousTotalValue) * 100
-            : 0;
-
+          // No snapshot yet
           return {
             ...portfolio,
-            totalValue,
-            dayChange: totalDayChange,
-            dayChangePercent,
+            totalValue: 0,
+            dayChange: 0,
+            dayChangePercent: 0,
           };
         })
       );
 
-      // Always no-cache since we're always fetching fresh data
-      res.setHeader('Cache-Control', 'no-store');
+      // Cache for 30 seconds since data is pre-computed
+      res.setHeader('Cache-Control', 'public, max-age=30');
 
       res.status(200).json({
         portfolios: portfoliosWithSummary,
@@ -392,6 +354,11 @@ export default async function handler(
         await setPortfolioViewers(cleanId, validViewers);
       }
 
+      // Trigger snapshot refresh for the new portfolio (non-blocking)
+      refreshPortfolioSnapshot(cleanId).catch((err) =>
+        console.error(`Failed to refresh snapshot for ${cleanId}:`, err)
+      );
+
       res.status(201).json({
         id: cleanId,
         message: 'Portfolio created successfully',
@@ -507,6 +474,11 @@ export default async function handler(
 
       await setHoldings(id, dbHoldings);
 
+      // Trigger snapshot refresh for the updated portfolio (non-blocking)
+      refreshPortfolioSnapshot(id).catch((err) =>
+        console.error(`Failed to refresh snapshot for ${id}:`, err)
+      );
+
       res.status(200).json({
         id,
         message: 'Portfolio updated successfully',
@@ -530,6 +502,8 @@ export default async function handler(
         return;
       }
 
+      // Delete snapshot first (before portfolio due to FK constraint)
+      await deletePortfolioSnapshot(id);
       await deletePortfolio(id);
 
       res.status(200).json({

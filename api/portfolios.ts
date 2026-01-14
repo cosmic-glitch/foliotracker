@@ -13,6 +13,7 @@ import {
   setPortfolioViewers,
   getAllPortfolioSnapshots,
   deletePortfolioSnapshot,
+  recordSnapshotError,
   type Visibility,
 } from './lib/db.js';
 import { getSymbolInfo, getQuote } from './lib/fmp.js';
@@ -355,9 +356,13 @@ export default async function handler(
       }
 
       // Trigger snapshot refresh for the new portfolio (non-blocking)
-      refreshPortfolioSnapshot(cleanId).catch((err) =>
-        console.error(`Failed to refresh snapshot for ${cleanId}:`, err)
-      );
+      refreshPortfolioSnapshot(cleanId).catch(async (err) => {
+        console.error(`Failed to refresh snapshot for ${cleanId}:`, err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        await recordSnapshotError(cleanId, errorMessage).catch((recordErr) =>
+          console.error(`Failed to record snapshot error for ${cleanId}:`, recordErr)
+        );
+      });
 
       res.status(201).json({
         id: cleanId,
@@ -475,9 +480,13 @@ export default async function handler(
       await setHoldings(id, dbHoldings);
 
       // Trigger snapshot refresh for the updated portfolio (non-blocking)
-      refreshPortfolioSnapshot(id).catch((err) =>
-        console.error(`Failed to refresh snapshot for ${id}:`, err)
-      );
+      refreshPortfolioSnapshot(id).catch(async (err) => {
+        console.error(`Failed to refresh snapshot for ${id}:`, err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        await recordSnapshotError(id, errorMessage).catch((recordErr) =>
+          console.error(`Failed to record snapshot error for ${id}:`, recordErr)
+        );
+      });
 
       res.status(200).json({
         id,

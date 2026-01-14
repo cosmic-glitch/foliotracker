@@ -43,6 +43,8 @@ interface PortfolioResponse {
   isPrivate: boolean;
   visibility: Visibility;
   viewers?: string[];
+  lastError?: string | null;
+  lastErrorAt?: string | null;
 }
 
 export default async function handler(
@@ -187,6 +189,8 @@ export default async function handler(
       isPrivate: portfolio.visibility === 'private',
       visibility: portfolio.visibility,
       viewers,
+      lastError: snapshot.last_error,
+      lastErrorAt: snapshot.last_error_at,
     };
 
     // Cache for 30 seconds since data is pre-computed

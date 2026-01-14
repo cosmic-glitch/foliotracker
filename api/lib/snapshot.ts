@@ -5,6 +5,7 @@ import {
   upsertDailyPrice,
   upsertPriceCache,
   upsertPortfolioSnapshot,
+  recordSnapshotError,
   type DbHolding,
   type DbPriceCache,
   type SnapshotHolding,
@@ -462,6 +463,8 @@ export async function refreshAllSnapshots(): Promise<void> {
       history_1d_json: history1d,
       benchmark_30d_json: benchmarkHistory,
       market_status: marketStatus,
+      last_error: null,
+      last_error_at: null,
     };
 
     await upsertPortfolioSnapshot(snapshot);
@@ -618,6 +621,8 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     history_1d_json: history1d,
     benchmark_30d_json: benchmarkHistory,
     market_status: getMarketStatus(),
+    last_error: null,
+    last_error_at: null,
   };
 
   await upsertPortfolioSnapshot(snapshot);

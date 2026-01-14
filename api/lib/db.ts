@@ -366,6 +366,8 @@ export interface DbPortfolioSnapshot {
   benchmark_30d_json: BenchmarkDataPoint[] | null;
   market_status: string;
   updated_at: string;
+  last_error: string | null;
+  last_error_at: string | null;
 }
 
 export async function getPortfolioSnapshot(portfolioId: string): Promise<DbPortfolioSnapshot | null> {
@@ -407,6 +409,28 @@ export async function deletePortfolioSnapshot(portfolioId: string): Promise<void
     .from('portfolio_snapshots')
     .delete()
     .eq('portfolio_id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}
+
+export async function recordSnapshotError(portfolioId: string, errorMessage: string): Promise<void> {
+  const { error } = await supabase
+    .from('portfolio_snapshots')
+    .upsert(
+      {
+        portfolio_id: portfolioId.toLowerCase(),
+        last_error: errorMessage,
+        last_error_at: new Date().toISOString(),
+        // Keep existing data if snapshot exists, or set placeholder values if new
+        total_value: 0,
+        day_change: 0,
+        day_change_percent: 0,
+        holdings_json: [],
+        market_status: 'unknown',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'portfolio_id', ignoreDuplicates: false }
+    );
 
   if (error) throw error;
 }

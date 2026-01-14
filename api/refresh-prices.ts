@@ -69,11 +69,22 @@ export default async function handler(
       message: 'All portfolio snapshots refreshed',
       duration: `${duration}ms`,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Refresh error:', error);
+
+    // Extract error message from various error types (Error, PostgrestError, etc.)
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      errorMessage = String(error.message);
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+
     res.status(500).json({
       error: 'Failed to refresh snapshots',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: errorMessage,
     });
   }
 }

@@ -409,20 +409,26 @@ export async function refreshAllSnapshots(): Promise<void> {
     }
   }
 
-  // Fetch 1D intraday data for all tickers
-  console.log('Fetching 1D intraday data...');
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-
+  // Fetch 1D intraday data only during market hours (to save API quota)
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
-  const intradayPromises = tickerArray.map(async (ticker) => {
-    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
-    return { ticker, data };
-  });
+  const currentMarketStatus = getMarketStatus();
 
-  const intradayResults = await Promise.all(intradayPromises);
-  for (const { ticker, data } of intradayResults) {
-    intradayPrices.set(ticker, data);
+  if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
+    console.log('Fetching 1D intraday data (market is open or after-hours)...');
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const intradayPromises = tickerArray.map(async (ticker) => {
+      const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+      return { ticker, data };
+    });
+
+    const intradayResults = await Promise.all(intradayPromises);
+    for (const { ticker, data } of intradayResults) {
+      intradayPrices.set(ticker, data);
+    }
+  } else {
+    console.log('Skipping intraday data fetch (market is closed or pre-market)');
   }
 
   // Compute SPY benchmark
@@ -533,19 +539,23 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     }
   }
 
-  // Fetch intraday data
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-
+  // Fetch intraday data only during market hours (to save API quota)
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
-  const intradayPromises = tickers.map(async (ticker) => {
-    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
-    return { ticker, data };
-  });
+  const currentMarketStatus = getMarketStatus();
 
-  const intradayResults = await Promise.all(intradayPromises);
-  for (const { ticker, data } of intradayResults) {
-    intradayPrices.set(ticker, data);
+  if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const intradayPromises = tickers.map(async (ticker) => {
+      const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+      return { ticker, data };
+    });
+
+    const intradayResults = await Promise.all(intradayPromises);
+    for (const { ticker, data } of intradayResults) {
+      intradayPrices.set(ticker, data);
+    }
   }
 
   // Compute benchmark

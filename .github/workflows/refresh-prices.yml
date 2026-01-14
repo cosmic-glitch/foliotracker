@@ -6,7 +6,7 @@ on:
     # Market hours: 9:30 AM - 4:00 PM ET
     # In UTC: 14:30-21:00 (EST) or 13:30-20:00 (EDT)
     # Using 13-21 to cover both EST and EDT
-    - cron: '* 13-21 * * 1-5'
+    - cron: '*/5 13-21 * * 1-5'
   workflow_dispatch:
     # Allow manual triggering
 

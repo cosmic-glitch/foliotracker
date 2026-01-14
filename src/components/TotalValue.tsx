@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatChange, formatPercent, formatRelativeTime } from '../utils/formatters';
 
 interface TotalValueProps {
   totalValue: number;
@@ -7,9 +7,10 @@ interface TotalValueProps {
   dayChangePercent: number;
   totalGain: number | null;
   totalGainPercent: number | null;
+  lastUpdated?: Date;
 }
 
-export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent }: TotalValueProps) {
+export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent, lastUpdated }: TotalValueProps) {
   const isPositive = dayChange >= 0;
   const DayIcon = isPositive ? TrendingUp : TrendingDown;
   const dayChangeColor = isPositive ? 'text-positive' : 'text-negative';
@@ -61,6 +62,11 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
           )}
         </div>
       </div>
+      {lastUpdated && (
+        <p className="text-xs text-text-secondary mt-3 text-right">
+          Last updated {formatRelativeTime(lastUpdated)}
+        </p>
+      )}
     </div>
   );
 }

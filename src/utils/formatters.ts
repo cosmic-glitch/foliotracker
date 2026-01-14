@@ -62,3 +62,23 @@ export function formatChartTime(dateString: string): string {
     minute: '2-digit',
   }).format(date);
 }
+
+export function formatRelativeTime(input: Date | string): string {
+  const date = typeof input === 'string' ? new Date(input) : input;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSeconds < 60) {
+    return 'just now';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  } else {
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  }
+}

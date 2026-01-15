@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPortfolioSnapshot } from './lib/db.js';
+import { getSnapshotFromRedis } from './lib/redis.js';
 
 interface HistoricalDataPoint {
   date: string;
@@ -22,6 +23,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const requestStart = Date.now();
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -46,8 +49,16 @@ export default async function handler(
       return;
     }
 
-    // Read pre-computed snapshot from database
-    const snapshot = await getPortfolioSnapshot(portfolioId);
+    // Read from Redis first, fall back to DB
+    let snapshotStart = Date.now();
+    let snapshot = await getSnapshotFromRedis(portfolioId);
+    console.log(`[TIMING] history.ts getSnapshotFromRedis: ${Date.now() - snapshotStart}ms`);
+
+    if (!snapshot) {
+      snapshotStart = Date.now();
+      snapshot = await getPortfolioSnapshot(portfolioId);
+      console.log(`[TIMING] history.ts getPortfolioSnapshot (fallback): ${Date.now() - snapshotStart}ms`);
+    }
 
     if (!snapshot) {
       // No snapshot yet - return empty data
@@ -89,6 +100,7 @@ export default async function handler(
 
     // Cache for 30 seconds since data is pre-computed
     res.setHeader('Cache-Control', 'public, max-age=30');
+    console.log(`[TIMING] history.ts total: ${Date.now() - requestStart}ms (id=${portfolioId}, interval=${interval})`);
     res.status(200).json(response);
   } catch (error) {
     console.error('History API error:', error);

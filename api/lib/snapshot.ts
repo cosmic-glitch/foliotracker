@@ -15,6 +15,7 @@ import {
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData, type Quote } from './fmp.js';
 import { getMarketStatus } from './cache.js';
+import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
 
@@ -331,8 +332,15 @@ export async function refreshAllSnapshots(): Promise<void> {
     });
   }
 
-  // Update price cache
+  // Update price cache (DB and Redis)
   await upsertPriceCache(priceCacheUpdates);
+  await setPricesInRedis(priceCacheUpdates.map(p => ({
+    ticker: p.ticker,
+    current_price: p.current_price,
+    previous_close: p.previous_close,
+    change_percent: p.change_percent,
+    updated_at: new Date().toISOString(),
+  })));
   console.log(`Updated price_cache for ${priceCacheUpdates.length} tickers`);
 
   // Fetch 30D historical data for all tickers
@@ -468,6 +476,8 @@ export async function refreshAllSnapshots(): Promise<void> {
     };
 
     await upsertPortfolioSnapshot(snapshot);
+    // Also write to Redis cache
+    await setSnapshotInRedis(portfolio.id, { ...snapshot, updated_at: new Date().toISOString() });
     console.log(`Updated snapshot for portfolio: ${portfolio.id}`);
   }
 
@@ -508,8 +518,15 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     });
   }
 
-  // Update price cache
+  // Update price cache (DB and Redis)
   await upsertPriceCache(priceCacheUpdates);
+  await setPricesInRedis(priceCacheUpdates.map(p => ({
+    ticker: p.ticker,
+    current_price: p.current_price,
+    previous_close: p.previous_close,
+    change_percent: p.change_percent,
+    updated_at: new Date().toISOString(),
+  })));
 
   // Fetch historical data
   const today = new Date();
@@ -626,5 +643,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   };
 
   await upsertPortfolioSnapshot(snapshot);
+  // Also write to Redis cache
+  await setSnapshotInRedis(portfolioId, { ...snapshot, updated_at: new Date().toISOString() });
   console.log(`Snapshot refreshed for portfolio: ${portfolioId}`);
 }

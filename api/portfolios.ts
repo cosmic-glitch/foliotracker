@@ -18,6 +18,19 @@ import {
 } from './lib/db.js';
 import { getSymbolInfo, getQuote } from './lib/fmp.js';
 import { refreshPortfolioSnapshot } from './lib/snapshot.js';
+import {
+  getAllSnapshotsFromRedis,
+  getPortfoliosFromRedis,
+  setPortfoliosInRedis,
+  getPortfolioCountFromRedis,
+  setPortfolioCountInRedis,
+  invalidatePortfoliosListCache,
+  incrementPortfolioCount,
+  decrementPortfolioCount,
+  deleteSnapshotFromRedis,
+  deletePortfolioFromRedis,
+  setPortfolioInRedis,
+} from './lib/redis.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -155,6 +168,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const requestStart = Date.now();
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -169,11 +184,41 @@ export default async function handler(
     if (req.method === 'GET') {
       // List all portfolios with summary data from pre-computed snapshots
       const loggedInAs = req.query.logged_in_as as string | undefined;
-      const portfolios = await getPortfolios();
-      const count = await getPortfolioCount();
 
-      // Get all snapshots in one query
-      const snapshots = await getAllPortfolioSnapshots();
+      // Get portfolios - try Redis first, then DB
+      let t0 = Date.now();
+      let portfolios = await getPortfoliosFromRedis();
+      console.log(`[TIMING] portfolios.ts getPortfoliosFromRedis: ${Date.now() - t0}ms (found ${portfolios?.length ?? 0})`);
+      if (!portfolios) {
+        t0 = Date.now();
+        portfolios = await getPortfolios();
+        console.log(`[TIMING] portfolios.ts getPortfolios (fallback): ${Date.now() - t0}ms`);
+        // Cache for next time
+        await setPortfoliosInRedis(portfolios);
+      }
+
+      // Get count - try Redis first, then DB
+      t0 = Date.now();
+      let count = await getPortfolioCountFromRedis();
+      console.log(`[TIMING] portfolios.ts getPortfolioCountFromRedis: ${Date.now() - t0}ms (found ${count})`);
+      if (count === null) {
+        t0 = Date.now();
+        count = await getPortfolioCount();
+        console.log(`[TIMING] portfolios.ts getPortfolioCount (fallback): ${Date.now() - t0}ms`);
+        // Cache for next time
+        await setPortfolioCountInRedis(count);
+      }
+
+      // Get all snapshots - try Redis first, fall back to DB
+      t0 = Date.now();
+      let snapshots = await getAllSnapshotsFromRedis();
+      console.log(`[TIMING] portfolios.ts getAllSnapshotsFromRedis: ${Date.now() - t0}ms (found ${snapshots.length})`);
+
+      if (snapshots.length === 0) {
+        t0 = Date.now();
+        snapshots = await getAllPortfolioSnapshots();
+        console.log(`[TIMING] portfolios.ts getAllPortfolioSnapshots (fallback): ${Date.now() - t0}ms`);
+      }
       const snapshotMap = new Map(snapshots.map((s) => [s.portfolio_id, s]));
 
       // Build response with visibility checks
@@ -226,6 +271,7 @@ export default async function handler(
       // Cache for 30 seconds since data is pre-computed
       res.setHeader('Cache-Control', 'public, max-age=30');
 
+      console.log(`[TIMING] portfolios.ts GET total: ${Date.now() - requestStart}ms`);
       res.status(200).json({
         portfolios: portfoliosWithSummary,
         count,
@@ -355,6 +401,10 @@ export default async function handler(
         await setPortfolioViewers(cleanId, validViewers);
       }
 
+      // Invalidate Redis caches
+      await invalidatePortfoliosListCache();
+      await incrementPortfolioCount();
+
       // Trigger snapshot refresh for the new portfolio (non-blocking)
       refreshPortfolioSnapshot(cleanId).catch(async (err) => {
         console.error(`Failed to refresh snapshot for ${cleanId}:`, err);
@@ -479,6 +529,10 @@ export default async function handler(
 
       await setHoldings(id, dbHoldings);
 
+      // Invalidate Redis caches (visibility or display_name may have changed)
+      await invalidatePortfoliosListCache();
+      await deletePortfolioFromRedis(id); // Will be re-cached on next read
+
       // Trigger snapshot refresh for the updated portfolio (non-blocking)
       refreshPortfolioSnapshot(id).catch(async (err) => {
         console.error(`Failed to refresh snapshot for ${id}:`, err);
@@ -514,6 +568,12 @@ export default async function handler(
       // Delete snapshot first (before portfolio due to FK constraint)
       await deletePortfolioSnapshot(id);
       await deletePortfolio(id);
+
+      // Invalidate Redis caches
+      await invalidatePortfoliosListCache();
+      await decrementPortfolioCount();
+      await deletePortfolioFromRedis(id);
+      await deleteSnapshotFromRedis(id);
 
       res.status(200).json({
         id,

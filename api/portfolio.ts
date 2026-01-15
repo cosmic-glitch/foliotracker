@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, type Visibility } from './lib/db.js';
+import { getMarketStatus } from './lib/cache.js';
+import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './lib/redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
 const BENCHMARK_NAME = 'S&P 500';
@@ -47,10 +49,20 @@ interface PortfolioResponse {
   lastErrorAt?: string | null;
 }
 
+// Helper to time async operations
+async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  console.log(`[TIMING] ${name}: ${Date.now() - start}ms`);
+  return result;
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const requestStart = Date.now();
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -74,8 +86,22 @@ export default async function handler(
       return;
     }
 
-    // Check if portfolio exists
-    const portfolio = await getPortfolio(portfolioId);
+    // Check if portfolio exists - try Redis first, then DB
+    let portfolio: CachedPortfolio | null = await timed('getPortfolioFromRedis', () => getPortfolioFromRedis(portfolioId));
+    if (!portfolio) {
+      const dbPortfolio = await timed('getPortfolio (fallback)', () => getPortfolio(portfolioId));
+      if (dbPortfolio) {
+        // Cache it for next time
+        await setPortfolioInRedis(dbPortfolio);
+        portfolio = {
+          id: dbPortfolio.id,
+          display_name: dbPortfolio.display_name,
+          created_at: dbPortfolio.created_at,
+          is_private: dbPortfolio.is_private,
+          visibility: dbPortfolio.visibility,
+        };
+      }
+    }
     if (!portfolio) {
       res.status(404).json({ error: 'Portfolio not found' });
       return;
@@ -130,8 +156,11 @@ export default async function handler(
     }
     // Public portfolios: no auth required
 
-    // Read pre-computed snapshot from database
-    const snapshot = await getPortfolioSnapshot(portfolioId);
+    // Read from Redis first, fall back to DB
+    let snapshot = await timed('getSnapshotFromRedis', () => getSnapshotFromRedis(portfolioId));
+    if (!snapshot) {
+      snapshot = await timed('getPortfolioSnapshot (fallback)', () => getPortfolioSnapshot(portfolioId));
+    }
 
     if (!snapshot) {
       // No snapshot available yet - return empty state
@@ -154,9 +183,12 @@ export default async function handler(
       return;
     }
 
-    // Get benchmark data from price cache
+    // Get benchmark data from price cache - try Redis first
     let benchmark: BenchmarkData | null = null;
-    const cachedPrices = await getCachedPrices([BENCHMARK_TICKER]);
+    let cachedPrices = await timed('getPricesFromRedis', () => getPricesFromRedis([BENCHMARK_TICKER]));
+    if (cachedPrices.size === 0) {
+      cachedPrices = await timed('getCachedPrices (fallback)', () => getCachedPrices([BENCHMARK_TICKER]));
+    }
     const spyPrice = cachedPrices.get(BENCHMARK_TICKER);
     if (spyPrice) {
       benchmark = {
@@ -167,7 +199,9 @@ export default async function handler(
     }
 
     // Fetch viewers if selective visibility
-    const viewers = portfolio.visibility === 'selective' ? await getPortfolioViewers(portfolioId) : undefined;
+    const viewers = portfolio.visibility === 'selective'
+      ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
+      : undefined;
 
     // Check if snapshot is stale (more than 10 minutes old during market hours)
     const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
@@ -184,7 +218,7 @@ export default async function handler(
       holdings: snapshot.holdings_json,
       lastUpdated: snapshot.updated_at,
       isStale,
-      marketStatus: snapshot.market_status,
+      marketStatus: getMarketStatus(),
       benchmark,
       isPrivate: portfolio.visibility === 'private',
       visibility: portfolio.visibility,
@@ -195,9 +229,11 @@ export default async function handler(
 
     // Cache for 30 seconds since data is pre-computed
     res.setHeader('Cache-Control', 'public, max-age=30');
+    console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(response);
   } catch (error) {
     console.error('Portfolio API error:', error);
+    console.log(`[TIMING] portfolio.ts error after: ${Date.now() - requestStart}ms`);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

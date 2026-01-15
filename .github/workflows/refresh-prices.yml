@@ -1,0 +1,40 @@
+name: Refresh Portfolio Prices
+
+on:
+  schedule:
+    # Every 2 minutes during US market hours (Mon-Fri 9:30 AM - 4:00 PM ET)
+    # UTC: 14:30-21:00 (EST) or 13:30-20:00 (EDT)
+    - cron: '*/2 13-21 * * 1-5'
+
+    # Every 15 minutes during off-hours (nights, weekends)
+    # Weekday nights (before market: 0-12, after market: 22-23)
+    - cron: '*/15 0-12 * * 1-5'
+    - cron: '*/15 22-23 * * 1-5'
+    # Weekends (all day)
+    - cron: '*/15 * * * 0,6'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Refresh Portfolio Prices
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.REFRESH_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.REFRESH_URL }}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Failed to refresh prices"
+            exit 1
+          fi

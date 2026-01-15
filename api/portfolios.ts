@@ -7,15 +7,30 @@ import {
   createPortfolio,
   deletePortfolio,
   setHoldings,
-  getHoldings,
   verifyPortfolioPassword,
   updatePortfolioSettings,
   isAllowedViewer,
   setPortfolioViewers,
+  getAllPortfolioSnapshots,
+  deletePortfolioSnapshot,
+  recordSnapshotError,
   type Visibility,
 } from './lib/db.js';
-import { getMultipleQuotes, getSymbolInfo, getQuote } from './lib/fmp.js';
-import { getIntradayPortfolioValue } from './lib/intraday.js';
+import { getSymbolInfo, getQuote } from './lib/fmp.js';
+import { refreshPortfolioSnapshot } from './lib/snapshot.js';
+import {
+  getAllSnapshotsFromRedis,
+  getPortfoliosFromRedis,
+  setPortfoliosInRedis,
+  getPortfolioCountFromRedis,
+  setPortfolioCountInRedis,
+  invalidatePortfoliosListCache,
+  incrementPortfolioCount,
+  decrementPortfolioCount,
+  deleteSnapshotFromRedis,
+  deletePortfolioFromRedis,
+  setPortfolioInRedis,
+} from './lib/redis.js';
 
 const MAX_PORTFOLIOS = 10;
 
@@ -111,6 +126,7 @@ function getStaticInstrumentType(ticker: string): string {
 }
 
 // Smart classification: try price lookups, fallback to static
+// Note: This still calls live APIs because we need current price to calculate shares from dollar value
 async function classifyHoldings(
   holdings: HoldingInput[]
 ): Promise<ClassificationResult> {
@@ -152,6 +168,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const requestStart = Date.now();
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -164,30 +182,46 @@ export default async function handler(
 
   try {
     if (req.method === 'GET') {
-      // List all portfolios with summary data
+      // List all portfolios with summary data from pre-computed snapshots
       const loggedInAs = req.query.logged_in_as as string | undefined;
-      const useIntraday = req.query.intraday === 'true';
-      const portfolios = await getPortfolios();
-      const count = await getPortfolioCount();
 
-      // Collect all unique tickers across all portfolios for batch FMP fetch
-      const allHoldingsMap = new Map<string, Awaited<ReturnType<typeof getHoldings>>>();
-      const allTickers = new Set<string>();
-
-      for (const portfolio of portfolios) {
-        const holdings = await getHoldings(portfolio.id);
-        allHoldingsMap.set(portfolio.id, holdings);
-        for (const holding of holdings) {
-          if (!holding.is_static) {
-            allTickers.add(holding.ticker);
-          }
-        }
+      // Get portfolios - try Redis first, then DB
+      let t0 = Date.now();
+      let portfolios = await getPortfoliosFromRedis();
+      console.log(`[TIMING] portfolios.ts getPortfoliosFromRedis: ${Date.now() - t0}ms (found ${portfolios?.length ?? 0})`);
+      if (!portfolios) {
+        t0 = Date.now();
+        portfolios = await getPortfolios();
+        console.log(`[TIMING] portfolios.ts getPortfolios (fallback): ${Date.now() - t0}ms`);
+        // Cache for next time
+        await setPortfoliosInRedis(portfolios);
       }
 
-      // Fetch fresh quotes from FMP for all tickers
-      const quotes = await getMultipleQuotes(Array.from(allTickers));
+      // Get count - try Redis first, then DB
+      t0 = Date.now();
+      let count = await getPortfolioCountFromRedis();
+      console.log(`[TIMING] portfolios.ts getPortfolioCountFromRedis: ${Date.now() - t0}ms (found ${count})`);
+      if (count === null) {
+        t0 = Date.now();
+        count = await getPortfolioCount();
+        console.log(`[TIMING] portfolios.ts getPortfolioCount (fallback): ${Date.now() - t0}ms`);
+        // Cache for next time
+        await setPortfolioCountInRedis(count);
+      }
 
-      // Calculate summary for each portfolio
+      // Get all snapshots - try Redis first, fall back to DB
+      t0 = Date.now();
+      let snapshots = await getAllSnapshotsFromRedis();
+      console.log(`[TIMING] portfolios.ts getAllSnapshotsFromRedis: ${Date.now() - t0}ms (found ${snapshots.length})`);
+
+      if (snapshots.length === 0) {
+        t0 = Date.now();
+        snapshots = await getAllPortfolioSnapshots();
+        console.log(`[TIMING] portfolios.ts getAllPortfolioSnapshots (fallback): ${Date.now() - t0}ms`);
+      }
+      const snapshotMap = new Map(snapshots.map((s) => [s.portfolio_id, s]));
+
+      // Build response with visibility checks
       const portfoliosWithSummary = await Promise.all(
         portfolios.map(async (portfolio) => {
           // Determine if values should be hidden
@@ -202,7 +236,7 @@ export default async function handler(
             hideValues = !isOwner && !isAllowed;
           }
 
-          // If hiding values, skip calculation
+          // If hiding values, skip returning values
           if (hideValues) {
             return {
               ...portfolio,
@@ -212,57 +246,32 @@ export default async function handler(
             };
           }
 
-          // Try intraday values if requested
-          if (useIntraday) {
-            const intradayValue = await getIntradayPortfolioValue(portfolio.id);
-            if (intradayValue) {
-              return {
-                ...portfolio,
-                totalValue: intradayValue.totalValue,
-                dayChange: intradayValue.dayChange,
-                dayChangePercent: intradayValue.dayChangePercent,
-              };
-            }
-            // Fall through to FMP quotes if intraday not available
+          // Get pre-computed snapshot
+          const snapshot = snapshotMap.get(portfolio.id);
+          if (snapshot) {
+            return {
+              ...portfolio,
+              totalValue: snapshot.total_value,
+              dayChange: snapshot.day_change,
+              dayChangePercent: snapshot.day_change_percent,
+              lastUpdated: snapshot.updated_at,
+            };
           }
 
-          // Use FMP quotes
-          const holdings = allHoldingsMap.get(portfolio.id) || [];
-
-          let totalValue = 0;
-          let totalDayChange = 0;
-
-          for (const holding of holdings) {
-            if (holding.is_static) {
-              totalValue += holding.static_value || 0;
-            } else {
-              const quote = quotes.get(holding.ticker);
-              if (quote) {
-                const value = holding.shares * quote.currentPrice;
-                const previousValue = holding.shares * quote.previousClose;
-                totalValue += value;
-                totalDayChange += value - previousValue;
-              }
-            }
-          }
-
-          const previousTotalValue = totalValue - totalDayChange;
-          const dayChangePercent = previousTotalValue > 0
-            ? (totalDayChange / previousTotalValue) * 100
-            : 0;
-
+          // No snapshot yet
           return {
             ...portfolio,
-            totalValue,
-            dayChange: totalDayChange,
-            dayChangePercent,
+            totalValue: 0,
+            dayChange: 0,
+            dayChangePercent: 0,
           };
         })
       );
 
-      // Always no-cache since we're always fetching fresh data
-      res.setHeader('Cache-Control', 'no-store');
+      // Cache for 30 seconds since data is pre-computed
+      res.setHeader('Cache-Control', 'public, max-age=30');
 
+      console.log(`[TIMING] portfolios.ts GET total: ${Date.now() - requestStart}ms`);
       res.status(200).json({
         portfolios: portfoliosWithSummary,
         count,
@@ -392,6 +401,19 @@ export default async function handler(
         await setPortfolioViewers(cleanId, validViewers);
       }
 
+      // Invalidate Redis caches
+      await invalidatePortfoliosListCache();
+      await incrementPortfolioCount();
+
+      // Trigger snapshot refresh for the new portfolio (non-blocking)
+      refreshPortfolioSnapshot(cleanId).catch(async (err) => {
+        console.error(`Failed to refresh snapshot for ${cleanId}:`, err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        await recordSnapshotError(cleanId, errorMessage).catch((recordErr) =>
+          console.error(`Failed to record snapshot error for ${cleanId}:`, recordErr)
+        );
+      });
+
       res.status(201).json({
         id: cleanId,
         message: 'Portfolio created successfully',
@@ -507,6 +529,19 @@ export default async function handler(
 
       await setHoldings(id, dbHoldings);
 
+      // Invalidate Redis caches (visibility or display_name may have changed)
+      await invalidatePortfoliosListCache();
+      await deletePortfolioFromRedis(id); // Will be re-cached on next read
+
+      // Trigger snapshot refresh for the updated portfolio (non-blocking)
+      refreshPortfolioSnapshot(id).catch(async (err) => {
+        console.error(`Failed to refresh snapshot for ${id}:`, err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        await recordSnapshotError(id, errorMessage).catch((recordErr) =>
+          console.error(`Failed to record snapshot error for ${id}:`, recordErr)
+        );
+      });
+
       res.status(200).json({
         id,
         message: 'Portfolio updated successfully',
@@ -530,7 +565,15 @@ export default async function handler(
         return;
       }
 
+      // Delete snapshot first (before portfolio due to FK constraint)
+      await deletePortfolioSnapshot(id);
       await deletePortfolio(id);
+
+      // Invalidate Redis caches
+      await invalidatePortfoliosListCache();
+      await decrementPortfolioCount();
+      await deletePortfolioFromRedis(id);
+      await deleteSnapshotFromRedis(id);
 
       res.status(200).json({
         id,

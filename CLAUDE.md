@@ -32,28 +32,37 @@ vercel --prod    # Deploy to production
 - `src/types/portfolio.ts` - TypeScript interfaces for Holding, PortfolioData
 
 ### Backend (Vercel Serverless Functions)
-- `api/portfolio.ts` - GET single portfolio with holdings and prices
+- `api/portfolio.ts` - GET single portfolio (reads from pre-computed snapshots)
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE)
-- `api/history.ts` - Historical price data
+- `api/history.ts` - Historical price data (reads from pre-computed snapshots)
+- `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/fmp.ts` - Stock price API (FMP for all quotes and symbol info)
-- `api/lib/cache.ts` - Price cache staleness logic
+- `api/lib/fmp.ts` - Stock price API (Yahoo Finance primary, FMP fallback with retry logic)
+- `api/lib/cache.ts` - Market hours detection utilities
+- `api/lib/snapshot.ts` - Snapshot computation logic for portfolios
 
 ### Database (Supabase PostgreSQL)
 - `portfolios` table: id, display_name, password_hash, is_private, visibility, created_at
 - `holdings` table: portfolio_id, ticker, name, shares, is_static, static_value, instrument_type, cost_basis
 - `portfolio_viewers` table: portfolio_id, viewer_id (for selective visibility)
-- `price_cache` table: ticker, current_price, previous_close, updated_at
+- `price_cache` table: ticker, current_price, previous_close, change_percent, updated_at
+- `daily_prices` table: ticker, date, close_price (historical daily closing prices)
+- `portfolio_snapshots` table: Pre-computed portfolio data with holdings, history, and benchmark (JSONB)
 
 ### External APIs
-- **FMP (Financial Modeling Prep)** - All quotes (stocks, ETFs, mutual funds), symbol info, and historical data
+- **Yahoo Finance** - Primary source for real-time quotes and historical data (free, no API key)
+- **FMP (Financial Modeling Prep)** - Fallback for quotes when Yahoo fails, symbol info (requires API key)
 
 ## Key Patterns
 
 - Holdings are either "tradeable" (shares × price) or "static" (fixed value for non-market assets like real estate)
 - `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
-- Price cache refreshes based on market hours (more frequent when open)
+- **Snapshot-based architecture**: Portfolio data is pre-computed in the background every 5 minutes during market hours
+  - GitHub Actions workflow triggers `/api/refresh-prices` endpoint (requires `REFRESH_SECRET` auth)
+  - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
+  - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
+  - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
 - Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
 - Unrealized gain shown as both absolute value and percentage
 
@@ -71,9 +80,16 @@ vercel --prod    # Deploy to production
 
 Copy `.env.example` to `.env`. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
-- `FMP_API_KEY` - Stock prices (Financial Modeling Prep)
+- `FMP_API_KEY` - Stock prices (Financial Modeling Prep fallback)
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
+- `REFRESH_SECRET` - Authentication token for background refresh endpoint (generate with `openssl rand -hex 32`)
+- `REFRESH_URL` - Full URL to refresh endpoint (e.g., `https://foliotracker.vercel.app/api/refresh-prices`)
 - `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios
+
+### GitHub Secrets (for background refresh workflow)
+Configure in repository Settings → Secrets and variables → Actions:
+- `REFRESH_SECRET` - Same value as local `REFRESH_SECRET` env var
+- `REFRESH_URL` - Full URL to your deployed `/api/refresh-prices` endpoint
 
 ## Workflow
 

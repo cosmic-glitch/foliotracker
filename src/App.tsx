@@ -133,6 +133,7 @@ function App() {
               dayChangePercent={data.totalDayChangePercent}
               totalGain={data.totalGain}
               totalGainPercent={data.totalGainPercent}
+              lastUpdated={data.lastUpdated}
             />
             <PerformanceChart
               data={data.historicalData}

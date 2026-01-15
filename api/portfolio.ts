@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getHoldings, getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, Visibility } from './lib/db.js';
-import { getMultipleQuotes, getQuote } from './lib/fmp.js';
+import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, type Visibility } from './lib/db.js';
 import { getMarketStatus } from './lib/cache.js';
+import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './lib/redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
 const BENCHMARK_NAME = 'S&P 500';
@@ -39,17 +39,30 @@ interface PortfolioResponse {
   totalGainPercent: number | null;
   holdings: Holding[];
   lastUpdated: string;
+  isStale: boolean;
   marketStatus: string;
   benchmark: BenchmarkData | null;
   isPrivate: boolean;
   visibility: Visibility;
   viewers?: string[];
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+}
+
+// Helper to time async operations
+async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  console.log(`[TIMING] ${name}: ${Date.now() - start}ms`);
+  return result;
 }
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const requestStart = Date.now();
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -73,8 +86,22 @@ export default async function handler(
       return;
     }
 
-    // Check if portfolio exists
-    const portfolio = await getPortfolio(portfolioId);
+    // Check if portfolio exists - try Redis first, then DB
+    let portfolio: CachedPortfolio | null = await timed('getPortfolioFromRedis', () => getPortfolioFromRedis(portfolioId));
+    if (!portfolio) {
+      const dbPortfolio = await timed('getPortfolio (fallback)', () => getPortfolio(portfolioId));
+      if (dbPortfolio) {
+        // Cache it for next time
+        await setPortfolioInRedis(dbPortfolio);
+        portfolio = {
+          id: dbPortfolio.id,
+          display_name: dbPortfolio.display_name,
+          created_at: dbPortfolio.created_at,
+          is_private: dbPortfolio.is_private,
+          visibility: dbPortfolio.visibility,
+        };
+      }
+    }
     if (!portfolio) {
       res.status(404).json({ error: 'Portfolio not found' });
       return;
@@ -129,159 +156,84 @@ export default async function handler(
     }
     // Public portfolios: no auth required
 
-    // Get holdings from database
-    const dbHoldings = await getHoldings(portfolioId);
+    // Read from Redis first, fall back to DB
+    let snapshot = await timed('getSnapshotFromRedis', () => getSnapshotFromRedis(portfolioId));
+    if (!snapshot) {
+      snapshot = await timed('getPortfolioSnapshot (fallback)', () => getPortfolioSnapshot(portfolioId));
+    }
 
-    // Separate tradeable and static holdings
-    const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
-    const staticHoldings = dbHoldings.filter((h) => h.is_static);
-
-    // Fetch fresh prices from FMP for all tradeable holdings
-    const tickers = tradeableHoldings.map((h) => h.ticker);
-    const quotes = await getMultipleQuotes(tickers);
-
-    // Build holdings response
-    const holdings: Holding[] = [];
-
-    // Process tradeable holdings
-    for (const holding of tradeableHoldings) {
-      const quote = quotes.get(holding.ticker);
-      if (!quote) {
-        console.warn(`No price data for ${holding.ticker}`);
-        continue;
-      }
-
-      const value = holding.shares * quote.currentPrice;
-      const previousValue = holding.shares * quote.previousClose;
-      const dayChange = value - previousValue;
-      const dayChangePercent =
-        previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
-
-      // Calculate profit/loss if cost basis exists
-      const costBasis = holding.cost_basis;
-      const profitLoss = costBasis !== null ? value - costBasis : null;
-      const profitLossPercent = costBasis !== null && costBasis > 0
-        ? (profitLoss! / costBasis) * 100
-        : null;
-
-      holdings.push({
-        ticker: holding.ticker,
-        name: holding.name,
-        shares: holding.shares,
-        currentPrice: quote.currentPrice,
-        previousClose: quote.previousClose,
-        value,
-        allocation: 0, // Calculated later
-        dayChange,
-        dayChangePercent,
-        isStatic: false,
-        instrumentType: holding.instrument_type || 'Other',
-        costBasis,
-        profitLoss,
-        profitLossPercent,
+    if (!snapshot) {
+      // No snapshot available yet - return empty state
+      res.status(200).json({
+        portfolioId,
+        displayName: portfolio.display_name,
+        totalValue: 0,
+        totalDayChange: 0,
+        totalDayChangePercent: 0,
+        totalGain: null,
+        totalGainPercent: null,
+        holdings: [],
+        lastUpdated: new Date().toISOString(),
+        marketStatus: 'unknown',
+        benchmark: null,
+        isPrivate: portfolio.visibility === 'private',
+        visibility: portfolio.visibility,
+        message: 'Snapshot not yet available. Please wait for the next refresh cycle.',
       });
+      return;
     }
 
-    // Process static holdings
-    for (const holding of staticHoldings) {
-      const value = holding.static_value || 0;
-
-      // Calculate profit/loss if cost basis exists
-      const costBasis = holding.cost_basis;
-      const profitLoss = costBasis !== null ? value - costBasis : null;
-      const profitLossPercent = costBasis !== null && costBasis > 0
-        ? (profitLoss! / costBasis) * 100
-        : null;
-
-      holdings.push({
-        ticker: holding.ticker,
-        name: holding.name,
-        shares: holding.shares,
-        currentPrice: value,
-        previousClose: value,
-        value,
-        allocation: 0,
-        dayChange: 0,
-        dayChangePercent: 0,
-        isStatic: true,
-        instrumentType: holding.instrument_type || 'Other',
-        costBasis,
-        profitLoss,
-        profitLossPercent,
-      });
-    }
-
-    // Calculate totals and allocations
-    const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
-    const totalDayChange = holdings.reduce((sum, h) => sum + h.dayChange, 0);
-    const previousTotalValue = totalValue - totalDayChange;
-    const totalDayChangePercent =
-      previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
-
-    // Set allocations
-    for (const holding of holdings) {
-      holding.allocation = totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
-    }
-
-    // Sort by value descending
-    holdings.sort((a, b) => b.value - a.value);
-
-    // Calculate total gain % from holdings with cost basis
-    let totalCostBasis = 0;
-    let totalValueWithCostBasis = 0;
-    for (const holding of holdings) {
-      if (holding.costBasis !== null) {
-        totalCostBasis += holding.costBasis;
-        totalValueWithCostBasis += holding.value;
-      }
-    }
-    const totalGain = totalCostBasis > 0
-      ? totalValueWithCostBasis - totalCostBasis
-      : null;
-    const totalGainPercent = totalCostBasis > 0
-      ? ((totalValueWithCostBasis - totalCostBasis) / totalCostBasis) * 100
-      : null;
-
-    // Fetch S&P 500 benchmark data from FMP
+    // Get benchmark data from price cache - try Redis first
     let benchmark: BenchmarkData | null = null;
-    try {
-      const spyQuote = await getQuote(BENCHMARK_TICKER);
-      if (spyQuote && spyQuote.previousClose > 0) {
-        benchmark = {
-          ticker: BENCHMARK_TICKER,
-          name: BENCHMARK_NAME,
-          dayChangePercent: spyQuote.changePercent,
-        };
-      }
-    } catch (error) {
-      console.warn('Could not fetch benchmark data:', error);
+    let cachedPrices = await timed('getPricesFromRedis', () => getPricesFromRedis([BENCHMARK_TICKER]));
+    if (cachedPrices.size === 0) {
+      cachedPrices = await timed('getCachedPrices (fallback)', () => getCachedPrices([BENCHMARK_TICKER]));
+    }
+    const spyPrice = cachedPrices.get(BENCHMARK_TICKER);
+    if (spyPrice) {
+      benchmark = {
+        ticker: BENCHMARK_TICKER,
+        name: BENCHMARK_NAME,
+        dayChangePercent: spyPrice.change_percent,
+      };
     }
 
     // Fetch viewers if selective visibility
-    const viewers = portfolio.visibility === 'selective' ? await getPortfolioViewers(portfolioId) : undefined;
+    const viewers = portfolio.visibility === 'selective'
+      ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
+      : undefined;
+
+    // Check if snapshot is stale (more than 10 minutes old during market hours)
+    const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
+    const isStale = snapshotAge > 10 * 60 * 1000; // Stale if > 10 minutes old
 
     const response: PortfolioResponse = {
       portfolioId,
       displayName: portfolio.display_name,
-      totalValue,
-      totalDayChange,
-      totalDayChangePercent,
-      totalGain,
-      totalGainPercent,
-      holdings,
-      lastUpdated: new Date().toISOString(),
+      totalValue: snapshot.total_value,
+      totalDayChange: snapshot.day_change,
+      totalDayChangePercent: snapshot.day_change_percent,
+      totalGain: snapshot.total_gain,
+      totalGainPercent: snapshot.total_gain_percent,
+      holdings: snapshot.holdings_json,
+      lastUpdated: snapshot.updated_at,
+      isStale,
       marketStatus: getMarketStatus(),
       benchmark,
       isPrivate: portfolio.visibility === 'private',
       visibility: portfolio.visibility,
       viewers,
+      lastError: snapshot.last_error,
+      lastErrorAt: snapshot.last_error_at,
     };
 
-    // Don't cache - portfolio data changes frequently and should always be fresh
-    res.setHeader('Cache-Control', 'no-store');
+    // Cache for 30 seconds since data is pre-computed
+    res.setHeader('Cache-Control', 'public, max-age=30');
+    console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(response);
   } catch (error) {
     console.error('Portfolio API error:', error);
+    console.log(`[TIMING] portfolio.ts error after: ${Date.now() - requestStart}ms`);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

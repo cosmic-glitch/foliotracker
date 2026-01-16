@@ -113,8 +113,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
     enabled: !!portfolioId,
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    // Smart auto-refresh: 5 min when market open, 30 min when closed
-    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
+    // Smart auto-refresh: 1 min when market open, 30 min when closed
+    refetchInterval: () => isMarketOpen() ? 60 * 1000 : 30 * 60 * 1000,
     refetchIntervalInBackground: true,
   });
 
@@ -140,8 +140,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    // Auto-refresh every 5 minutes when market is open
-    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : false,
+    // Auto-refresh every 1 minute when market is open
+    refetchInterval: () => isMarketOpen() ? 60 * 1000 : false,
   });
 
   // Switch to 30D view when market is not open (after initial data load)

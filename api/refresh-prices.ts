@@ -4,9 +4,9 @@ import { refreshAllSnapshots } from './lib/snapshot.js';
 
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
-// Simple in-memory rate limiting (1 request per minute)
+// Simple in-memory rate limiting (1 request per 45 seconds)
 let lastRefreshTime = 0;
-const RATE_LIMIT_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MS = 45 * 1000; // 45 seconds
 
 export default async function handler(
   req: VercelRequest,

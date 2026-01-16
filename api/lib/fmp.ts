@@ -57,6 +57,8 @@ interface FMPProfile {
   companyName: string;
   exchange: string;
   industry: string;
+  isEtf: boolean;
+  isFund: boolean;
 }
 
 export interface SymbolInfo {
@@ -65,14 +67,20 @@ export interface SymbolInfo {
 }
 
 // Infer instrument type from FMP profile data
-function inferInstrumentType(exchange: string, industry: string): string {
-  // ETFs trade on AMEX (NYSE Arca) with Asset Management industry
-  if (exchange === 'AMEX' && industry === 'Asset Management') {
-    return 'ETF';
+function inferInstrumentType(name: string, isEtf: boolean, isFund: boolean): string {
+  // Check if fund name contains bond-related keywords
+  const nameLower = name.toLowerCase();
+  const isBondFund = nameLower.includes('bond') ||
+                     nameLower.includes('treasury') ||
+                     nameLower.includes('fixed income') ||
+                     nameLower.includes('aggregate');
+
+  // Use FMP's isEtf and isFund flags (more reliable than industry field)
+  if (isEtf) {
+    return isBondFund ? 'Bond ETF' : 'ETF';
   }
-  // Mutual funds trade on NASDAQ with Asset Management industry
-  if (exchange === 'NASDAQ' && industry === 'Asset Management') {
-    return 'Mutual Fund';
+  if (isFund) {
+    return isBondFund ? 'Bond Mutual Fund' : 'Mutual Fund';
   }
   // Everything else is a stock
   return 'Common Stock';
@@ -208,9 +216,10 @@ export async function getSymbolInfo(symbol: string): Promise<SymbolInfo | null> 
     }
 
     const profile = data[0];
+    const name = profile.companyName || symbol;
     return {
-      name: profile.companyName || symbol,
-      instrumentType: inferInstrumentType(profile.exchange, profile.industry),
+      name,
+      instrumentType: inferInstrumentType(name, profile.isEtf, profile.isFund),
     };
   } catch (error) {
     console.error(`Error fetching symbol info for ${symbol}:`, error);

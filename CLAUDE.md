@@ -56,10 +56,12 @@ vercel --prod    # Deploy to production
 ## Key Patterns
 
 - Holdings are either "tradeable" (shares × price) or "static" (fixed value for non-market assets like real estate)
-- `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, etc.)
+- `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Equity Funds, Bond ETF/Bond Mutual Fund → Bond Funds, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
-- **Snapshot-based architecture**: Portfolio data is pre-computed in the background every 5 minutes during market hours
-  - GitHub Actions workflow triggers `/api/refresh-prices` endpoint (requires `REFRESH_SECRET` auth)
+- **Snapshot-based architecture**: Portfolio data is pre-computed in the background
+  - External cron service (cron-job.org) triggers `/api/refresh-prices` endpoint
+  - Refresh frequency: Every 1 minute during market hours, every 30 minutes after hours
+  - Requires `REFRESH_SECRET` auth header
   - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
   - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
   - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
@@ -86,10 +88,13 @@ Copy `.env.example` to `.env`. Required:
 - `REFRESH_URL` - Full URL to refresh endpoint (e.g., `https://foliotracker.vercel.app/api/refresh-prices`)
 - `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios
 
-### GitHub Secrets (for background refresh workflow)
-Configure in repository Settings → Secrets and variables → Actions:
-- `REFRESH_SECRET` - Same value as local `REFRESH_SECRET` env var
-- `REFRESH_URL` - Full URL to your deployed `/api/refresh-prices` endpoint
+**Local development:** API keys are stored in `.env.local` (use `source .env.local` before running local scripts)
+
+### External Cron Configuration (cron-job.org)
+Snapshot refresh is handled by an external cron service at https://console.cron-job.org/
+- **Endpoint:** `POST https://foliotracker.vercel.app/api/refresh-prices`
+- **Auth header:** `Authorization: Bearer <REFRESH_SECRET>`
+- **Schedule:** Every 1 minute during US market hours (9:30 AM - 4:00 PM ET), every 30 minutes otherwise
 
 ## Workflow
 

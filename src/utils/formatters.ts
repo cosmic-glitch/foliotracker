@@ -48,8 +48,10 @@ export function formatDate(date: Date): string {
 }
 
 export function formatChartDate(dateString: string): string {
-  // Parse YYYY-MM-DD as local date to avoid UTC timezone shift
-  const [year, month, day] = dateString.split('-').map(Number);
+  // Extract just the date part (handles both YYYY-MM-DD and ISO timestamps)
+  const datePart = dateString.split('T')[0];
+  // Parse as local date to avoid UTC timezone shift
+  const [year, month, day] = datePart.split('-').map(Number);
   const date = new Date(year, month - 1, day); // months are 0-indexed
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',

@@ -78,13 +78,27 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       }));
     }
 
-    // For 30D view, update the last point to match currentValue (ensures chart ends at displayed total)
-    // Skip this for 1D intraday view - let historical data be self-consistent to avoid spikes
+    // For 30D view, add today's point with currentValue to ensure chart ends at correct date
     if (currentValue && points.length > 0 && chartView !== '1D') {
-      points[points.length - 1] = {
-        ...points[points.length - 1],
-        value: currentValue,
-      };
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const lastPoint = points[points.length - 1];
+
+      // Only add new point if last point is not already today
+      if (lastPoint.date !== todayStr) {
+        points.push({
+          date: todayStr,
+          timestamp: today.getTime(),
+          formattedDate: formatChartDate(todayStr),
+          value: currentValue,
+        });
+      } else {
+        // Update existing today point's value
+        points[points.length - 1] = {
+          ...lastPoint,
+          value: currentValue,
+        };
+      }
     }
 
     return points;

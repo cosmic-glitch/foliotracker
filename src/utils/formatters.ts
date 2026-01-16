@@ -48,7 +48,9 @@ export function formatDate(date: Date): string {
 }
 
 export function formatChartDate(dateString: string): string {
-  const date = new Date(dateString);
+  // Parse YYYY-MM-DD as local date to avoid UTC timezone shift
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // months are 0-indexed
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',

@@ -77,7 +77,7 @@ export function formatRelativeTime(input: Date | string): string {
   const diffDays = Math.floor(diffHours / 24);
 
   if (diffSeconds < 60) {
-    return 'just now';
+    return `${diffSeconds} second${diffSeconds === 1 ? '' : 's'} ago`;
   } else if (diffMinutes < 60) {
     return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
   } else if (diffHours < 24) {

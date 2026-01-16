@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import type { HistoricalDataPoint, MarketStatus } from '../types/portfolio';
+import type { HistoricalDataPoint } from '../types/portfolio';
 import type { ChartView } from '../hooks/usePortfolioData';
 import { formatChartDate, formatChartTime, formatCurrency } from '../utils/formatters';
 
@@ -17,7 +17,6 @@ interface PerformanceChartProps {
   chartView: ChartView;
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
-  marketStatus?: MarketStatus;
 }
 
 interface ChartDataPoint {
@@ -48,7 +47,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
-export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, marketStatus }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue }: PerformanceChartProps) {
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
 
@@ -104,23 +103,19 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return points;
   }, [data, chartView, currentValue]);
 
-  const isMarketOpen = marketStatus === 'open';
-
   const renderHeader = () => (
     <div className="flex items-center mb-4">
       <div className="flex rounded-lg overflow-hidden border border-border">
-        {isMarketOpen && (
-          <button
-            onClick={() => onViewChange('1D')}
-            className={`px-3 py-1 text-sm font-medium transition-colors ${
-              chartView === '1D'
-                ? 'bg-accent text-white'
-                : 'bg-card text-text-secondary hover:bg-background'
-            }`}
-          >
-            1D
-          </button>
-        )}
+        <button
+          onClick={() => onViewChange('1D')}
+          className={`px-3 py-1 text-sm font-medium transition-colors ${
+            chartView === '1D'
+              ? 'bg-accent text-white'
+              : 'bg-card text-text-secondary hover:bg-background'
+          }`}
+        >
+          1D
+        </button>
         <button
           onClick={() => onViewChange('30D')}
           className={`px-3 py-1 text-sm font-medium transition-colors ${

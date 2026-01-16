@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isMarketOpen } from '../lib/market-hours';
@@ -143,16 +143,6 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
     // Auto-refresh every 1 minute when market is open
     refetchInterval: () => isMarketOpen() ? 60 * 1000 : false,
   });
-
-  // Switch to 30D view when market is not open (after initial data load)
-  useEffect(() => {
-    if (portfolioQuery.data && !('requiresAuth' in portfolioQuery.data)) {
-      const marketStatus = portfolioQuery.data.marketStatus;
-      if (marketStatus && marketStatus !== 'open') {
-        setChartView('30D');
-      }
-    }
-  }, [portfolioQuery.data]);
 
   // Check if response is a private portfolio requiring auth
   const requiresAuth = useMemo(() => {

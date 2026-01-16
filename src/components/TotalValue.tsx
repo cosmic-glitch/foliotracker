@@ -29,6 +29,11 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
           <p className="text-4xl md:text-5xl font-bold text-text-primary tracking-tight">
             {formatCurrency(totalValue)}
           </p>
+          {lastUpdated && (
+            <p className="text-xs text-text-secondary mt-2">
+              Last updated {formatRelativeTime(lastUpdated)}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-start gap-3">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
@@ -62,11 +67,6 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
           )}
         </div>
       </div>
-      {lastUpdated && (
-        <p className="text-xs text-text-secondary mt-3 text-right">
-          Last updated {formatRelativeTime(lastUpdated)}
-        </p>
-      )}
     </div>
   );
 }

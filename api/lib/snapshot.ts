@@ -244,10 +244,19 @@ async function compute1DHistory(
       if (priceMap) {
         let price = priceMap.get(timestamp);
         if (!price) {
+          // Try fill forward from previous price
           for (const ts of sortedTimestamps) {
             if (ts > timestamp) break;
             const p = priceMap.get(ts);
             if (p) price = p;
+          }
+        }
+        // If still no price (e.g., money market funds with single end-of-day data point),
+        // use currentPrice as fallback to ensure consistent contribution throughout the chart
+        if (!price) {
+          const currentPriceData = currentPrices.get(ticker);
+          if (currentPriceData) {
+            price = currentPriceData.currentPrice;
           }
         }
         if (price) {

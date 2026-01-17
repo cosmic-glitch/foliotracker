@@ -98,8 +98,6 @@ export default async function handler(
       isStale,
     };
 
-    // Cache for 30 seconds since data is pre-computed
-    res.setHeader('Cache-Control', 'public, max-age=30');
     console.log(`[TIMING] history.ts total: ${Date.now() - requestStart}ms (id=${portfolioId}, interval=${interval})`);
     res.status(200).json(response);
   } catch (error) {

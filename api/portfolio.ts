@@ -227,8 +227,6 @@ export default async function handler(
       lastErrorAt: snapshot.last_error_at,
     };
 
-    // Cache for 30 seconds since data is pre-computed
-    res.setHeader('Cache-Control', 'public, max-age=30');
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(response);
   } catch (error) {

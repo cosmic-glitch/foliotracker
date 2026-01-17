@@ -268,9 +268,6 @@ export default async function handler(
         })
       );
 
-      // Cache for 30 seconds since data is pre-computed
-      res.setHeader('Cache-Control', 'public, max-age=30');
-
       console.log(`[TIMING] portfolios.ts GET total: ${Date.now() - requestStart}ms`);
       res.status(200).json({
         portfolios: portfoliosWithSummary,

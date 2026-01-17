@@ -164,9 +164,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
 
   // Calculate market hours for x-axis domain (9:30 AM - 4:00 PM ET)
-  const getMarketHoursDomain = (): [number, number] => {
-    // Create dates in ET timezone
-    const etDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const getMarketHoursDomain = (dataDate: Date): [number, number] => {
+    // Use the data's date, converted to ET timezone
+    const etDateStr = dataDate.toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const etDate = new Date(etDateStr);
 
     const marketOpen = new Date(etDate);
     marketOpen.setHours(9, 30, 0, 0);
@@ -177,7 +178,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return [marketOpen.getTime(), marketClose.getTime()];
   };
 
-  const xDomain = chartView === '1D' ? getMarketHoursDomain() : ['dataMin', 'dataMax'];
+  const xDomain = chartView === '1D' && chartData.length > 0
+    ? getMarketHoursDomain(new Date(chartData[0].timestamp))
+    : ['dataMin', 'dataMax'];
 
   return (
     <div className="bg-card rounded-2xl p-6 border border-border">

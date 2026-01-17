@@ -25,7 +25,7 @@ const TYPE_CATEGORY_MAP: Record<string, { name: string; color: string }> = {
 function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
   if (value === 0) {
     return (
-      <span className="text-text-secondary text-sm">--</span>
+      <span className="text-text-secondary text-sm w-16 text-right">--</span>
     );
   }
 
@@ -34,7 +34,7 @@ function ChangeIndicator({ value, percent }: { value: number; percent: number })
   const color = isPositive ? 'text-positive' : 'text-negative';
 
   return (
-    <span className={`flex items-center gap-1 text-sm ${color}`}>
+    <span className={`flex items-center justify-end gap-1 text-sm w-16 ${color}`}>
       <Icon className="w-3 h-3" />
       {formatPercent(percent)}
     </span>

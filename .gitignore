@@ -34,3 +34,4 @@ dist-ssr
 .env.prod
 .env.test
 test-results/
+.env.vercel-latest

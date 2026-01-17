@@ -1,5 +1,5 @@
 // US Eastern timezone utilities
-function getETOffset(): number {
+export function getETOffset(): number {
   const now = new Date();
   const jan = new Date(now.getFullYear(), 0, 1);
   const jul = new Date(now.getFullYear(), 6, 1);
@@ -28,6 +28,31 @@ function getETDay(): number {
   if (etHours < 0) return utcDay === 0 ? 6 : utcDay - 1;
   if (etHours >= 24) return (utcDay + 1) % 7;
   return utcDay;
+}
+
+// Get start of trading day in US Eastern Time as a Date object
+// This correctly handles the timezone boundary (e.g., after 7 PM ET / midnight UTC)
+export function getStartOfTradingDay(): Date {
+  const now = new Date();
+  const etOffset = getETOffset(); // -5 for EST, -4 for EDT
+
+  // Get current time in ET
+  const utcHours = now.getUTCHours();
+  const etHours = utcHours + etOffset;
+
+  // Start with current date
+  const startOfDay = new Date(now);
+
+  // If it's still the previous day in ET (negative hours), adjust the date
+  if (etHours < 0) {
+    startOfDay.setUTCDate(startOfDay.getUTCDate() - 1);
+  }
+
+  // Set to midnight ET (which is -etOffset hours in UTC)
+  // e.g., midnight ET = 5 AM UTC (EST) or 4 AM UTC (EDT)
+  startOfDay.setUTCHours(-etOffset, 0, 0, 0);
+
+  return startOfDay;
 }
 
 export function isMarketOpen(): boolean {

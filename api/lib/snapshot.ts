@@ -14,7 +14,7 @@ import {
   type DbPortfolioSnapshot,
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData, type Quote } from './fmp.js';
-import { getMarketStatus } from './cache.js';
+import { getMarketStatus, getStartOfTradingDay } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -424,8 +424,7 @@ export async function refreshAllSnapshots(): Promise<void> {
 
   if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
     console.log('Fetching 1D intraday data (market is open or after-hours)...');
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = getStartOfTradingDay();
 
     const intradayPromises = tickerArray.map(async (ticker) => {
       const data = await getHistoricalData(ticker, startOfDay, today, '1m');
@@ -600,8 +599,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const currentMarketStatus = getMarketStatus();
 
   if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = getStartOfTradingDay();
 
     const intradayPromises = tickers.map(async (ticker) => {
       const data = await getHistoricalData(ticker, startOfDay, today, '1m');

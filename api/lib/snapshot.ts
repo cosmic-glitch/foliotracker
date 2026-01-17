@@ -418,25 +418,19 @@ export async function refreshAllSnapshots(): Promise<void> {
     }
   }
 
-  // Fetch 1D intraday data only during market hours (to save API quota)
+  // Fetch 1D intraday data (always fetch to ensure chart works after hours)
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
-  const currentMarketStatus = getMarketStatus();
+  console.log('Fetching 1D intraday data...');
+  const startOfDay = getStartOfTradingDay();
 
-  if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
-    console.log('Fetching 1D intraday data (market is open or after-hours)...');
-    const startOfDay = getStartOfTradingDay();
+  const intradayPromises = tickerArray.map(async (ticker) => {
+    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+    return { ticker, data };
+  });
 
-    const intradayPromises = tickerArray.map(async (ticker) => {
-      const data = await getHistoricalData(ticker, startOfDay, today, '1m');
-      return { ticker, data };
-    });
-
-    const intradayResults = await Promise.all(intradayPromises);
-    for (const { ticker, data } of intradayResults) {
-      intradayPrices.set(ticker, data);
-    }
-  } else {
-    console.log('Skipping intraday data fetch (market is closed or pre-market)');
+  const intradayResults = await Promise.all(intradayPromises);
+  for (const { ticker, data } of intradayResults) {
+    intradayPrices.set(ticker, data);
   }
 
   // Compute SPY benchmark
@@ -594,22 +588,18 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     }
   }
 
-  // Fetch intraday data only during market hours (to save API quota)
+  // Fetch 1D intraday data (always fetch to ensure chart works after hours)
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
-  const currentMarketStatus = getMarketStatus();
+  const startOfDay = getStartOfTradingDay();
 
-  if (currentMarketStatus === 'open' || currentMarketStatus === 'after-hours') {
-    const startOfDay = getStartOfTradingDay();
+  const intradayPromises = tickers.map(async (ticker) => {
+    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+    return { ticker, data };
+  });
 
-    const intradayPromises = tickers.map(async (ticker) => {
-      const data = await getHistoricalData(ticker, startOfDay, today, '1m');
-      return { ticker, data };
-    });
-
-    const intradayResults = await Promise.all(intradayPromises);
-    for (const { ticker, data } of intradayResults) {
-      intradayPrices.set(ticker, data);
-    }
+  const intradayResults = await Promise.all(intradayPromises);
+  for (const { ticker, data } of intradayResults) {
+    intradayPrices.set(ticker, data);
   }
 
   // Compute benchmark

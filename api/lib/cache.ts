@@ -30,27 +30,56 @@ function getETDay(): number {
   return utcDay;
 }
 
-// Get start of trading day in US Eastern Time as a Date object
-// This correctly handles the timezone boundary (e.g., after 7 PM ET / midnight UTC)
+// Get start of most recent trading day in US Eastern Time as a Date object
+// Returns the most recent trading session start:
+// - After 9:30 AM ET on a weekday: Returns today's midnight ET
+// - Before 9:30 AM ET on a weekday: Returns previous day's midnight ET
+// - On weekends: Returns Friday's midnight ET
 export function getStartOfTradingDay(): Date {
   const now = new Date();
   const etOffset = getETOffset(); // -5 for EST, -4 for EDT
-
-  // Get current time in ET
   const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
   const etHours = utcHours + etOffset;
 
-  // Start with current date
+  // Normalize ET hours to 0-24 range and track day adjustment
+  let normalizedEtHours = etHours;
+  let dayAdjust = 0;
+  if (normalizedEtHours < 0) {
+    normalizedEtHours += 24;
+    dayAdjust = -1;
+  }
+
+  // Calculate current time in minutes from midnight ET
+  const etMinutesFromMidnight = normalizedEtHours * 60 + utcMinutes;
+
+  // Market opens at 9:30 AM ET = 570 minutes from midnight
+  const marketOpenMinutes = 9 * 60 + 30;
+
   const startOfDay = new Date(now);
 
-  // If it's still the previous day in ET (negative hours), adjust the date
-  if (etHours < 0) {
+  // Adjust for UTC/ET day boundary
+  startOfDay.setUTCDate(startOfDay.getUTCDate() + dayAdjust);
+
+  // If before market open, go back one more day to get previous trading day
+  if (etMinutesFromMidnight < marketOpenMinutes) {
     startOfDay.setUTCDate(startOfDay.getUTCDate() - 1);
   }
 
   // Set to midnight ET (which is -etOffset hours in UTC)
   // e.g., midnight ET = 5 AM UTC (EST) or 4 AM UTC (EDT)
   startOfDay.setUTCHours(-etOffset, 0, 0, 0);
+
+  // Handle weekends: go back to Friday
+  // getUTCDay() after setting to midnight ET will give us the correct ET day
+  const dayOfWeek = startOfDay.getUTCDay();
+  if (dayOfWeek === 0) {
+    // Sunday -> go back 2 days to Friday
+    startOfDay.setUTCDate(startOfDay.getUTCDate() - 2);
+  } else if (dayOfWeek === 6) {
+    // Saturday -> go back 1 day to Friday
+    startOfDay.setUTCDate(startOfDay.getUTCDate() - 1);
+  }
 
   return startOfDay;
 }

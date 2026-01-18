@@ -11,11 +11,12 @@ interface HoldingsByTypeProps {
 const TYPE_CATEGORY_MAP: Record<string, { name: string; color: string }> = {
   'Common Stock': { name: 'Stocks', color: '#8b5cf6' }, // purple
   'American Depositary Receipt': { name: 'Stocks', color: '#8b5cf6' }, // ADRs like TSM
-  'ETF': { name: 'Equity Funds', color: '#3b82f6' }, // blue
-  'Mutual Fund': { name: 'Equity Funds', color: '#3b82f6' }, // blue
-  'Bond ETF': { name: 'Bond Funds', color: '#06b6d4' }, // cyan
-  'Bond Mutual Fund': { name: 'Bond Funds', color: '#06b6d4' }, // cyan
-  'Cash': { name: 'Cash / T-Bills', color: '#22c55e' }, // green
+  'ETF': { name: 'Funds', color: '#3b82f6' }, // blue
+  'Mutual Fund': { name: 'Funds', color: '#3b82f6' }, // blue
+  'Bond ETF': { name: 'Funds', color: '#3b82f6' }, // blue (backwards compat)
+  'Bond Mutual Fund': { name: 'Funds', color: '#3b82f6' }, // blue (backwards compat)
+  'Money Market': { name: 'Cash / Money Market', color: '#22c55e' }, // green
+  'Cash': { name: 'Cash / Money Market', color: '#22c55e' }, // green
   'Real Estate': { name: 'Real Estate', color: '#f59e0b' }, // amber
   'Crypto': { name: 'Crypto', color: '#f97316' }, // orange
   'Bonds': { name: 'Bonds', color: '#06b6d4' }, // cyan (static bonds)

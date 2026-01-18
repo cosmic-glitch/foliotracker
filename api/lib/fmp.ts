@@ -51,39 +51,59 @@ interface FMPStableQuote {
   timestamp: number;
 }
 
-// FMP profile response for symbol info
-interface FMPProfile {
-  symbol: string;
-  companyName: string;
-  exchange: string;
-  industry: string;
-  isEtf: boolean;
-  isFund: boolean;
-}
-
 export interface SymbolInfo {
   name: string;
   instrumentType: string;
 }
 
-// Infer instrument type from FMP profile data
-function inferInstrumentType(name: string, isEtf: boolean, isFund: boolean): string {
-  // Check if fund name contains bond-related keywords
+// Map Yahoo Finance instrumentType to our instrument types
+function mapYahooQuoteType(instrumentType: string | undefined, name: string): string {
   const nameLower = name.toLowerCase();
-  const isBondFund = nameLower.includes('bond') ||
-                     nameLower.includes('treasury') ||
-                     nameLower.includes('fixed income') ||
-                     nameLower.includes('aggregate');
 
-  // Use FMP's isEtf and isFund flags (more reliable than industry field)
-  if (isEtf) {
-    return isBondFund ? 'Bond ETF' : 'ETF';
+  // Check for money market funds first (by instrumentType or name starting with "cash")
+  if (instrumentType === 'MONEYMARKET' || nameLower.startsWith('cash')) {
+    return 'Money Market';
   }
-  if (isFund) {
-    return isBondFund ? 'Bond Mutual Fund' : 'Mutual Fund';
+
+  switch (instrumentType) {
+    case 'EQUITY':
+      return 'Common Stock';
+    case 'ETF':
+      return 'ETF';
+    case 'MUTUALFUND':
+      return 'Mutual Fund';
+    case 'CRYPTOCURRENCY':
+      return 'Crypto';
+    default:
+      return 'Other';
   }
-  // Everything else is a stock
-  return 'Common Stock';
+}
+
+// Yahoo Finance symbol info (better coverage for mutual funds)
+async function getYahooSymbolInfo(symbol: string): Promise<SymbolInfo | null> {
+  try {
+    const response = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const meta = data.chart?.result?.[0]?.meta;
+
+    if (!meta) return null;
+
+    const name = meta.longName || meta.shortName || symbol;
+    const instrumentType = meta.instrumentType;
+
+    return {
+      name,
+      instrumentType: mapYahooQuoteType(instrumentType, name),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Yahoo Finance quote (faster, no API key required)
@@ -200,31 +220,7 @@ export async function getMultipleQuotes(
 }
 
 export async function getSymbolInfo(symbol: string): Promise<SymbolInfo | null> {
-  try {
-    const response = await fetch(
-      `${FMP_STABLE_URL}/profile?symbol=${symbol}&apikey=${FMP_API_KEY}`
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data: FMPProfile[] = await response.json();
-
-    if (!data || data.length === 0) {
-      return null;
-    }
-
-    const profile = data[0];
-    const name = profile.companyName || symbol;
-    return {
-      name,
-      instrumentType: inferInstrumentType(name, profile.isEtf, profile.isFund),
-    };
-  } catch (error) {
-    console.error(`Error fetching symbol info for ${symbol}:`, error);
-    return null;
-  }
+  return await getYahooSymbolInfo(symbol);
 }
 
 // Legacy function for backwards compatibility

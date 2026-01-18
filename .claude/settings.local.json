@@ -52,7 +52,24 @@
       "mcp__plugin_playwright_playwright__browser_fill_form",
       "mcp__plugin_playwright_playwright__browser_run_code",
       "mcp__plugin_playwright_playwright__browser_close",
-      "mcp__plugin_playwright_playwright__browser_wait_for"
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "Bash(source .env.local)",
+      "Bash(source /Users/anuragved/code/foliotracker/.env.local)",
+      "Bash(source /Users/anuragved/code/foliotracker/.env.prod)",
+      "Bash(# Kill any existing streams pkill -f \"\"vercel logs\"\" || true sleep 1 # Read all captured logs so far echo \"\"=== Combined Analysis ===\"\" cat /tmp/vercel_logs.json /tmp/vercel_logs2.json)",
+      "Bash(psql:*)",
+      "Bash(git restore:*)",
+      "Bash(jq:*)",
+      "Bash(for ticker in MXQLX AZGJJ IEIFX NGPDT)",
+      "Bash(npx tsx:*)",
+      "Bash(npx tsc:*)",
+      "Bash(source .env)",
+      "Bash(__NEW_LINE_302d55505b7b0c41__ if echo \"$RESULT\")",
+      "Bash(then echo \"Sample data:\" echo \"$RESULT\")",
+      "Bash(fi)",
+      "Bash(__NEW_LINE_7b85c9cea6f5cd50__ echo \"\")",
+      "Bash(__NEW_LINE_a9670d69b20d0dfc__ echo \"\")",
+      "Bash(node:*)"
     ]
   }
 }

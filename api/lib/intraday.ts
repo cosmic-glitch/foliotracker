@@ -1,5 +1,5 @@
 import { getHoldings } from './db.js';
-import { getHistoricalData, getMultipleQuotes } from './fmp.js';
+import { getHistoricalData, getMultipleQuotes } from './yahoo.js';
 
 export interface IntradayValue {
   totalValue: number;
@@ -24,10 +24,10 @@ export async function getIntradayPortfolioValue(
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
 
-  // Fetch intraday data and FMP quotes in parallel
+  // Fetch intraday data and quotes in parallel
   const tickers = tradeableHoldings.map((h) => h.ticker);
 
-  const [intradayResults, fmpQuotes] = await Promise.all([
+  const [intradayResults, yahooQuotes] = await Promise.all([
     // Fetch intraday data for all tradeable holdings
     Promise.all(
       tradeableHoldings.map((holding) =>
@@ -38,7 +38,7 @@ export async function getIntradayPortfolioValue(
         }))
       )
     ),
-    // Fetch FMP quotes for previous_close and fallback current prices
+    // Fetch quotes for previous_close and fallback current prices
     getMultipleQuotes(tickers),
   ]);
 
@@ -48,10 +48,10 @@ export async function getIntradayPortfolioValue(
   const holdingsWithData: typeof intradayResults = [];
 
   for (const result of intradayResults) {
-    const quote = fmpQuotes.get(result.ticker);
+    const quote = yahooQuotes.get(result.ticker);
 
     if (result.data.length === 0) {
-      // No intraday data - use FMP quote for current value
+      // No intraday data - use quote for current value
       if (quote) {
         constantValue += result.shares * quote.currentPrice;
         previousCloseTotal += result.shares * quote.previousClose;

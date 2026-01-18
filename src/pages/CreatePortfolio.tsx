@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TrendingUp, ArrowLeft, Loader2, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
 import type { TradeableHoldingInput, StaticHoldingInput, HoldingsInput } from '../types/portfolio';
+import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -34,6 +35,7 @@ type Visibility = 'public' | 'private' | 'selective';
 
 export function CreatePortfolio() {
   const navigate = useNavigate();
+  const { login } = useLoggedInPortfolio();
   const [portfolioId, setPortfolioId] = useState('');
   const [password, setPassword] = useState('');
   const [tradeableHoldings, setTradeableHoldings] = useState<TradeableHoldingInput[]>([
@@ -194,6 +196,7 @@ export function CreatePortfolio() {
         throw new Error(data.error || 'Failed to create portfolio');
       }
 
+      login(portfolioId, password);
       navigate(`/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

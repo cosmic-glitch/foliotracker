@@ -37,9 +37,10 @@ vercel --prod    # Deploy to production
 - `api/history.ts` - Historical price data (reads from pre-computed snapshots)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/fmp.ts` - Stock price API (Yahoo Finance primary, FMP fallback with retry logic)
+- `api/lib/fmp.ts` - Stock price API (Yahoo Finance primary, FMP fallback for quotes only)
 - `api/lib/cache.ts` - Market hours detection utilities
 - `api/lib/snapshot.ts` - Snapshot computation logic for portfolios
+- `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)
 
 ### Database (Supabase PostgreSQL)
 - `portfolios` table: id, display_name, password_hash, is_private, visibility, created_at
@@ -51,12 +52,12 @@ vercel --prod    # Deploy to production
 
 ### External APIs
 - **Yahoo Finance** - Primary source for real-time quotes and historical data (free, no API key)
-- **FMP (Financial Modeling Prep)** - Fallback for quotes when Yahoo fails, symbol info (requires API key)
+- **FMP (Financial Modeling Prep)** - Fallback for quotes when Yahoo fails (requires API key)
 
 ## Key Patterns
 
 - Holdings are either "tradeable" (shares × price) or "static" (fixed value for non-market assets like real estate)
-- `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Equity Funds, Bond ETF/Bond Mutual Fund → Bond Funds, etc.)
+- `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, Money Market → Cash / Money Market, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
 - **Snapshot-based architecture**: Portfolio data is pre-computed in the background
   - External cron service (cron-job.org) triggers `/api/refresh-prices` endpoint

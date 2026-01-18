@@ -56,3 +56,19 @@ export interface HoldingConfig {
   isStatic: boolean;
   staticValue?: number;
 }
+
+export interface TradeableHoldingInput {
+  ticker: string;
+  shares: number;
+  costBasisPerShare?: number;
+}
+
+export interface StaticHoldingInput {
+  name: string;
+  value: number;
+}
+
+export interface HoldingsInput {
+  tradeable: TradeableHoldingInput[];
+  static: StaticHoldingInput[];
+}

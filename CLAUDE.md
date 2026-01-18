@@ -37,7 +37,7 @@ vercel --prod    # Deploy to production
 - `api/history.ts` - Historical price data (reads from pre-computed snapshots)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/fmp.ts` - Stock price API (Yahoo Finance primary, FMP fallback for quotes only)
+- `api/lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
 - `api/lib/cache.ts` - Market hours detection utilities
 - `api/lib/snapshot.ts` - Snapshot computation logic for portfolios
 - `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)
@@ -51,8 +51,7 @@ vercel --prod    # Deploy to production
 - `portfolio_snapshots` table: Pre-computed portfolio data with holdings, history, and benchmark (JSONB)
 
 ### External APIs
-- **Yahoo Finance** - Primary source for real-time quotes and historical data (free, no API key)
-- **FMP (Financial Modeling Prep)** - Fallback for quotes when Yahoo fails (requires API key)
+- **Yahoo Finance** - Sole source for real-time quotes, historical data, and symbol info (free, no API key)
 
 ## Key Patterns
 
@@ -83,7 +82,6 @@ vercel --prod    # Deploy to production
 
 Copy `.env.example` to `.env`. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
-- `FMP_API_KEY` - Stock prices (Financial Modeling Prep fallback)
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
 - `REFRESH_SECRET` - Authentication token for background refresh endpoint (generate with `openssl rand -hex 32`)
 - `REFRESH_URL` - Full URL to refresh endpoint (e.g., `https://foliotracker.vercel.app/api/refresh-prices`)

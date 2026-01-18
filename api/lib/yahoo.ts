@@ -1,6 +1,3 @@
-const FMP_API_KEY = process.env.FMP_API_KEY!;
-const FMP_STABLE_URL = 'https://financialmodelingprep.com/stable';
-
 // Retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
@@ -27,28 +24,6 @@ export interface Quote {
   currentPrice: number;
   previousClose: number;
   changePercent: number;
-}
-
-// FMP stable quote response
-interface FMPStableQuote {
-  symbol: string;
-  name: string;
-  price: number;
-  changePercentage: number;
-  change: number;
-  dayLow: number;
-  dayHigh: number;
-  yearHigh: number;
-  yearLow: number;
-  marketCap: number;
-  priceAvg50: number;
-  priceAvg200: number;
-  exchange: string;
-  volume: number;
-  avgVolume: number;
-  open: number;
-  previousClose: number;
-  timestamp: number;
 }
 
 export interface SymbolInfo {
@@ -119,7 +94,8 @@ async function getYahooQuote(symbol: string): Promise<Quote | null> {
         if (response.status === 429 || response.status >= 500) {
           throw new Error(`Yahoo API error ${response.status} (will retry)`);
         }
-        console.error(`Yahoo API error for ${symbol}: ${response.status}`);
+        const ts = new Date().toISOString();
+        console.error(`[${ts}] Yahoo API error - Symbol: ${symbol}, Status: ${response.status}`);
         return null;
       }
 
@@ -127,7 +103,8 @@ async function getYahooQuote(symbol: string): Promise<Quote | null> {
       const meta = data.chart?.result?.[0]?.meta;
 
       if (!meta?.regularMarketPrice) {
-        console.warn(`No Yahoo data for ${symbol}`);
+        const ts = new Date().toISOString();
+        console.warn(`[${ts}] No Yahoo data for symbol: ${symbol}`);
         return null;
       }
 
@@ -140,54 +117,14 @@ async function getYahooQuote(symbol: string): Promise<Quote | null> {
       return { currentPrice, previousClose, changePercent };
     });
   } catch (error) {
-    console.error(`Error fetching Yahoo quote for ${symbol}:`, error);
-    return null;
-  }
-}
-
-// FMP quote (fallback)
-async function getFMPQuote(symbol: string): Promise<Quote | null> {
-  try {
-    return await withRetry(async () => {
-      const response = await fetch(
-        `${FMP_STABLE_URL}/quote?symbol=${symbol}&apikey=${FMP_API_KEY}`
-      );
-
-      if (!response.ok) {
-        if (response.status === 429 || response.status >= 500) {
-          throw new Error(`FMP API error ${response.status} (will retry)`);
-        }
-        console.error(`FMP API error for ${symbol}: ${response.status}`);
-        return null;
-      }
-
-      const data: FMPStableQuote[] = await response.json();
-
-      if (!data || data.length === 0 || !data[0].price) {
-        console.warn(`No FMP data for ${symbol}`);
-        return null;
-      }
-
-      const quote = data[0];
-      return {
-        currentPrice: quote.price,
-        previousClose: quote.previousClose ?? quote.price,
-        changePercent: quote.changePercentage ?? 0,
-      };
-    });
-  } catch (error) {
-    console.error(`Error fetching FMP quote for ${symbol}:`, error);
+    const ts = new Date().toISOString();
+    console.error(`[${ts}] Error fetching Yahoo quote for ${symbol}:`, error);
     return null;
   }
 }
 
 export async function getQuote(symbol: string): Promise<Quote | null> {
-  // Try Yahoo Finance first (faster, no API key required)
-  const yahooQuote = await getYahooQuote(symbol);
-  if (yahooQuote) return yahooQuote;
-
-  // Fall back to FMP if Yahoo fails
-  return getFMPQuote(symbol);
+  return getYahooQuote(symbol);
 }
 
 export async function getMultipleQuotes(
@@ -199,7 +136,7 @@ export async function getMultipleQuotes(
     return results;
   }
 
-  // Fetch each symbol in parallel (Yahoo Finance primary, FMP fallback)
+  // Fetch each symbol in parallel using Yahoo Finance
   const fetchPromises = symbols.map(async (symbol) => {
     const quote = await getQuote(symbol);
     if (quote) {
@@ -252,7 +189,8 @@ export async function getHistoricalData(
           if (response.status === 429 || response.status >= 500) {
             throw new Error(`Yahoo Finance intraday API error ${response.status} (will retry)`);
           }
-          console.error(`Yahoo Finance intraday API error for ${symbol}: ${response.status}`);
+          const ts = new Date().toISOString();
+          console.error(`[${ts}] Yahoo Finance intraday API error - Symbol: ${symbol}, Status: ${response.status}`);
           return [];
         }
 
@@ -260,7 +198,8 @@ export async function getHistoricalData(
         const result = data.chart?.result?.[0];
 
         if (!result?.timestamp || !result?.indicators?.quote?.[0]?.close) {
-          console.warn(`No Yahoo Finance intraday data for ${symbol}`);
+          const ts = new Date().toISOString();
+          console.warn(`[${ts}] No Yahoo Finance intraday data for symbol: ${symbol}`);
           return [];
         }
 
@@ -279,38 +218,45 @@ export async function getHistoricalData(
 
         return historicalData;
       } else {
-        // Daily historical endpoint
-        const fromStr = from.toISOString().split('T')[0];
-        const toStr = to.toISOString().split('T')[0];
+        // Daily historical - use Yahoo Finance
+        const period1 = Math.floor(from.getTime() / 1000);
+        const period2 = Math.floor(to.getTime() / 1000);
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
 
-        const response = await fetch(
-          `${FMP_STABLE_URL}/historical-price-eod/full?symbol=${symbol}&from=${fromStr}&to=${toStr}&apikey=${FMP_API_KEY}`
-        );
+        const response = await fetch(yahooUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
 
         if (!response.ok) {
           if (response.status === 429 || response.status >= 500) {
-            throw new Error(`FMP daily API error ${response.status} (will retry)`);
+            throw new Error(`Yahoo Finance daily API error ${response.status} (will retry)`);
           }
-          console.error(`FMP daily API error for ${symbol}: ${response.status}`);
+          const timestamp = new Date().toISOString();
+          console.error(`[${timestamp}] Yahoo Finance daily API error - Symbol: ${symbol}, Status: ${response.status}`);
           return [];
         }
 
         const data = await response.json();
+        const result = data.chart?.result?.[0];
 
-        // Stable endpoint returns a flat array, not { historical: [...] }
-        if (!data || !Array.isArray(data) || data.length === 0) {
-          console.warn(`No FMP daily data for ${symbol}`);
+        if (!result?.timestamp || !result?.indicators?.quote?.[0]?.close) {
+          const timestamp = new Date().toISOString();
+          console.warn(`[${timestamp}] No Yahoo Finance daily data for ${symbol}`);
           return [];
         }
 
-        // FMP returns data in reverse chronological order, so reverse it
+        const timestamps = result.timestamp;
+        const closes = result.indicators.quote[0].close;
+
         const historicalData: { date: string; close: number }[] = [];
-        for (let i = data.length - 1; i >= 0; i--) {
-          const point = data[i];
-          if (point.close !== null) {
+        for (let i = 0; i < timestamps.length; i++) {
+          if (closes[i] !== null) {
+            // Format date as YYYY-MM-DD for daily data
+            const dateObj = new Date(timestamps[i] * 1000);
+            const dateStr = dateObj.toISOString().split('T')[0];
             historicalData.push({
-              date: point.date,
-              close: point.close,
+              date: dateStr,
+              close: closes[i],
             });
           }
         }
@@ -319,7 +265,8 @@ export async function getHistoricalData(
       }
     });
   } catch (error) {
-    console.error(`Error fetching historical data for ${symbol}:`, error);
+    const ts = new Date().toISOString();
+    console.error(`[${ts}] Error fetching historical data for ${symbol}:`, error);
     return [];
   }
 }

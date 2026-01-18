@@ -16,7 +16,7 @@ A multi-portfolio stock tracker with real-time prices and historical performance
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS, Recharts
 - **Backend:** Vercel Serverless Functions
 - **Database:** Supabase (PostgreSQL)
-- **APIs:** FMP (Financial Modeling Prep) for all quotes, symbol info, and historical data
+- **APIs:** Yahoo Finance for quotes, symbol info, and historical data (free, no API key required)
 
 ## Setup
 
@@ -24,7 +24,6 @@ A multi-portfolio stock tracker with real-time prices and historical performance
 
 - Node.js 18+
 - Supabase account
-- FMP API key (financialmodelingprep.com)
 
 ### Installation
 
@@ -42,7 +41,6 @@ Copy `.env.example` to `.env` and fill in your values:
 # Backend (Vercel Serverless)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_service_key
-FMP_API_KEY=your_fmp_api_key
 
 # Frontend (optional - for direct Supabase access)
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -81,7 +79,7 @@ vercel --prod    # Deploy to production
 │   ├── history.ts        # Historical price data
 │   └── lib/
 │       ├── db.ts         # Supabase client
-│       └── fmp.ts        # Stock price APIs
+│       └── yahoo.ts      # Yahoo Finance API
 ├── src/
 │   ├── components/       # React components
 │   ├── hooks/            # Custom hooks

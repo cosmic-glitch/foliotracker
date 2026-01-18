@@ -13,7 +13,7 @@ import {
   type BenchmarkDataPoint,
   type DbPortfolioSnapshot,
 } from './db.js';
-import { getMultipleQuotes, getHistoricalData, type Quote } from './fmp.js';
+import { getMultipleQuotes, getHistoricalData, type Quote } from './yahoo.js';
 import { getMarketStatus, getStartOfTradingDay } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
@@ -315,7 +315,7 @@ export async function refreshAllSnapshots(): Promise<void> {
   const tickerArray = Array.from(allTickers);
   console.log(`Fetching quotes for ${tickerArray.length} tickers...`);
 
-  // Fetch current quotes from Yahoo/FMP
+  // Fetch current quotes from Yahoo Finance
   const quotes = await getMultipleQuotes(tickerArray);
 
   // Build price map and update price_cache

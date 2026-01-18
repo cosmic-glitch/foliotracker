@@ -16,7 +16,7 @@ import {
   recordSnapshotError,
   type Visibility,
 } from './lib/db.js';
-import { getSymbolInfo, getQuote } from './lib/fmp.js';
+import { getSymbolInfo, getQuote } from './lib/yahoo.js';
 import { refreshPortfolioSnapshot } from './lib/snapshot.js';
 import {
   getAllSnapshotsFromRedis,
@@ -135,7 +135,7 @@ async function classifyHoldings(
 
   for (const holding of holdings) {
     try {
-      // Try FMP for all symbols (stocks, ETFs, mutual funds)
+      // Try Yahoo Finance for all symbols (stocks, ETFs, mutual funds)
       const quote = await getQuote(holding.ticker);
       if (quote && quote.currentPrice > 0) {
         const symbolInfo = await getSymbolInfo(holding.ticker).catch(() => null);

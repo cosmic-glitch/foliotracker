@@ -52,7 +52,8 @@ export function consolidateHoldings(holdings: Holding[]): Holding[] {
     result.push(mergeHoldings(groupHoldings, group));
   }
 
-  return result;
+  // Re-sort by value descending to maintain expected order after merging
+  return result.sort((a, b) => b.value - a.value);
 }
 
 /**

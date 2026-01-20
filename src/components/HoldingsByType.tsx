@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
 import { formatCurrency, formatPercent } from '../utils/formatters';
+import { consolidateHoldings } from '../utils/equivalentTickers';
 import { TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 
 interface HoldingsByTypeProps {
@@ -84,7 +85,8 @@ function HoldingsBreakdown({ holdings, categoryValue }: { holdings: Holding[]; c
 
 export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
+  const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
+  const totalValue = consolidatedHoldings.reduce((sum, h) => sum + h.value, 0);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories((prev) => {
@@ -101,7 +103,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
   // Group holdings by their display category (e.g., ETF + Mutual Fund become "Equity Funds")
   const categoryTotals = new Map<string, { value: number; dayChange: number; color: string; holdings: Holding[] }>();
 
-  for (const holding of holdings) {
+  for (const holding of consolidatedHoldings) {
     const typeInfo = TYPE_CATEGORY_MAP[holding.instrumentType] || TYPE_CATEGORY_MAP['Other'];
     const categoryName = typeInfo.name;
 

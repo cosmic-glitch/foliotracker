@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
+import { consolidateHoldings } from '../utils/equivalentTickers';
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -57,7 +59,8 @@ function ProfitIndicator({ value, percent }: { value: number | null; percent: nu
 }
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
-  const maxAllocation = Math.max(...holdings.map((h) => h.allocation));
+  const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
+  const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -88,7 +91,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             </tr>
           </thead>
           <tbody>
-            {holdings.map((holding) => (
+            {consolidatedHoldings.map((holding) => (
               <tr
                 key={holding.ticker}
                 className="border-b border-border last:border-0 hover:bg-card-hover transition-colors"
@@ -121,7 +124,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
 
       {/* Mobile Cards */}
       <div className="md:hidden divide-y divide-border">
-        {holdings.map((holding) => (
+        {consolidatedHoldings.map((holding) => (
           <div key={holding.ticker} className="p-3">
             <div className="flex justify-between items-start mb-2">
               <p className="font-semibold text-text-primary">{holding.ticker}</p>

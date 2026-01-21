@@ -63,7 +63,7 @@ export function LandingPage() {
     queryFn: () => fetchPortfolios(loggedInAs),
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : 30 * 60 * 1000,
+    refetchInterval: () => isMarketOpen() ? 60 * 1000 : 30 * 60 * 1000,
   });
 
   // Fetch intraday values when market is open for more accurate totals
@@ -73,7 +73,7 @@ export function LandingPage() {
     enabled: isMarketOpen(),
     staleTime: 0, // Always refetch
     gcTime: 5 * 60 * 1000,
-    refetchInterval: () => isMarketOpen() ? 5 * 60 * 1000 : false,
+    refetchInterval: () => isMarketOpen() ? 60 * 1000 : false,
   });
 
   // Merge intraday values with base data when available

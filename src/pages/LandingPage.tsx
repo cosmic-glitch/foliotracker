@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Plus, Users, Pencil, Lock, LogIn, LogOut, User, Globe, Settings } from 'lucide-react';
@@ -7,6 +7,7 @@ import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { Footer } from '../components/Footer';
 
 interface Portfolio {
   id: string;
@@ -17,6 +18,7 @@ interface Portfolio {
   dayChangePercent: number | null;
   is_private: boolean;
   visibility: 'public' | 'private' | 'selective';
+  lastUpdated?: string;
 }
 
 interface PortfoliosResponse {
@@ -92,6 +94,16 @@ export function LandingPage() {
       dayChangePercent: portfolio.dayChangePercent,
     };
   };
+
+  // Get most recent lastUpdated from all portfolios
+  const latestUpdate = useMemo(() => {
+    if (!data?.portfolios.length) return null;
+    return data.portfolios.reduce((latest, p) => {
+      if (!p.lastUpdated) return latest;
+      const pDate = new Date(p.lastUpdated);
+      return !latest || pDate > latest ? pDate : latest;
+    }, null as Date | null);
+  }, [data?.portfolios]);
 
   const handleLogin = async (password: string) => {
     if (!loginTarget) return;
@@ -317,6 +329,11 @@ export function LandingPage() {
           password={getPassword() || ''}
           onClose={() => setShowPermissions(false)}
         />
+      )}
+
+      {/* Footer */}
+      {latestUpdate && (
+        <Footer lastUpdated={latestUpdate} />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ export { TotalValue } from './TotalValue';
 export { PerformanceChart } from './PerformanceChart';
 export { HoldingsTable } from './HoldingsTable';
 export { HoldingsByType } from './HoldingsByType';
+export { NewsSection } from './NewsSection';
 export { Footer } from './Footer';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { PermissionsModal } from './PermissionsModal';

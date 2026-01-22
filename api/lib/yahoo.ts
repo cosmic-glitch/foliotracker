@@ -167,6 +167,57 @@ export async function getCompanyName(symbol: string): Promise<string | null> {
 }
 
 // Historical data functions
+// News article interface
+export interface NewsArticle {
+  title: string;
+  link: string;
+}
+
+// Fetch news for a ticker from Yahoo Finance search endpoint
+export async function getTickerNews(ticker: string, limit: number = 5): Promise<NewsArticle[]> {
+  try {
+    return await withRetry(async () => {
+      // Request more articles so we have enough after filtering
+      const newsCount = 25;
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${newsCount}&quotesCount=0&listsCount=0`;
+
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+
+      if (!response.ok) {
+        if (response.status === 429 || response.status >= 500) {
+          throw new Error(`Yahoo API error ${response.status} (will retry)`);
+        }
+        const ts = new Date().toISOString();
+        console.error(`[${ts}] Yahoo news API error - Ticker: ${ticker}, Status: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const newsItems = data.news || [];
+
+      // Filter to only articles where ticker is the primary subject (first in relatedTickers)
+      const filtered = newsItems
+        .filter((item: { relatedTickers?: string[] }) =>
+          item.relatedTickers?.[0] === ticker
+        )
+        .slice(0, limit)
+        .map((item: { title?: string; link?: string }) => ({
+          title: item.title || 'No title',
+          link: item.link || '',
+        }));
+
+      return filtered;
+    });
+  } catch (error) {
+    const ts = new Date().toISOString();
+    console.error(`[${ts}] Error fetching news for ${ticker}:`, error);
+    return [];
+  }
+}
+
+// Historical data functions
 export async function getHistoricalData(
   symbol: string,
   from: Date,

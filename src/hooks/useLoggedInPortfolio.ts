@@ -11,17 +11,17 @@ interface LoginState {
 export function useLoggedInPortfolio() {
   const [loggedInAs, setLoggedInAs] = useState<string | null>(null);
 
-  // Load from sessionStorage on mount
+  // Load from localStorage on mount
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const state: LoginState = JSON.parse(stored);
         setLoggedInAs(state.portfolioId);
       }
     } catch {
       // Invalid stored data, clear it
-      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
 
@@ -31,18 +31,18 @@ export function useLoggedInPortfolio() {
       password,
       timestamp: Date.now(),
     };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setLoggedInAs(portfolioId.toLowerCase());
   }, []);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
     setLoggedInAs(null);
   }, []);
 
   const getPassword = useCallback((): string | null => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const state: LoginState = JSON.parse(stored);
         return state.password;

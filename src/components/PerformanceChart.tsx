@@ -69,12 +69,17 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
       const filteredData = data.filter((point) => point.date >= cutoffDateStr);
 
-      points = filteredData.map((point): ChartDataPoint => ({
-        date: point.date,
-        timestamp: new Date(point.date).getTime(),
-        formattedDate: formatChartDate(point.date),
-        value: point.value,
-      }));
+      points = filteredData.map((point): ChartDataPoint => {
+        // Parse date as local date components (not UTC) to avoid timezone shift
+        const [year, month, day] = point.date.split('-').map(Number);
+        const timestamp = new Date(year, month - 1, day).getTime();
+        return {
+          date: point.date,
+          timestamp,
+          formattedDate: formatChartDate(point.date),
+          value: point.value,
+        };
+      });
     }
 
     // For 30D view, add today's point with currentValue to ensure chart ends at correct date
@@ -85,9 +90,11 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
       // Only add new point if last point is not already today
       if (lastPoint.date !== todayStr) {
+        // Use local midnight for consistency with other data points
+        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
         points.push({
           date: todayStr,
-          timestamp: today.getTime(),
+          timestamp: todayMidnight,
           formattedDate: formatChartDate(todayStr),
           value: currentValue,
         });
@@ -199,7 +206,13 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               axisLine={false}
               tickLine={false}
               tick={{ fill: '#94a3b8', fontSize: 12 }}
-              tickFormatter={(ts) => chartView === '1D' ? formatChartTime(new Date(ts).toISOString()) : formatChartDate(new Date(ts).toISOString())}
+              tickFormatter={(ts) => {
+                if (chartView === '1D') {
+                  return formatChartTime(new Date(ts).toISOString());
+                }
+                // ts is local midnight, so direct formatting works correctly
+                return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
+              }}
               minTickGap={50}
             />
             <YAxis

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolioSnapshot } from './lib/db.js';
-import { getSnapshotFromRedis } from './lib/redis.js';
+import { getPortfolio, getPortfolioSnapshot, verifyPortfolioPassword, isAllowedViewer } from './lib/db.js';
+import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './lib/redis.js';
 
 interface HistoricalDataPoint {
   date: string;
@@ -43,11 +43,80 @@ export default async function handler(
   try {
     const portfolioId = req.query.id as string;
     const interval = (req.query.interval as string) === '1m' ? '1m' : '1d';
+    const password = req.query.password as string;
+    const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
     if (!portfolioId) {
       res.status(400).json({ error: 'Portfolio ID is required' });
       return;
     }
+
+    // Check if portfolio exists - try Redis first, then DB
+    let portfolio: CachedPortfolio | null = await getPortfolioFromRedis(portfolioId);
+    if (!portfolio) {
+      const dbPortfolio = await getPortfolio(portfolioId);
+      if (dbPortfolio) {
+        // Cache it for next time
+        await setPortfolioInRedis(dbPortfolio);
+        portfolio = {
+          id: dbPortfolio.id,
+          display_name: dbPortfolio.display_name,
+          created_at: dbPortfolio.created_at,
+          is_private: dbPortfolio.is_private,
+          visibility: dbPortfolio.visibility,
+        };
+      }
+    }
+    if (!portfolio) {
+      res.status(404).json({ error: 'Portfolio not found' });
+      return;
+    }
+
+    // Handle visibility-based authentication
+    // If password is provided, verify it regardless of visibility (for login flow)
+    if (password) {
+      const isValid = await verifyPortfolioPassword(portfolioId, password);
+      if (!isValid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
+    }
+
+    if (portfolio.visibility === 'private') {
+      // Private portfolios require password
+      if (!password) {
+        res.status(200).json({
+          data: [],
+          benchmark: [],
+          lastUpdated: new Date().toISOString(),
+          isStale: true,
+          requiresAuth: true,
+        });
+        return;
+      }
+
+      const isValid = await verifyPortfolioPassword(portfolioId, password);
+      if (!isValid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
+    } else if (portfolio.visibility === 'selective') {
+      // Selective portfolios require either password or being an allowed viewer
+      const hasPassword = password && await verifyPortfolioPassword(portfolioId, password);
+      const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
+
+      if (!hasPassword && !isViewer) {
+        res.status(200).json({
+          data: [],
+          benchmark: [],
+          lastUpdated: new Date().toISOString(),
+          isStale: true,
+          requiresAuth: true,
+        });
+        return;
+      }
+    }
+    // Public portfolios: no auth required
 
     // Read from Redis first, fall back to DB
     let snapshotStart = Date.now();

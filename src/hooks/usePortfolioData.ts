@@ -80,21 +80,42 @@ async function fetchPortfolioApi(
   return response.json();
 }
 
-async function fetchHistoryApi(portfolioId: string, days: number): Promise<ApiHistoryResponse> {
+async function fetchHistoryApi(
+  portfolioId: string,
+  days: number,
+  password?: string | null,
+  loggedInAs?: string | null
+): Promise<ApiHistoryResponse> {
   // Don't use browser HTTP cache - history depends on current holdings which can change
-  const response = await fetch(
-    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&days=${days}`,
-    { cache: 'no-store' }
-  );
+  const url = new URL(`${API_BASE_URL}/api/history`, window.location.origin);
+  url.searchParams.set('id', portfolioId);
+  url.searchParams.set('days', days.toString());
+  if (password) {
+    url.searchParams.set('password', password);
+  }
+  if (loggedInAs) {
+    url.searchParams.set('logged_in_as', loggedInAs);
+  }
+  const response = await fetch(url.toString(), { cache: 'no-store' });
   if (!response.ok) throw new Error('Failed to fetch history');
   return response.json();
 }
 
-async function fetchIntradayApi(portfolioId: string): Promise<ApiHistoryResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/history?id=${encodeURIComponent(portfolioId)}&interval=1m`,
-    { cache: 'no-store' } // Always fetch fresh for intraday
-  );
+async function fetchIntradayApi(
+  portfolioId: string,
+  password?: string | null,
+  loggedInAs?: string | null
+): Promise<ApiHistoryResponse> {
+  const url = new URL(`${API_BASE_URL}/api/history`, window.location.origin);
+  url.searchParams.set('id', portfolioId);
+  url.searchParams.set('interval', '1m');
+  if (password) {
+    url.searchParams.set('password', password);
+  }
+  if (loggedInAs) {
+    url.searchParams.set('logged_in_as', loggedInAs);
+  }
+  const response = await fetch(url.toString(), { cache: 'no-store' }); // Always fetch fresh for intraday
   if (!response.ok) throw new Error('Failed to fetch intraday data');
   return response.json();
 }
@@ -119,9 +140,10 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
   });
 
   // History query (30D) - refetch when switching to this view
+  // Include auth params in queryKey so it refetches when they change
   const historyQuery = useQuery({
-    queryKey: portfolioKeys.history(portfolioId),
-    queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS),
+    queryKey: [...portfolioKeys.history(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS, password, loggedInAs),
     enabled: !!portfolioId && !!portfolioQuery.data && chartView === '30D',
     staleTime: 5 * 60 * 1000, // Fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
@@ -131,9 +153,10 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
   });
 
   // Intraday query - always fetched when market is open (used as ground truth for total value)
+  // Include auth params in queryKey so it refetches when they change
   const intradayQuery = useQuery({
-    queryKey: portfolioKeys.intraday(portfolioId),
-    queryFn: () => fetchIntradayApi(portfolioId),
+    queryKey: [...portfolioKeys.intraday(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchIntradayApi(portfolioId, password, loggedInAs),
     // Fetch when viewing 1D OR when market is open (for accurate total value)
     enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isMarketOpen()),
     staleTime: 0, // Always stale - fetch fresh

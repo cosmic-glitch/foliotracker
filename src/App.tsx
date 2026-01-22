@@ -102,6 +102,11 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
   if (!portfolioId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -115,7 +120,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} onLogout={logout} />
+      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} onLogout={handleLogout} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 space-y-6">
         {error && (

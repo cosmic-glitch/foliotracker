@@ -20,7 +20,7 @@ function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
   const { unlock, getPassword } = useUnlockedPortfolios();
-  const { loggedInAs, login, getPassword: getLoginPassword } = useLoggedInPortfolio();
+  const { loggedInAs, login, logout, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
@@ -115,7 +115,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} />
+      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} onLogout={logout} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 space-y-6">
         {error && (

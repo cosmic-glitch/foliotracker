@@ -332,7 +332,7 @@ export function EditPortfolio() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Link
-              to="/"
+              to={`/${portfolioId}`}
               className="p-2 hover:bg-card rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-text-secondary" />
@@ -649,7 +649,7 @@ export function EditPortfolio() {
           {/* Submit */}
           <div className="flex gap-3">
             <Link
-              to="/"
+              to={`/${portfolioId}`}
               className="flex-1 bg-background hover:bg-card-hover border border-border text-text-primary font-medium py-3 px-4 rounded-xl transition-colors text-center"
             >
               Cancel

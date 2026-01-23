@@ -24,14 +24,7 @@ interface AnalyticsData {
   eventsByDay: { date: string; views: number; logins: number }[];
   topLocations: { location: string; count: number }[];
   viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
-  recentEvents: {
-    event_type: string;
-    portfolio_id: string | null;
-    viewer_id: string | null;
-    country: string | null;
-    city: string | null;
-    created_at: string;
-  }[];
+  viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
 }
 
 async function fetchAnalytics(password: string, days: number): Promise<AnalyticsData> {
@@ -74,20 +67,6 @@ function StatCard({
       </div>
     </div>
   );
-}
-
-function formatTimeAgo(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
 }
 
 function getCountryFlag(country: string): string {
@@ -337,65 +316,39 @@ export function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Recent Events */}
+            {/* Viewer Activity (1d) */}
             <div className="bg-card rounded-2xl border border-border p-6 mt-8">
-              <h2 className="text-lg font-semibold text-text-primary mb-4">Recent Events</h2>
-              {data.recentEvents.length > 0 ? (
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
+              </div>
+              {data.viewerActivity1d.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-sm text-text-secondary border-b border-border">
-                        <th className="pb-3 font-medium">Type</th>
-                        <th className="pb-3 font-medium">Portfolio</th>
-                        <th className="pb-3 font-medium">Viewer</th>
-                        <th className="pb-3 font-medium">Location</th>
-                        <th className="pb-3 font-medium text-right">Time</th>
+                      <tr className="text-left text-text-secondary border-b border-border">
+                        <th className="pb-2 font-medium">Viewer</th>
+                        <th className="pb-2 font-medium">Portfolio</th>
+                        <th className="pb-2 font-medium text-right">Views</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.recentEvents.map((event, index) => (
-                        <tr key={index} className="border-b border-border last:border-0">
-                          <td className="py-3">
-                            <span
-                              className={`px-2 py-1 text-xs rounded-full ${
-                                event.event_type === 'login'
-                                  ? 'bg-emerald-500/20 text-emerald-500'
-                                  : 'bg-blue-500/20 text-blue-500'
-                              }`}
-                            >
-                              {event.event_type}
-                            </span>
+                      {data.viewerActivity1d.map((row) => (
+                        <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
+                          <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
+                          <td className="py-2">
+                            <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
+                              {row.portfolio_id.toUpperCase()}
+                            </Link>
                           </td>
-                          <td className="py-3 text-text-primary">
-                            {event.portfolio_id ? (
-                              <Link
-                                to={`/${event.portfolio_id}`}
-                                className="text-accent hover:underline"
-                              >
-                                {event.portfolio_id.toUpperCase()}
-                              </Link>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td className="py-3 text-text-secondary">
-                            {event.viewer_id?.toUpperCase() || '-'}
-                          </td>
-                          <td className="py-3 text-text-secondary">
-                            {event.city && event.country
-                              ? `${event.city}, ${event.country}`
-                              : event.country || '-'}
-                          </td>
-                          <td className="py-3 text-text-secondary text-right">
-                            {formatTimeAgo(event.created_at)}
-                          </td>
+                          <td className="py-2 text-text-secondary text-right">{row.views}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <p className="text-text-secondary text-sm">No events recorded yet</p>
+                <p className="text-text-secondary text-sm">No viewer activity today</p>
               )}
             </div>
           </>

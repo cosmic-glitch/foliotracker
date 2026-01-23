@@ -495,14 +495,7 @@ export interface AnalyticsAggregation {
   eventsByDay: { date: string; views: number; logins: number }[];
   topLocations: { location: string; count: number }[];
   viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
-  recentEvents: {
-    event_type: string;
-    portfolio_id: string | null;
-    viewer_id: string | null;
-    country: string | null;
-    city: string | null;
-    created_at: string;
-  }[];
+  viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
 }
 
 export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggregation> {
@@ -581,15 +574,21 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .sort((a, b) => b.views - a.views)
     .slice(0, 15);
 
-  // Recent events
-  const recentEvents = allEvents.slice(0, 20).map((e) => ({
-    event_type: e.event_type,
-    portfolio_id: e.portfolio_id,
-    viewer_id: e.viewer_id,
-    country: e.country,
-    city: e.city,
-    created_at: e.created_at,
-  }));
+  // Viewer activity (last 1 day)
+  const viewerActivity1dMap = new Map<string, number>();
+  for (const event of viewsAndLogins) {
+    if (event.viewer_id && event.portfolio_id && event.created_at >= todayStartStr) {
+      const key = `${event.viewer_id}|${event.portfolio_id}`;
+      viewerActivity1dMap.set(key, (viewerActivity1dMap.get(key) || 0) + 1);
+    }
+  }
+  const viewerActivity1d = Array.from(viewerActivity1dMap.entries())
+    .map(([key, views]) => {
+      const [viewer_id, portfolio_id] = key.split('|');
+      return { viewer_id, portfolio_id, views };
+    })
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 15);
 
   return {
     totalViews: views.length,
@@ -600,6 +599,6 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     eventsByDay,
     topLocations,
     viewerActivity,
-    recentEvents,
+    viewerActivity1d,
   };
 }

@@ -10,6 +10,7 @@ import App from './App.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { CreatePortfolio } from './pages/CreatePortfolio.tsx'
 import { EditPortfolio } from './pages/EditPortfolio.tsx'
+import { AnalyticsDashboard } from './pages/AnalyticsDashboard.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/create" element={<CreatePortfolio />} />
+              <Route path="/analytics" element={<AnalyticsDashboard />} />
               <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
               <Route path="/:portfolioId" element={<App />} />
             </Routes>

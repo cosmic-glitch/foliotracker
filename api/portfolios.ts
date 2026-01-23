@@ -14,6 +14,7 @@ import {
   getAllPortfolioSnapshots,
   deletePortfolioSnapshot,
   recordSnapshotError,
+  getAnalyticsData,
   type Visibility,
 } from './lib/db.js';
 import { getSymbolInfo, getQuote } from './lib/yahoo.js';
@@ -327,7 +328,29 @@ export default async function handler(
     return;
   }
 
+  const ADMIN_HASH = '$2b$10$PHYCpLb5/4zFCetogpu3G.U3oNv6M6z7hHoL/wzaWVxSk.kq8Uucm';
+
   try {
+    // Handle analytics action (admin-only)
+    if (req.method === 'GET' && req.query.action === 'analytics') {
+      const password = req.query.password as string;
+      if (!password) {
+        res.status(401).json({ error: 'Admin password required' });
+        return;
+      }
+
+      const isAdmin = await bcrypt.compare(password, ADMIN_HASH);
+      if (!isAdmin) {
+        res.status(401).json({ error: 'Invalid admin password' });
+        return;
+      }
+
+      const days = parseInt(req.query.days as string) || 30;
+      const data = await getAnalyticsData(days);
+      res.status(200).json(data);
+      return;
+    }
+
     if (req.method === 'GET') {
       // List all portfolios with summary data from pre-computed snapshots
       const loggedInAs = req.query.logged_in_as as string | undefined;

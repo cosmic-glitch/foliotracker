@@ -44,6 +44,36 @@ export interface DbDailyPrice {
   close_price: number;
 }
 
+// Geolocation types and functions
+export interface GeoLocation {
+  country: string;
+  city: string;
+  region: string;
+}
+
+export async function getGeoFromIP(ip: string): Promise<GeoLocation | null> {
+  if (ip === 'unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=country,city,regionName`);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (data.status === 'fail') return null;
+
+    return {
+      country: data.country || '',
+      city: data.city || '',
+      region: data.regionName || '',
+    };
+  } catch (error) {
+    console.error('Geo lookup failed:', error);
+    return null;
+  }
+}
+
 // Portfolio functions
 export async function getPortfolios(): Promise<Omit<DbPortfolio, 'password_hash'>[]> {
   const { data, error } = await supabase
@@ -433,4 +463,131 @@ export async function recordSnapshotError(portfolioId: string, errorMessage: str
     );
 
   if (error) throw error;
+}
+
+// Analytics event types and functions
+export interface AnalyticsEvent {
+  event_type: string;
+  portfolio_id?: string;
+  viewer_id?: string;
+  ip_address?: string;
+  country?: string;
+  city?: string;
+  region?: string;
+  user_agent?: string;
+  referer?: string;
+}
+
+export async function logAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
+  const { error } = await supabase.from('analytics_events').insert(event);
+  if (error) {
+    console.error('Failed to log analytics event:', error);
+    throw error;
+  }
+}
+
+export interface AnalyticsAggregation {
+  totalViews: number;
+  totalLogins: number;
+  uniqueVisitors: number;
+  todayViews: number;
+  eventsByDay: { date: string; views: number; logins: number }[];
+  topPortfolios: { portfolio_id: string; views: number }[];
+  topCountries: { country: string; count: number }[];
+  recentEvents: {
+    event_type: string;
+    portfolio_id: string | null;
+    viewer_id: string | null;
+    country: string | null;
+    city: string | null;
+    created_at: string;
+  }[];
+}
+
+export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggregation> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString();
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartStr = todayStart.toISOString();
+
+  // Fetch all events in the date range
+  const { data: events, error } = await supabase
+    .from('analytics_events')
+    .select('*')
+    .gte('created_at', startDateStr)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  const allEvents = events || [];
+
+  // Calculate aggregations
+  const views = allEvents.filter((e) => e.event_type === 'view');
+  const logins = allEvents.filter((e) => e.event_type === 'login');
+  const todayViews = views.filter((e) => e.created_at >= todayStartStr);
+  const uniqueIPs = new Set(allEvents.map((e) => e.ip_address).filter(Boolean));
+
+  // Events by day
+  const eventsByDayMap = new Map<string, { views: number; logins: number }>();
+  for (const event of allEvents) {
+    const date = event.created_at.split('T')[0];
+    const existing = eventsByDayMap.get(date) || { views: 0, logins: 0 };
+    if (event.event_type === 'view') existing.views++;
+    if (event.event_type === 'login') existing.logins++;
+    eventsByDayMap.set(date, existing);
+  }
+  const eventsByDay = Array.from(eventsByDayMap.entries())
+    .map(([date, counts]) => ({ date, ...counts }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Top portfolios by views
+  const portfolioViewsMap = new Map<string, number>();
+  for (const event of views) {
+    if (event.portfolio_id) {
+      portfolioViewsMap.set(
+        event.portfolio_id,
+        (portfolioViewsMap.get(event.portfolio_id) || 0) + 1
+      );
+    }
+  }
+  const topPortfolios = Array.from(portfolioViewsMap.entries())
+    .map(([portfolio_id, views]) => ({ portfolio_id, views }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 10);
+
+  // Top countries
+  const countryMap = new Map<string, number>();
+  for (const event of allEvents) {
+    if (event.country) {
+      countryMap.set(event.country, (countryMap.get(event.country) || 0) + 1);
+    }
+  }
+  const topCountries = Array.from(countryMap.entries())
+    .map(([country, count]) => ({ country, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Recent events
+  const recentEvents = allEvents.slice(0, 20).map((e) => ({
+    event_type: e.event_type,
+    portfolio_id: e.portfolio_id,
+    viewer_id: e.viewer_id,
+    country: e.country,
+    city: e.city,
+    created_at: e.created_at,
+  }));
+
+  return {
+    totalViews: views.length,
+    totalLogins: logins.length,
+    uniqueVisitors: uniqueIPs.size,
+    todayViews: todayViews.length,
+    eventsByDay,
+    topPortfolios,
+    topCountries,
+    recentEvents,
+  };
 }

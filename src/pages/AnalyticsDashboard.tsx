@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import {
   TrendingUp,
   Eye,
-  LogIn,
   Users,
   CalendarDays,
   Globe,
@@ -21,9 +20,10 @@ interface AnalyticsData {
   totalLogins: number;
   uniqueVisitors: number;
   todayViews: number;
+  todayLogins: number;
   eventsByDay: { date: string; views: number; logins: number }[];
-  topPortfolios: { portfolio_id: string; views: number }[];
-  topCountries: { country: string; count: number }[];
+  topLocations: { location: string; count: number }[];
+  viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
   recentEvents: {
     event_type: string;
     portfolio_id: string | null;
@@ -76,47 +76,6 @@ function StatCard({
   );
 }
 
-function SimpleBarChart({
-  data,
-  days,
-}: {
-  data: { date: string; views: number; logins: number }[];
-  days: number;
-}) {
-  // Get last N days of data
-  const chartData = data.slice(-days);
-  const maxViews = Math.max(...chartData.map((d) => d.views), 1);
-
-  return (
-    <div className="h-40 flex items-end gap-1">
-      {chartData.map((day) => {
-        const height = (day.views / maxViews) * 100;
-        const date = new Date(day.date + 'T00:00:00');
-        const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-        return (
-          <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
-            <div className="w-full relative">
-              <div
-                className="w-full bg-accent/80 rounded-t transition-all hover:bg-accent"
-                style={{ height: `${Math.max(height, 4)}%`, minHeight: '4px' }}
-              />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-card border border-border rounded text-xs text-text-primary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                {day.views} views
-              </div>
-            </div>
-            {chartData.length <= 14 && (
-              <span className="text-[10px] text-text-secondary truncate w-full text-center">
-                {label}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function formatTimeAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -151,7 +110,7 @@ export function AnalyticsDashboard() {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [days, setDays] = useState(30);
+  const [days] = useState(30);
   const [storedPassword, setStoredPassword] = useState('');
 
   const { data, isLoading, error } = useQuery({
@@ -280,18 +239,12 @@ export function AnalyticsDashboard() {
         ) : data ? (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-3 gap-4 mb-8">
               <StatCard
                 icon={Eye}
-                label="Total Views"
-                value={data.totalViews}
+                label="Total Events"
+                value={data.totalViews + data.totalLogins}
                 iconColor="bg-blue-500/10 text-blue-500"
-              />
-              <StatCard
-                icon={LogIn}
-                label="Total Logins"
-                value={data.totalLogins}
-                iconColor="bg-emerald-500/10 text-emerald-500"
               />
               <StatCard
                 icon={Users}
@@ -301,46 +254,10 @@ export function AnalyticsDashboard() {
               />
               <StatCard
                 icon={CalendarDays}
-                label="Views Today"
-                value={data.todayViews}
+                label="Events Today"
+                value={data.todayViews + data.todayLogins}
                 iconColor="bg-amber-500/10 text-amber-500"
               />
-            </div>
-
-            {/* Chart */}
-            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-text-primary">Views Over Time</h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setDays(7)}
-                    className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                      days === 7
-                        ? 'bg-accent text-white'
-                        : 'bg-background text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    7D
-                  </button>
-                  <button
-                    onClick={() => setDays(30)}
-                    className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                      days === 30
-                        ? 'bg-accent text-white'
-                        : 'bg-background text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    30D
-                  </button>
-                </div>
-              </div>
-              {data.eventsByDay.length > 0 ? (
-                <SimpleBarChart data={data.eventsByDay} days={days} />
-              ) : (
-                <div className="h-40 flex items-center justify-center text-text-secondary">
-                  No data available
-                </div>
-              )}
             </div>
 
             {/* Two Column Layout */}
@@ -351,18 +268,20 @@ export function AnalyticsDashboard() {
                   <Globe className="w-5 h-5 text-text-secondary" />
                   <h2 className="text-lg font-semibold text-text-primary">Top Locations</h2>
                 </div>
-                {data.topCountries.length > 0 ? (
+                {data.topLocations.length > 0 ? (
                   <div className="space-y-3">
-                    {data.topCountries.map((country) => {
+                    {data.topLocations.map((loc) => {
                       const percentage = Math.round(
-                        (country.count / (data.totalViews + data.totalLogins)) * 100
+                        (loc.count / (data.totalViews + data.totalLogins)) * 100
                       );
+                      // Extract country from "City, Country" format for flag lookup
+                      const country = loc.location.split(', ').pop() || '';
                       return (
-                        <div key={country.country} className="flex items-center gap-3">
-                          <span className="text-lg">{getCountryFlag(country.country)}</span>
+                        <div key={loc.location} className="flex items-center gap-3">
+                          <span className="text-lg">{getCountryFlag(country)}</span>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm text-text-primary">{country.country}</span>
+                              <span className="text-sm text-text-primary">{loc.location}</span>
                               <span className="text-sm text-text-secondary">{percentage}%</span>
                             </div>
                             <div className="h-1.5 bg-background rounded-full overflow-hidden">
@@ -381,33 +300,39 @@ export function AnalyticsDashboard() {
                 )}
               </div>
 
-              {/* Top Portfolios */}
+              {/* Viewer Activity */}
               <div className="bg-card rounded-2xl border border-border p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <TrendingUp className="w-5 h-5 text-text-secondary" />
-                  <h2 className="text-lg font-semibold text-text-primary">Top Portfolios</h2>
+                  <Users className="w-5 h-5 text-text-secondary" />
+                  <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (7d)</h2>
                 </div>
-                {data.topPortfolios.length > 0 ? (
-                  <div className="space-y-2">
-                    {data.topPortfolios.map((portfolio) => (
-                      <div
-                        key={portfolio.portfolio_id}
-                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                      >
-                        <Link
-                          to={`/${portfolio.portfolio_id}`}
-                          className="text-accent hover:underline font-medium"
-                        >
-                          {portfolio.portfolio_id.toUpperCase()}
-                        </Link>
-                        <span className="text-text-secondary text-sm">
-                          {portfolio.views} views
-                        </span>
-                      </div>
-                    ))}
+                {data.viewerActivity.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-text-secondary border-b border-border">
+                          <th className="pb-2 font-medium">Viewer</th>
+                          <th className="pb-2 font-medium">Portfolio</th>
+                          <th className="pb-2 font-medium text-right">Views</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.viewerActivity.map((row) => (
+                          <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
+                            <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
+                            <td className="py-2">
+                              <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
+                                {row.portfolio_id.toUpperCase()}
+                              </Link>
+                            </td>
+                            <td className="py-2 text-text-secondary text-right">{row.views}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <p className="text-text-secondary text-sm">No portfolio data yet</p>
+                  <p className="text-text-secondary text-sm">No viewer activity yet</p>
                 )}
               </div>
             </div>

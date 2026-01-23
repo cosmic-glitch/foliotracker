@@ -491,9 +491,10 @@ export interface AnalyticsAggregation {
   totalLogins: number;
   uniqueVisitors: number;
   todayViews: number;
+  todayLogins: number;
   eventsByDay: { date: string; views: number; logins: number }[];
-  topPortfolios: { portfolio_id: string; views: number }[];
-  topCountries: { country: string; count: number }[];
+  topLocations: { location: string; count: number }[];
+  viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
   recentEvents: {
     event_type: string;
     portfolio_id: string | null;
@@ -528,6 +529,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   const views = allEvents.filter((e) => e.event_type === 'view');
   const logins = allEvents.filter((e) => e.event_type === 'login');
   const todayViews = views.filter((e) => e.created_at >= todayStartStr);
+  const todayLogins = logins.filter((e) => e.created_at >= todayStartStr);
   const uniqueIPs = new Set(allEvents.map((e) => e.ip_address).filter(Boolean));
 
   // Events by day
@@ -543,32 +545,41 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .map(([date, counts]) => ({ date, ...counts }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Top portfolios by views
-  const portfolioViewsMap = new Map<string, number>();
-  for (const event of views) {
-    if (event.portfolio_id) {
-      portfolioViewsMap.set(
-        event.portfolio_id,
-        (portfolioViewsMap.get(event.portfolio_id) || 0) + 1
-      );
-    }
-  }
-  const topPortfolios = Array.from(portfolioViewsMap.entries())
-    .map(([portfolio_id, views]) => ({ portfolio_id, views }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 10);
-
-  // Top countries
-  const countryMap = new Map<string, number>();
+  // Top locations (city-level)
+  const locationMap = new Map<string, number>();
   for (const event of allEvents) {
-    if (event.country) {
-      countryMap.set(event.country, (countryMap.get(event.country) || 0) + 1);
+    if (event.city && event.country) {
+      const key = event.region
+        ? `${event.city}, ${event.region}, ${event.country}`
+        : `${event.city}, ${event.country}`;
+      locationMap.set(key, (locationMap.get(key) || 0) + 1);
     }
   }
-  const topCountries = Array.from(countryMap.entries())
-    .map(([country, count]) => ({ country, count }))
+  const topLocations = Array.from(locationMap.entries())
+    .map(([location, count]) => ({ location, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+
+  // Viewer activity (last 7 days)
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString();
+
+  const viewerActivityMap = new Map<string, number>();
+  const viewsAndLogins = allEvents.filter((e) => e.event_type === 'view' || e.event_type === 'login');
+  for (const event of viewsAndLogins) {
+    if (event.viewer_id && event.portfolio_id && event.created_at >= weekAgoStr) {
+      const key = `${event.viewer_id}|${event.portfolio_id}`;
+      viewerActivityMap.set(key, (viewerActivityMap.get(key) || 0) + 1);
+    }
+  }
+  const viewerActivity = Array.from(viewerActivityMap.entries())
+    .map(([key, views]) => {
+      const [viewer_id, portfolio_id] = key.split('|');
+      return { viewer_id, portfolio_id, views };
+    })
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 15);
 
   // Recent events
   const recentEvents = allEvents.slice(0, 20).map((e) => ({
@@ -585,9 +596,10 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     totalLogins: logins.length,
     uniqueVisitors: uniqueIPs.size,
     todayViews: todayViews.length,
+    todayLogins: todayLogins.length,
     eventsByDay,
-    topPortfolios,
-    topCountries,
+    topLocations,
+    viewerActivity,
     recentEvents,
   };
 }

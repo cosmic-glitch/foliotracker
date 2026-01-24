@@ -69,6 +69,58 @@ function StatCard({
   );
 }
 
+function ViewerActivityGrid({
+  data,
+}: {
+  data: { viewer_id: string; portfolio_id: string; views: number }[];
+}) {
+  // Extract unique viewers and portfolios
+  const viewers = [...new Set(data.map((d) => d.viewer_id))].sort();
+  const portfolios = [...new Set(data.map((d) => d.portfolio_id))].sort();
+
+  // Build lookup map for quick access
+  const viewsMap = new Map<string, number>();
+  for (const row of data) {
+    viewsMap.set(`${row.portfolio_id}|${row.viewer_id}`, row.views);
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-text-secondary border-b border-border">
+            <th className="pb-2 font-medium"></th>
+            {viewers.map((viewer) => (
+              <th key={viewer} className="pb-2 font-medium text-center px-2">
+                {viewer.toUpperCase()}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {portfolios.map((portfolio) => (
+            <tr key={portfolio} className="border-b border-border last:border-0">
+              <td className="py-2">
+                <Link to={`/${portfolio}`} className="text-accent hover:underline">
+                  {portfolio.toUpperCase()}
+                </Link>
+              </td>
+              {viewers.map((viewer) => {
+                const count = viewsMap.get(`${portfolio}|${viewer}`);
+                return (
+                  <td key={viewer} className="py-2 text-center text-text-secondary px-2">
+                    {count ?? '-'}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function getCountryFlag(country: string): string {
   const flags: Record<string, string> = {
     'United States': '\u{1F1FA}\u{1F1F8}',
@@ -279,76 +331,30 @@ export function AnalyticsDashboard() {
                 )}
               </div>
 
-              {/* Viewer Activity */}
+              {/* Viewer Activity (1d) */}
               <div className="bg-card rounded-2xl border border-border p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-5 h-5 text-text-secondary" />
-                  <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (7d)</h2>
+                  <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
                 </div>
-                {data.viewerActivity.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-text-secondary border-b border-border">
-                          <th className="pb-2 font-medium">Viewer</th>
-                          <th className="pb-2 font-medium">Portfolio</th>
-                          <th className="pb-2 font-medium text-right">Views</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.viewerActivity.map((row) => (
-                          <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
-                            <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
-                            <td className="py-2">
-                              <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
-                                {row.portfolio_id.toUpperCase()}
-                              </Link>
-                            </td>
-                            <td className="py-2 text-text-secondary text-right">{row.views}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                {data.viewerActivity1d.length > 0 ? (
+                  <ViewerActivityGrid data={data.viewerActivity1d} />
                 ) : (
-                  <p className="text-text-secondary text-sm">No viewer activity yet</p>
+                  <p className="text-text-secondary text-sm">No viewer activity today</p>
                 )}
               </div>
             </div>
 
-            {/* Viewer Activity (1d) */}
+            {/* Viewer Activity (7d) */}
             <div className="bg-card rounded-2xl border border-border p-6 mt-8">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (7d)</h2>
               </div>
-              {data.viewerActivity1d.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-text-secondary border-b border-border">
-                        <th className="pb-2 font-medium">Viewer</th>
-                        <th className="pb-2 font-medium">Portfolio</th>
-                        <th className="pb-2 font-medium text-right">Views</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.viewerActivity1d.map((row) => (
-                        <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
-                          <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
-                          <td className="py-2">
-                            <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
-                              {row.portfolio_id.toUpperCase()}
-                            </Link>
-                          </td>
-                          <td className="py-2 text-text-secondary text-right">{row.views}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {data.viewerActivity.length > 0 ? (
+                <ViewerActivityGrid data={data.viewerActivity} />
               ) : (
-                <p className="text-text-secondary text-sm">No viewer activity today</p>
+                <p className="text-text-secondary text-sm">No viewer activity yet</p>
               )}
             </div>
           </>

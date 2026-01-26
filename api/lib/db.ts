@@ -496,6 +496,52 @@ export interface AnalyticsAggregation {
   topLocations: { location: string; count: number }[];
   viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
   viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
+  deviceTypes: { device: string; count: number }[];
+}
+
+function getDeviceType(userAgent: string | null): string {
+  if (!userAgent) return 'Unknown';
+  const ua = userAgent.toLowerCase();
+
+  // Check for mobile devices
+  if (/iphone|ipod/.test(ua)) return 'Mobile';
+  if (/android/.test(ua) && /mobile/.test(ua)) return 'Mobile';
+  if (/mobile|phone/.test(ua)) return 'Mobile';
+
+  // Check for tablets
+  if (/ipad/.test(ua)) return 'Tablet';
+  if (/android/.test(ua) && !/mobile/.test(ua)) return 'Tablet';
+  if (/tablet/.test(ua)) return 'Tablet';
+
+  // Desktop (default)
+  return 'Desktop';
+}
+
+// Get midnight in Seattle/Pacific timezone as a UTC timestamp
+function getSeattleMidnightToday(): Date {
+  // Get today's date in Pacific timezone (YYYY-MM-DD format)
+  const pacificDate = new Date().toLocaleDateString('en-CA', {
+    timeZone: 'America/Los_Angeles'
+  });
+
+  // Start with midnight UTC on this date
+  const midnightUTC = new Date(`${pacificDate}T00:00:00.000Z`);
+
+  // Determine what hour it is in Pacific timezone at midnight UTC
+  const pacificHourAtMidnightUTC = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      hour: 'numeric',
+      hour12: false
+    }).format(midnightUTC)
+  );
+
+  // Calculate offset: if 4pm (16) in Seattle at midnight UTC, add 8 hours
+  const offsetHours = pacificHourAtMidnightUTC >= 12
+    ? 24 - pacificHourAtMidnightUTC
+    : -pacificHourAtMidnightUTC;
+
+  return new Date(midnightUTC.getTime() + offsetHours * 60 * 60 * 1000);
 }
 
 export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggregation> {
@@ -503,8 +549,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString();
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = getSeattleMidnightToday();
   const todayStartStr = todayStart.toISOString();
 
   // Fetch all events in the date range
@@ -590,6 +635,16 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .sort((a, b) => b.views - a.views)
     .slice(0, 15);
 
+  // Device type breakdown
+  const deviceMap = new Map<string, number>();
+  for (const event of allEvents) {
+    const device = getDeviceType(event.user_agent);
+    deviceMap.set(device, (deviceMap.get(device) || 0) + 1);
+  }
+  const deviceTypes = Array.from(deviceMap.entries())
+    .map(([device, count]) => ({ device, count }))
+    .sort((a, b) => b.count - a.count);
+
   return {
     totalViews: views.length,
     totalLogins: logins.length,
@@ -600,5 +655,6 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     topLocations,
     viewerActivity,
     viewerActivity1d,
+    deviceTypes,
   };
 }

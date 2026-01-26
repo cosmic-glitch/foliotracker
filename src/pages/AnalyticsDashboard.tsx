@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Loader2,
   Lock,
+  Monitor,
 } from 'lucide-react';
 import { Footer } from '../components/Footer';
 
@@ -25,6 +26,7 @@ interface AnalyticsData {
   topLocations: { location: string; count: number }[];
   viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
   viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
+  deviceTypes: { device: string; count: number }[];
 }
 
 async function fetchAnalytics(password: string, days: number): Promise<AnalyticsData> {
@@ -69,56 +71,47 @@ function StatCard({
   );
 }
 
-function ViewerActivityGrid({
+function ViewerActivityTable({
   data,
 }: {
   data: { viewer_id: string; portfolio_id: string; views: number }[];
 }) {
-  // Extract unique viewers and portfolios
-  const viewers = [...new Set(data.map((d) => d.viewer_id))].sort();
-  const portfolios = [...new Set(data.map((d) => d.portfolio_id))].sort();
-
-  // Build lookup map for quick access
-  const viewsMap = new Map<string, number>();
-  for (const row of data) {
-    viewsMap.set(`${row.portfolio_id}|${row.viewer_id}`, row.views);
-  }
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-text-secondary border-b border-border">
-            <th className="pb-2 font-medium"></th>
-            {viewers.map((viewer) => (
-              <th key={viewer} className="pb-2 font-medium text-center px-2">
-                {viewer.toUpperCase()}
-              </th>
-            ))}
+            <th className="pb-2 font-medium">Viewer</th>
+            <th className="pb-2 font-medium">Portfolio</th>
+            <th className="pb-2 font-medium text-right">Views</th>
           </tr>
         </thead>
         <tbody>
-          {portfolios.map((portfolio) => (
-            <tr key={portfolio} className="border-b border-border last:border-0">
+          {data.map((row) => (
+            <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
+              <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
               <td className="py-2">
-                <Link to={`/${portfolio}`} className="text-accent hover:underline">
-                  {portfolio.toUpperCase()}
+                <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
+                  {row.portfolio_id.toUpperCase()}
                 </Link>
               </td>
-              {viewers.map((viewer) => {
-                const count = viewsMap.get(`${portfolio}|${viewer}`);
-                return (
-                  <td key={viewer} className="py-2 text-center text-text-secondary px-2">
-                    {count ?? '-'}
-                  </td>
-                );
-              })}
+              <td className="py-2 text-text-secondary text-right">{row.views}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+function getDeviceIcon(device: string): string {
+  const icons: Record<string, string> = {
+    'Desktop': '\u{1F5A5}',
+    'Mobile': '\u{1F4F1}',
+    'Tablet': '\u{1F4F1}',
+    'Unknown': '\u{2753}',
+  };
+  return icons[device] || '\u{2753}';
 }
 
 function getCountryFlag(country: string): string {
@@ -331,18 +324,54 @@ export function AnalyticsDashboard() {
                 )}
               </div>
 
-              {/* Viewer Activity (1d) */}
+              {/* Device Types */}
               <div className="bg-card rounded-2xl border border-border p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-5 h-5 text-text-secondary" />
-                  <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
+                  <Monitor className="w-5 h-5 text-text-secondary" />
+                  <h2 className="text-lg font-semibold text-text-primary">Device Types</h2>
                 </div>
-                {data.viewerActivity1d.length > 0 ? (
-                  <ViewerActivityGrid data={data.viewerActivity1d} />
+                {data.deviceTypes.length > 0 ? (
+                  <div className="space-y-3">
+                    {data.deviceTypes.map((item) => {
+                      const percentage = Math.round(
+                        (item.count / (data.totalViews + data.totalLogins)) * 100
+                      );
+                      return (
+                        <div key={item.device} className="flex items-center gap-3">
+                          <span className="text-lg">{getDeviceIcon(item.device)}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-text-primary">{item.device}</span>
+                              <span className="text-sm text-text-secondary">{percentage}%</span>
+                            </div>
+                            <div className="h-1.5 bg-background rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-accent rounded-full"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <p className="text-text-secondary text-sm">No viewer activity today</p>
+                  <p className="text-text-secondary text-sm">No device data yet</p>
                 )}
               </div>
+            </div>
+
+            {/* Viewer Activity (1d) */}
+            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
+              </div>
+              {data.viewerActivity1d.length > 0 ? (
+                <ViewerActivityTable data={data.viewerActivity1d} />
+              ) : (
+                <p className="text-text-secondary text-sm">No viewer activity today</p>
+              )}
             </div>
 
             {/* Viewer Activity (7d) */}
@@ -352,7 +381,7 @@ export function AnalyticsDashboard() {
                 <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (7d)</h2>
               </div>
               {data.viewerActivity.length > 0 ? (
-                <ViewerActivityGrid data={data.viewerActivity} />
+                <ViewerActivityTable data={data.viewerActivity} />
               ) : (
                 <p className="text-text-secondary text-sm">No viewer activity yet</p>
               )}

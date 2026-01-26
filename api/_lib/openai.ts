@@ -22,7 +22,7 @@ export async function generateHotTake(
     .join('\n');
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.2-chat-latest',
     messages: [
       {
         role: 'system',
@@ -33,8 +33,7 @@ export async function generateHotTake(
         content: `Portfolio total value: $${totalValue.toLocaleString()}\n\nHoldings:\n${holdingsList}`,
       },
     ],
-    max_tokens: 200,
-    temperature: 0.9,
+    max_completion_tokens: 200,
   });
 
   return response.choices[0].message.content || 'No hot take available.';
@@ -71,10 +70,9 @@ Continue the conversation naturally. Be helpful but maintain your witty personal
   ];
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.2-chat-latest',
     messages,
-    max_tokens: 300,
-    temperature: 0.8,
+    max_completion_tokens: 300,
   });
 
   return response.choices[0].message.content || 'I have nothing to say about that.';

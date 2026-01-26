@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader2, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -90,7 +91,8 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
       }
 
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to send message');
       }
 
       const data = await response.json();
@@ -100,7 +102,8 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
       ]);
       setRemainingMessages(data.remainingMessages);
     } catch (err) {
-      setError('Failed to get response. Please try again.');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to get response';
+      setError(errorMsg);
       // Remove the user message we just added
       setMessages((prev) => prev.slice(0, -1));
     } finally {
@@ -183,7 +186,9 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
           {/* Show hot take as first message */}
           <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
             <p className="text-xs text-accent font-medium mb-1">AI Hot Take</p>
-            <p className="text-sm text-text-primary">{hotTake}</p>
+            <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-strong:text-text-primary">
+              <ReactMarkdown>{hotTake}</ReactMarkdown>
+            </div>
           </div>
 
           {isFetching ? (
@@ -204,7 +209,13 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
                         : 'bg-background border border-border text-text-primary'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'user' ? (
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    ) : (
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-strong:text-text-primary">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

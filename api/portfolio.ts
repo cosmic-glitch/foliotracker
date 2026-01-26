@@ -165,13 +165,21 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
 
     // Call OpenAI
     const userMessage = message.trim();
-    const aiResponse = await chatWithPortfolio(
-      holdings,
-      snapshot.total_value,
-      hotTakeData.hot_take,
-      history,
-      userMessage
-    );
+    let aiResponse: string;
+    try {
+      aiResponse = await chatWithPortfolio(
+        holdings,
+        snapshot.total_value,
+        hotTakeData.hot_take,
+        history,
+        userMessage
+      );
+    } catch (err) {
+      console.error('OpenAI chat error:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: 'Failed to get AI response', details: errorMessage });
+      return;
+    }
 
     // Log messages to database
     await addChatMessage(portfolioId, 'user', userMessage);

@@ -7,3 +7,5 @@ export { NewsSection } from './NewsSection';
 export { Footer } from './Footer';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { PermissionsModal } from './PermissionsModal';
+export { HotTakeSection } from './HotTakeSection';
+export { ChatModal } from './ChatModal';

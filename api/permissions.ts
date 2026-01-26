@@ -6,7 +6,7 @@ import {
   updatePortfolioSettings,
   verifyPortfolioPassword,
   Visibility,
-} from './lib/db.js';
+} from './_lib/db.js';
 
 interface PermissionsResponse {
   visibility: Visibility;

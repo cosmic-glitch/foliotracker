@@ -47,6 +47,8 @@ export interface PortfolioData {
   lastUpdated: Date;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
+  hotTake: string | null;
+  hotTakeAt: string | null;
 }
 
 export interface HoldingConfig {

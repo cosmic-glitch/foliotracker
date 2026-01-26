@@ -10,6 +10,8 @@ import {
   Footer,
   LoadingSkeleton,
   PermissionsModal,
+  HotTakeSection,
+  ChatModal,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
@@ -23,6 +25,7 @@ function App() {
   const { loggedInAs, login, logout, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
 
   // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
   const storedPassword = portfolioId
@@ -141,6 +144,11 @@ function App() {
               totalGainPercent={data.totalGainPercent}
               lastUpdated={data.lastUpdated}
             />
+            <HotTakeSection
+              hotTake={data.hotTake}
+              hotTakeAt={data.hotTakeAt}
+              onOpenChat={() => setShowChatModal(true)}
+            />
             <PerformanceChart
               data={data.historicalData}
               isLoading={isHistoryLoading}
@@ -197,6 +205,16 @@ function App() {
           portfolioId={portfolioId}
           password={getLoginPassword() || ''}
           onClose={() => setShowPermissionsModal(false)}
+        />
+      )}
+
+      {/* Chat modal */}
+      {showChatModal && data?.hotTake && portfolioId && (
+        <ChatModal
+          portfolioId={portfolioId}
+          password={storedPassword}
+          hotTake={data.hotTake}
+          onClose={() => setShowChatModal(false)}
         />
       )}
     </div>

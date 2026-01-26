@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, getPortfolioSnapshot, verifyPortfolioPassword, isAllowedViewer } from './lib/db.js';
-import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './lib/redis.js';
+import { getPortfolio, getPortfolioSnapshot, verifyPortfolioPassword, isAllowedViewer } from './_lib/db.js';
+import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
   date: string;

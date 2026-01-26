@@ -1,0 +1,2 @@
+# Ignore scripts folder - not serverless functions
+scripts/

@@ -1,12 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { timingSafeEqual } from 'crypto';
-import { refreshAllSnapshots } from './_lib/snapshot.js';
+import { getPortfolios, getPortfolioSnapshot, updateHotTake } from './_lib/db.js';
+import { generateHotTake, type HoldingSummary } from './_lib/openai.js';
 
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
-
-// Simple in-memory rate limiting (1 request per 45 seconds)
-let lastRefreshTime = 0;
-const RATE_LIMIT_MS = 45 * 1000; // 45 seconds
 
 export default async function handler(
   req: VercelRequest,
@@ -47,32 +44,53 @@ export default async function handler(
     return;
   }
 
-  // Rate limiting check
-  const now = Date.now();
-  if (now - lastRefreshTime < RATE_LIMIT_MS) {
-    const waitTime = Math.ceil((RATE_LIMIT_MS - (now - lastRefreshTime)) / 1000);
-    res.status(429).json({
-      error: 'Rate limit exceeded',
-      message: `Please wait ${waitTime} seconds before refreshing again`,
-    });
-    return;
-  }
-  lastRefreshTime = now;
-
   try {
     const startTime = Date.now();
-    await refreshAllSnapshots();
+    const portfolios = await getPortfolios();
+
+    const results: { id: string; success: boolean; error?: string }[] = [];
+
+    for (const portfolio of portfolios) {
+      try {
+        const snapshot = await getPortfolioSnapshot(portfolio.id);
+
+        if (!snapshot || snapshot.holdings_json.length === 0) {
+          results.push({ id: portfolio.id, success: false, error: 'No holdings' });
+          continue;
+        }
+
+        const holdings: HoldingSummary[] = snapshot.holdings_json.map((h) => ({
+          ticker: h.ticker,
+          name: h.name,
+          value: h.value,
+          allocation: h.allocation,
+          instrumentType: h.instrumentType,
+        }));
+
+        const hotTake = await generateHotTake(holdings, snapshot.total_value);
+        await updateHotTake(portfolio.id, hotTake);
+
+        results.push({ id: portfolio.id, success: true });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to generate hot take for ${portfolio.id}:`, err);
+        results.push({ id: portfolio.id, success: false, error: errorMsg });
+      }
+    }
+
     const duration = Date.now() - startTime;
+    const successCount = results.filter(r => r.success).length;
+    const failedCount = results.filter(r => !r.success).length;
 
     res.status(200).json({
       success: true,
-      message: 'All portfolio snapshots refreshed',
+      message: `Regenerated ${successCount} hot takes (${failedCount} failed)`,
       duration: `${duration}ms`,
+      results,
     });
   } catch (error: unknown) {
-    console.error('Refresh error:', error);
+    console.error('Refresh hot takes error:', error);
 
-    // Extract error message from various error types (Error, PostgrestError, etc.)
     let errorMessage = 'Unknown error';
     if (error instanceof Error) {
       errorMessage = error.message;
@@ -83,7 +101,7 @@ export default async function handler(
     }
 
     res.status(500).json({
-      error: 'Failed to refresh snapshots',
+      error: 'Failed to refresh hot takes',
       details: errorMessage,
     });
   }

@@ -40,6 +40,8 @@ interface ApiPortfolioResponse {
   lastUpdated: string;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
+  hotTake: string | null;
+  hotTakeAt: string | null;
 }
 
 interface PrivatePortfolioResponse {
@@ -220,6 +222,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
       lastUpdated: new Date(p.lastUpdated),
       marketStatus: p.marketStatus,
       benchmark: p.benchmark,
+      hotTake: p.hotTake,
+      hotTakeAt: p.hotTakeAt,
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data]);
 

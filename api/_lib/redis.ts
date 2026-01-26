@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import type { DbPortfolioSnapshot, DbPortfolio, DbPriceCache, Visibility } from './db.js';
+import type { DbPortfolioSnapshot, DbPortfolio, DbPriceCache, DbPortfolioListItem, Visibility } from './db.js';
 
 // Initialize Redis client
 // Note: env var names have extra prefix from Vercel integration
@@ -154,7 +154,7 @@ export async function getPortfoliosFromRedis(): Promise<CachedPortfolio[] | null
 /**
  * Save all portfolios list to Redis
  */
-export async function setPortfoliosInRedis(portfolios: Omit<DbPortfolio, 'password_hash'>[]): Promise<void> {
+export async function setPortfoliosInRedis(portfolios: DbPortfolioListItem[]): Promise<void> {
   try {
     const cached: CachedPortfolio[] = portfolios.map(p => ({
       id: p.id,

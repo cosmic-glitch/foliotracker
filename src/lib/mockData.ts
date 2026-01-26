@@ -166,5 +166,7 @@ export function getMockPortfolioData(): PortfolioData {
       name: 'S&P 500',
       dayChangePercent: 0.25,
     },
+    hotTake: null,
+    hotTakeAt: null,
   };
 }

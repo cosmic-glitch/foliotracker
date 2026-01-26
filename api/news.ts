@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getTickerNews, type NewsArticle } from './lib/yahoo.js';
+import { getTickerNews, type NewsArticle } from './_lib/yahoo.js';
 
 const DELAY_BETWEEN_REQUESTS_MS = 200;
 const MAX_TICKERS = 20;

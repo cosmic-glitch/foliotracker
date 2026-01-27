@@ -17,6 +17,7 @@ import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
+import { useViewAnalytics } from './hooks/useAnalytics';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
@@ -43,6 +44,14 @@ function App() {
     setChartView,
     refresh,
   } = usePortfolioData(portfolioId || '', storedPassword, loggedInAs);
+
+  // Analytics hook - logs views on initial load, tab visibility, and manual refresh
+  const { logView } = useViewAnalytics(portfolioId, storedPassword, loggedInAs);
+
+  const handleRefresh = () => {
+    logView();
+    refresh();
+  };
 
   const handleUnlock = async (password: string) => {
     if (!portfolioId) return;
@@ -172,7 +181,7 @@ function App() {
       {data && (
         <Footer
           lastUpdated={data.lastUpdated}
-          onRefresh={refresh}
+          onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
       )}

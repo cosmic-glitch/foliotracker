@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, logAnalyticsEvent, getGeoFromIP, getPortfolioHotTake, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
+import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioHotTake, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
 import { chatWithPortfolio, type HoldingSummary } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -395,22 +395,6 @@ export default async function handler(
       hotTake: hotTakeData.hot_take,
       hotTakeAt: hotTakeData.hot_take_at,
     };
-
-    // Non-blocking analytics logging
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
-    getGeoFromIP(ip).then((geo) => {
-      logAnalyticsEvent({
-        event_type: password ? 'login' : 'view',
-        portfolio_id: portfolioId,
-        viewer_id: loggedInAs || undefined,
-        ip_address: ip,
-        country: geo?.country,
-        city: geo?.city,
-        region: geo?.region,
-        user_agent: req.headers['user-agent'],
-        referer: req.headers['referer'],
-      }).catch(() => {}); // Fire and forget
-    }).catch(() => {});
 
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(response);

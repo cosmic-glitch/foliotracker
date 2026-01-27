@@ -24,8 +24,11 @@ interface AnalyticsData {
   todayLogins: number;
   eventsByDay: { date: string; views: number; logins: number }[];
   topLocations: { location: string; count: number }[];
-  viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
-  viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
+  viewerActivityByDay: {
+    viewer_id: string;
+    portfolio_id: string;
+    dailyCounts: Record<string, number>;
+  }[];
   deviceTypes: { device: string; count: number }[];
 }
 
@@ -74,8 +77,17 @@ function StatCard({
 function ViewerActivityTable({
   data,
 }: {
-  data: { viewer_id: string; portfolio_id: string; views: number }[];
+  data: { viewer_id: string; portfolio_id: string; dailyCounts: Record<string, number> }[];
 }) {
+  // Generate last 5 days (YYYY-MM-DD format for lookup, MMM D for display)
+  const last5Days = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const displayStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return { dateStr, displayStr };
+  });
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -83,7 +95,11 @@ function ViewerActivityTable({
           <tr className="text-left text-text-secondary border-b border-border">
             <th className="pb-2 font-medium">Viewer</th>
             <th className="pb-2 font-medium">Portfolio</th>
-            <th className="pb-2 font-medium text-right">Views</th>
+            {last5Days.map(({ dateStr, displayStr }) => (
+              <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
+                {displayStr}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -95,7 +111,11 @@ function ViewerActivityTable({
                   {row.portfolio_id.toUpperCase()}
                 </Link>
               </td>
-              <td className="py-2 text-text-secondary text-right">{row.views}</td>
+              {last5Days.map(({ dateStr }) => (
+                <td key={dateStr} className="py-2 text-text-secondary text-center">
+                  {row.dailyCounts[dateStr] || '-'}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -361,27 +381,14 @@ export function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Viewer Activity (1d) */}
+            {/* Viewer Activity */}
             <div className="bg-card rounded-2xl border border-border p-6 mt-8">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (1d)</h2>
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity</h2>
               </div>
-              {data.viewerActivity1d.length > 0 ? (
-                <ViewerActivityTable data={data.viewerActivity1d} />
-              ) : (
-                <p className="text-text-secondary text-sm">No viewer activity today</p>
-              )}
-            </div>
-
-            {/* Viewer Activity (7d) */}
-            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (7d)</h2>
-              </div>
-              {data.viewerActivity.length > 0 ? (
-                <ViewerActivityTable data={data.viewerActivity} />
+              {data.viewerActivityByDay.length > 0 ? (
+                <ViewerActivityTable data={data.viewerActivityByDay} />
               ) : (
                 <p className="text-text-secondary text-sm">No viewer activity yet</p>
               )}

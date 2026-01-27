@@ -513,8 +513,11 @@ export interface AnalyticsAggregation {
   todayLogins: number;
   eventsByDay: { date: string; views: number; logins: number }[];
   topLocations: { location: string; count: number }[];
-  viewerActivity: { viewer_id: string; portfolio_id: string; views: number }[];
-  viewerActivity1d: { viewer_id: string; portfolio_id: string; views: number }[];
+  viewerActivityByDay: {
+    viewer_id: string;
+    portfolio_id: string;
+    dailyCounts: Record<string, number>; // { "2026-01-27": 3, "2026-01-26": 1, ... }
+  }[];
   deviceTypes: { device: string; count: number }[];
 }
 
@@ -617,41 +620,40 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Viewer activity (last 7 days)
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString();
+  // Viewer activity by day (last 5 days)
+  // Build list of last 5 days in YYYY-MM-DD format
+  const last5Days: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    last5Days.push(d.toISOString().split('T')[0]);
+  }
+  const fiveDaysAgo = new Date();
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+  const fiveDaysAgoStr = fiveDaysAgo.toISOString();
 
-  const viewerActivityMap = new Map<string, number>();
+  // Map: "viewer_id|portfolio_id" -> { date -> count }
+  const viewerActivityByDayMap = new Map<string, Record<string, number>>();
   const viewsAndLogins = allEvents.filter((e) => e.event_type === 'view' || e.event_type === 'login');
   for (const event of viewsAndLogins) {
-    if (event.viewer_id && event.portfolio_id && event.created_at >= weekAgoStr) {
+    if (event.viewer_id && event.portfolio_id && event.created_at >= fiveDaysAgoStr) {
       const key = `${event.viewer_id}|${event.portfolio_id}`;
-      viewerActivityMap.set(key, (viewerActivityMap.get(key) || 0) + 1);
+      const date = event.created_at.split('T')[0];
+      if (!viewerActivityByDayMap.has(key)) {
+        viewerActivityByDayMap.set(key, {});
+      }
+      const dailyCounts = viewerActivityByDayMap.get(key)!;
+      dailyCounts[date] = (dailyCounts[date] || 0) + 1;
     }
   }
-  const viewerActivity = Array.from(viewerActivityMap.entries())
-    .map(([key, views]) => {
-      const [viewer_id, portfolio_id] = key.split('|');
-      return { viewer_id, portfolio_id, views };
-    })
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 15);
 
-  // Viewer activity (last 1 day)
-  const viewerActivity1dMap = new Map<string, number>();
-  for (const event of viewsAndLogins) {
-    if (event.viewer_id && event.portfolio_id && event.created_at >= todayStartStr) {
-      const key = `${event.viewer_id}|${event.portfolio_id}`;
-      viewerActivity1dMap.set(key, (viewerActivity1dMap.get(key) || 0) + 1);
-    }
-  }
-  const viewerActivity1d = Array.from(viewerActivity1dMap.entries())
-    .map(([key, views]) => {
+  // Convert to array, sort by viewer_id
+  const viewerActivityByDay = Array.from(viewerActivityByDayMap.entries())
+    .map(([key, dailyCounts]) => {
       const [viewer_id, portfolio_id] = key.split('|');
-      return { viewer_id, portfolio_id, views };
+      return { viewer_id, portfolio_id, dailyCounts };
     })
-    .sort((a, b) => b.views - a.views)
+    .sort((a, b) => a.viewer_id.localeCompare(b.viewer_id) || a.portfolio_id.localeCompare(b.portfolio_id))
     .slice(0, 15);
 
   // Device type breakdown
@@ -672,8 +674,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     todayLogins: todayLogins.length,
     eventsByDay,
     topLocations,
-    viewerActivity,
-    viewerActivity1d,
+    viewerActivityByDay,
     deviceTypes,
   };
 }

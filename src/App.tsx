@@ -153,17 +153,17 @@ function App() {
               totalGainPercent={data.totalGainPercent}
               lastUpdated={data.lastUpdated}
             />
-            <HotTakeSection
-              hotTake={data.hotTake}
-              hotTakeAt={data.hotTakeAt}
-              onOpenChat={() => setShowChatModal(true)}
-            />
             <PerformanceChart
               data={data.historicalData}
               isLoading={isHistoryLoading}
               chartView={chartView}
               onViewChange={setChartView}
               currentValue={data.totalValue}
+            />
+            <HotTakeSection
+              hotTake={data.hotTake}
+              hotTakeAt={data.hotTakeAt}
+              onOpenChat={() => setShowChatModal(true)}
             />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2 space-y-6">

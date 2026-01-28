@@ -519,6 +519,7 @@ export interface AnalyticsAggregation {
     dailyCounts: Record<string, number>; // { "2026-01-27": 3, "2026-01-26": 1, ... }
   }[];
   deviceTypes: { device: string; count: number }[];
+  viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
 function getDeviceType(userAgent: string | null): string {
@@ -666,6 +667,26 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .map(([device, count]) => ({ device, count }))
     .sort((a, b) => b.count - a.count);
 
+  // Per-viewer device breakdown
+  const viewerDeviceMap = new Map<string, { desktop: number; mobile: number }>();
+  for (const event of allEvents) {
+    if (!event.viewer_id) continue;
+    const device = getDeviceType(event.user_agent);
+    if (!viewerDeviceMap.has(event.viewer_id)) {
+      viewerDeviceMap.set(event.viewer_id, { desktop: 0, mobile: 0 });
+    }
+    const counts = viewerDeviceMap.get(event.viewer_id)!;
+    if (device === 'Desktop') {
+      counts.desktop++;
+    } else if (device === 'Mobile' || device === 'Tablet') {
+      counts.mobile++;
+    }
+  }
+  const viewerDeviceBreakdown = Array.from(viewerDeviceMap.entries())
+    .map(([viewer_id, counts]) => ({ viewer_id, ...counts }))
+    .sort((a, b) => (b.desktop + b.mobile) - (a.desktop + a.mobile))
+    .slice(0, 15);
+
   return {
     totalViews: views.length,
     totalLogins: logins.length,
@@ -676,6 +697,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     topLocations,
     viewerActivityByDay,
     deviceTypes,
+    viewerDeviceBreakdown,
   };
 }
 

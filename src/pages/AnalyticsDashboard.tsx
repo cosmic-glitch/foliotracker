@@ -30,6 +30,7 @@ interface AnalyticsData {
     dailyCounts: Record<string, number>;
   }[];
   deviceTypes: { device: string; count: number }[];
+  viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
 async function fetchAnalytics(password: string, days: number): Promise<AnalyticsData> {
@@ -379,6 +380,38 @@ export function AnalyticsDashboard() {
                   <p className="text-text-secondary text-sm">No device data yet</p>
                 )}
               </div>
+            </div>
+
+            {/* Viewer Device Breakdown */}
+            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Monitor className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Devices</h2>
+              </div>
+              {data.viewerDeviceBreakdown && data.viewerDeviceBreakdown.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 pr-4 text-text-secondary font-medium">Viewer</th>
+                        <th className="text-right py-2 px-4 text-text-secondary font-medium">🖥️ Desktop</th>
+                        <th className="text-right py-2 pl-4 text-text-secondary font-medium">📱 Mobile</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.viewerDeviceBreakdown.map((row) => (
+                        <tr key={row.viewer_id} className="border-b border-border last:border-0">
+                          <td className="py-2 pr-4 text-text-primary">{row.viewer_id.toUpperCase()}</td>
+                          <td className="text-right py-2 px-4 text-text-secondary">{row.desktop}</td>
+                          <td className="text-right py-2 pl-4 text-text-secondary">{row.mobile}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-text-secondary text-sm">No viewer device data yet</p>
+              )}
             </div>
 
             {/* Viewer Activity */}

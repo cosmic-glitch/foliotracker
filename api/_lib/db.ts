@@ -540,6 +540,12 @@ function getDeviceType(userAgent: string | null): string {
   return 'Desktop';
 }
 
+// Get Pacific date string (YYYY-MM-DD) from a UTC timestamp
+function getPacificDateString(utcTimestamp: string | Date): string {
+  const date = typeof utcTimestamp === 'string' ? new Date(utcTimestamp) : utcTimestamp;
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+
 // Get midnight in Seattle/Pacific timezone as a UTC timestamp
 function getSeattleMidnightToday(): Date {
   // Get today's date in Pacific timezone (YYYY-MM-DD format)
@@ -621,17 +627,17 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Viewer activity by day (last 5 days)
-  // Build list of last 5 days in YYYY-MM-DD format
+  // Viewer activity by day (last 5 days in Pacific timezone)
+  // Build list of last 5 days in YYYY-MM-DD format (Pacific)
   const last5Days: string[] = [];
   for (let i = 0; i < 5; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    last5Days.push(d.toISOString().split('T')[0]);
+    last5Days.push(getPacificDateString(d));
   }
-  const fiveDaysAgo = new Date();
-  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-  const fiveDaysAgoStr = fiveDaysAgo.toISOString();
+  // Get Pacific midnight 5 days ago as cutoff
+  const fiveDaysAgoPacific = new Date(getSeattleMidnightToday().getTime() - 5 * 24 * 60 * 60 * 1000);
+  const fiveDaysAgoStr = fiveDaysAgoPacific.toISOString();
 
   // Map: "viewer_id|portfolio_id" -> { date -> count }
   const viewerActivityByDayMap = new Map<string, Record<string, number>>();
@@ -639,7 +645,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   for (const event of viewsAndLogins) {
     if (event.viewer_id && event.portfolio_id && event.created_at >= fiveDaysAgoStr) {
       const key = `${event.viewer_id}|${event.portfolio_id}`;
-      const date = event.created_at.split('T')[0];
+      const date = getPacificDateString(event.created_at);
       if (!viewerActivityByDayMap.has(key)) {
         viewerActivityByDayMap.set(key, {});
       }

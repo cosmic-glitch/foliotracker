@@ -80,12 +80,16 @@ function ViewerActivityTable({
 }: {
   data: { viewer_id: string; portfolio_id: string; dailyCounts: Record<string, number> }[];
 }) {
-  // Generate last 5 days (YYYY-MM-DD format for lookup, MMM D for display)
+  // Generate last 5 days in Pacific timezone (YYYY-MM-DD format for lookup, MMM D for display)
   const last5Days = Array.from({ length: 5 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    const displayStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const displayStr = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short',
+      day: 'numeric'
+    });
     return { dateStr, displayStr };
   });
 

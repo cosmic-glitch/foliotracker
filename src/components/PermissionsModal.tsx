@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2, Globe, Lock, Users } from 'lucide-react';
+import { X, Loader2, Trash2, Globe, Lock, Users } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -14,7 +14,6 @@ interface PermissionsModalProps {
 export function PermissionsModal({ portfolioId, password, onClose }: PermissionsModalProps) {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
-  const [selectedViewer, setSelectedViewer] = useState('');
   const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,17 +53,6 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
 
     fetchData();
   }, [portfolioId, password]);
-
-  const handleAddViewer = () => {
-    if (!selectedViewer) return;
-    if (viewers.includes(selectedViewer)) {
-      setError('This user is already in the list');
-      return;
-    }
-    setViewers([...viewers, selectedViewer]);
-    setSelectedViewer('');
-    setError(null);
-  };
 
   // Get available portfolios (exclude self and already added viewers)
   const availablePortfolios = allPortfolios.filter(
@@ -215,27 +203,23 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
                   Add users who can view this portfolio when they're logged in.
                 </p>
 
-                <div className="flex gap-2">
-                  <select
-                    value={selectedViewer}
-                    onChange={(e) => setSelectedViewer(e.target.value)}
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-                  >
-                    <option value="">Select a user</option>
-                    {availablePortfolios.map((id) => (
-                      <option key={id} value={id}>
-                        {id.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleAddViewer}
-                    disabled={!selectedViewer}
-                    className="px-3 py-2 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !viewers.includes(value)) {
+                      setViewers([...viewers, value]);
+                    }
+                  }}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                >
+                  <option value="">Select a user</option>
+                  {availablePortfolios.map((id) => (
+                    <option key={id} value={id}>
+                      {id.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
 
                 {viewers.length > 0 ? (
                   <div className="bg-background rounded-lg border border-border divide-y divide-border">

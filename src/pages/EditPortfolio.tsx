@@ -52,7 +52,6 @@ export function EditPortfolio() {
   const [staticHoldings, setStaticHoldings] = useState<StaticHoldingInput[]>([]);
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
-  const [selectedViewer, setSelectedViewer] = useState('');
   const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -139,13 +138,6 @@ export function EditPortfolio() {
   const availablePortfolios = allPortfolios.filter(
     (id) => id !== portfolioId?.toLowerCase() && !viewers.includes(id)
   );
-
-  const handleAddViewer = () => {
-    if (!selectedViewer) return;
-    if (viewers.includes(selectedViewer)) return;
-    setViewers([...viewers, selectedViewer]);
-    setSelectedViewer('');
-  };
 
   const handleRemoveViewer = (viewerId: string) => {
     setViewers(viewers.filter((v) => v !== viewerId));
@@ -597,28 +589,23 @@ export function EditPortfolio() {
                   Add users who can view this portfolio when they're logged in.
                 </p>
 
-                <div className="flex gap-2">
-                  <select
-                    value={selectedViewer}
-                    onChange={(e) => setSelectedViewer(e.target.value)}
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-                  >
-                    <option value="">Select a user</option>
-                    {availablePortfolios.map((id) => (
-                      <option key={id} value={id}>
-                        {id.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddViewer}
-                    disabled={!selectedViewer}
-                    className="px-3 py-2 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !viewers.includes(value)) {
+                      setViewers([...viewers, value]);
+                    }
+                  }}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                >
+                  <option value="">Select a user</option>
+                  {availablePortfolios.map((id) => (
+                    <option key={id} value={id}>
+                      {id.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
 
                 {viewers.length > 0 ? (
                   <div className="bg-background rounded-lg border border-border divide-y divide-border">

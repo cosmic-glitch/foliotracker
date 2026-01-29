@@ -133,14 +133,17 @@ export function LandingPage() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            >
               <div className="p-2 bg-accent/10 rounded-lg">
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
               <h1 className="text-xl font-semibold text-text-primary">
                 Folio Tracker
               </h1>
-            </div>
+            </button>
             <div className="flex items-center gap-3">
               {loggedInAs && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">

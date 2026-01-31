@@ -27,6 +27,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'holdings' | 'ai' | 'news'>('holdings');
 
   // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
   const storedPassword = portfolioId
@@ -160,20 +161,61 @@ function App() {
               onViewChange={setChartView}
               currentValue={data.totalValue}
             />
-            <HotTakeSection
-              hotTake={data.hotTake}
-              hotTakeAt={data.hotTakeAt}
-              onOpenChat={() => setShowChatModal(true)}
-            />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="lg:col-span-2 space-y-6">
+            {/* Tab Navigation */}
+            <div className="border-b border-border">
+              <nav className="flex gap-1">
+                <button
+                  onClick={() => setActiveTab('holdings')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'holdings'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                  }`}
+                >
+                  Holdings
+                </button>
+                <button
+                  onClick={() => setActiveTab('ai')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'ai'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                  }`}
+                >
+                  AI Take
+                </button>
+                <button
+                  onClick={() => setActiveTab('news')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'news'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                  }`}
+                >
+                  News
+                </button>
+              </nav>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'holdings' && (
+              <div className="space-y-6">
                 <HoldingsTable holdings={data.holdings} />
                 <HoldingsByType holdings={data.holdings} />
               </div>
-              <div className="lg:col-span-1">
-                <NewsSection holdings={data.holdings} />
-              </div>
-            </div>
+            )}
+
+            {activeTab === 'ai' && (
+              <HotTakeSection
+                hotTake={data.hotTake}
+                hotTakeAt={data.hotTakeAt}
+                onOpenChat={() => setShowChatModal(true)}
+              />
+            )}
+
+            {activeTab === 'news' && (
+              <NewsSection holdings={data.holdings} />
+            )}
           </>
         ) : null}
       </main>

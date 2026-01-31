@@ -35,3 +35,6 @@ dist-ssr
 .env.test
 test-results/
 .env.vercel-latest
+
+# Database backups
+backups/

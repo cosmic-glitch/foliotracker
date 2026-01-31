@@ -1,4 +1,5 @@
 import { Sparkles, MessageCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { formatRelativeTime } from '../utils/formatters';
 
 interface HotTakeSectionProps {
@@ -18,7 +19,9 @@ export function HotTakeSection({ hotTake, hotTakeAt, onOpenChat }: HotTakeSectio
             <Sparkles className="w-5 h-5 text-accent" />
             <span className="text-sm font-medium text-text-secondary">AI Hot Take</span>
           </div>
-          <p className="text-text-primary">{hotTake}</p>
+          <div className="text-text-primary prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-strong:text-text-primary">
+            <ReactMarkdown>{hotTake}</ReactMarkdown>
+          </div>
           {hotTakeAt && (
             <p className="text-xs text-text-secondary mt-2">
               Generated {formatRelativeTime(hotTakeAt)}

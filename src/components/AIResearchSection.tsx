@@ -21,7 +21,7 @@ export function AIResearchSection({ research, researchAt }: AIResearchSectionPro
   }
 
   return (
-    <div className="bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden">
+    <div className="bg-slate-200 rounded-2xl border border-slate-300 overflow-hidden">
       {researchAt && (
         <div className="px-6 pt-4 flex justify-end">
           <div className="flex items-center gap-1 text-slate-500 text-sm">

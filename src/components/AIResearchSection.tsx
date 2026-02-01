@@ -21,16 +21,16 @@ export function AIResearchSection({ research, researchAt }: AIResearchSectionPro
   }
 
   return (
-    <div className="bg-card rounded-2xl border border-border overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       {researchAt && (
         <div className="px-6 pt-4 flex justify-end">
-          <div className="flex items-center gap-1 text-text-secondary text-sm">
+          <div className="flex items-center gap-1 text-slate-500 text-sm">
             <Clock className="w-4 h-4" />
             <span>Generated {formatRelativeTime(researchAt)} using OpenAI Deep Research</span>
           </div>
         </div>
       )}
-      <div className={`px-6 pb-6 ${researchAt ? 'pt-2' : 'pt-6'} prose prose-sm prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-secondary prose-strong:text-text-primary prose-li:text-text-secondary prose-a:text-accent prose-a:no-underline hover:prose-a:underline`}>
+      <div className={`px-6 pb-6 ${researchAt ? 'pt-2' : 'pt-6'} prose prose-sm max-w-none prose-headings:text-slate-900 prose-p:text-slate-700 prose-strong:text-slate-900 prose-li:text-slate-700 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline`}>
         <ReactMarkdown>{research}</ReactMarkdown>
       </div>
     </div>

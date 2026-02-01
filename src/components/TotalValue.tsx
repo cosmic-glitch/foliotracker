@@ -23,10 +23,10 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
 
   return (
     <div className="bg-card rounded-2xl px-6 py-4 md:px-8 md:py-5 border border-border">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div>
-          <p className="text-text-secondary text-sm font-medium mb-2">Total Portfolio Value</p>
-          <p className="text-4xl md:text-5xl font-bold text-text-primary tracking-tight">
+      <div className="flex flex-row items-start justify-between gap-2 md:gap-4">
+        <div className="min-w-0 flex-shrink">
+          <p className="text-text-secondary text-sm font-medium mb-1">Total Portfolio Value</p>
+          <p className="text-2xl md:text-5xl font-bold text-text-primary tracking-tight">
             {formatCurrency(totalValue)}
           </p>
           {lastUpdated && (
@@ -35,14 +35,14 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-start gap-3">
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${dayBgColor}`}>
-            <DayIcon className={`w-5 h-5 ${dayChangeColor}`} />
+        <div className="flex flex-wrap items-start gap-3 flex-shrink-0">
+          <div className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl ${dayBgColor}`}>
+            <DayIcon className={`w-4 h-4 md:w-5 md:h-5 ${dayChangeColor}`} />
             <div className="flex flex-col">
-              <span className={`text-lg font-semibold ${dayChangeColor}`}>
+              <span className={`text-base md:text-lg font-semibold ${dayChangeColor}`}>
                 {formatChange(dayChange, true)}
               </span>
-              <span className={`text-sm ${dayChangeColor}`}>
+              <span className={`text-xs md:text-sm ${dayChangeColor}`}>
                 {formatPercent(dayChangePercent)} today
               </span>
             </div>

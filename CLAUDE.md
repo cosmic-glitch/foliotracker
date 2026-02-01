@@ -95,6 +95,29 @@ Snapshot refresh is handled by an external cron service at https://console.cron-
 - **Auth header:** `Authorization: Bearer <REFRESH_SECRET>`
 - **Schedule:** Every 1 minute during US market hours (9:30 AM - 4:00 PM ET), every 30 minutes otherwise
 
+## Database Migrations
+
+**Direct Database Access:**
+- `SUPABASE_DB_URL` in `.env.local` provides a direct postgres connection string
+- Use the `pg` package (already installed) for migrations:
+  ```bash
+  source .env.local && npx tsx scripts/run-migration.ts
+  ```
+
+**Environment Variables by File:**
+- `.env` - Supabase client credentials (SUPABASE_URL, SUPABASE_SERVICE_KEY)
+- `.env.local` - Direct database URL (SUPABASE_DB_URL), API keys, secrets
+
+**Example Migration Script:**
+```typescript
+import pg from 'pg';
+
+const client = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL });
+await client.connect();
+await client.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...');
+await client.end();
+```
+
 ## Workflow
 
 - **Preview-first deployment**: Always deploy to preview URL first, never directly to production

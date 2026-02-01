@@ -34,7 +34,7 @@ export function AIResearchSection({ research, researchAt }: AIResearchSectionPro
           </div>
         )}
       </div>
-      <div className="p-6 prose prose-sm dark:prose-invert max-w-none prose-headings:text-text prose-p:text-text-secondary prose-strong:text-text prose-li:text-text-secondary prose-ul:text-text-secondary">
+      <div className="p-6 prose prose-sm prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-secondary prose-strong:text-text-primary prose-li:text-text-secondary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
         <ReactMarkdown>{research}</ReactMarkdown>
       </div>
     </div>

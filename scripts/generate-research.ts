@@ -155,6 +155,7 @@ ${holdingsSummary}
 </PORTFOLIO_DATA>
 
 Generate a comprehensive research report for this portfolio.`,
+    tools: [{ type: 'web_search_preview' }],
   });
 
   return response.output_text;

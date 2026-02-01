@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Sparkles, TrendingUp, Brain } from 'lucide-react';
 import {
   Header,
   TotalValue,
@@ -10,7 +11,7 @@ import {
   Footer,
   LoadingSkeleton,
   PermissionsModal,
-  HotTakeSection,
+  AICommentSection,
   ChatModal,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
@@ -18,6 +19,7 @@ import { usePortfolioData } from './hooks/usePortfolioData';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
+import type { AIPersona } from './types/portfolio';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
@@ -26,7 +28,7 @@ function App() {
   const { loggedInAs, login, logout, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatModalPersona, setChatModalPersona] = useState<AIPersona | null>(null);
   const [activeTab, setActiveTab] = useState<'holdings' | 'ai' | 'news'>('holdings');
 
   // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
@@ -182,7 +184,7 @@ function App() {
                       : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                   }`}
                 >
-                  AI Take
+                  AI Insights
                 </button>
                 <button
                   onClick={() => setActiveTab('news')}
@@ -206,11 +208,35 @@ function App() {
             )}
 
             {activeTab === 'ai' && (
-              <HotTakeSection
-                hotTake={data.hotTake}
-                hotTakeAt={data.hotTakeAt}
-                onOpenChat={() => setShowChatModal(true)}
-              />
+              <div className="space-y-4">
+                <AICommentSection
+                  persona="buffett"
+                  title="Buffett AI"
+                  icon={TrendingUp}
+                  iconColor="text-amber-500"
+                  comment={data.buffettComment}
+                  commentAt={data.buffettCommentAt}
+                  onOpenChat={() => setChatModalPersona('buffett')}
+                />
+                <AICommentSection
+                  persona="munger"
+                  title="Munger AI"
+                  icon={Brain}
+                  iconColor="text-purple-500"
+                  comment={data.mungerComment}
+                  commentAt={data.mungerCommentAt}
+                  onOpenChat={() => setChatModalPersona('munger')}
+                />
+                <AICommentSection
+                  persona="hot-take"
+                  title="AI Hot Take"
+                  icon={Sparkles}
+                  iconColor="text-accent"
+                  comment={data.hotTake}
+                  commentAt={data.hotTakeAt}
+                  onOpenChat={() => setChatModalPersona('hot-take')}
+                />
+              </div>
             )}
 
             {activeTab === 'news' && (
@@ -260,14 +286,24 @@ function App() {
       )}
 
       {/* Chat modal */}
-      {showChatModal && data?.hotTake && portfolioId && (
-        <ChatModal
-          portfolioId={portfolioId}
-          password={storedPassword}
-          hotTake={data.hotTake}
-          onClose={() => setShowChatModal(false)}
-        />
-      )}
+      {chatModalPersona && portfolioId && (() => {
+        const commentMap = {
+          'hot-take': data?.hotTake,
+          'buffett': data?.buffettComment,
+          'munger': data?.mungerComment,
+        };
+        const comment = commentMap[chatModalPersona];
+        if (!comment) return null;
+        return (
+          <ChatModal
+            portfolioId={portfolioId}
+            password={storedPassword}
+            initialComment={comment}
+            persona={chatModalPersona}
+            onClose={() => setChatModalPersona(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

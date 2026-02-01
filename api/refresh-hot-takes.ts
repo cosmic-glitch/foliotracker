@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { timingSafeEqual } from 'crypto';
-import { getPortfolios, getPortfolioSnapshot, updateHotTake } from './_lib/db.js';
-import { generateHotTake, type HoldingSummary } from './_lib/openai.js';
+import { getPortfolios, getPortfolioSnapshot, updateHotTake, updateBuffettComment, updateMungerComment } from './_lib/db.js';
+import { generateHotTake, generateBuffettComment, generateMungerComment, type HoldingSummary } from './_lib/openai.js';
 
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
@@ -67,13 +67,24 @@ export default async function handler(
           instrumentType: h.instrumentType,
         }));
 
-        const hotTake = await generateHotTake(holdings, snapshot.total_value);
-        await updateHotTake(portfolio.id, hotTake);
+        // Generate all three AI comments in parallel
+        const [hotTake, buffettComment, mungerComment] = await Promise.all([
+          generateHotTake(holdings, snapshot.total_value),
+          generateBuffettComment(holdings, snapshot.total_value),
+          generateMungerComment(holdings, snapshot.total_value),
+        ]);
+
+        // Store all three comments in parallel
+        await Promise.all([
+          updateHotTake(portfolio.id, hotTake),
+          updateBuffettComment(portfolio.id, buffettComment),
+          updateMungerComment(portfolio.id, mungerComment),
+        ]);
 
         results.push({ id: portfolio.id, success: true });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`Failed to generate hot take for ${portfolio.id}:`, err);
+        console.error(`Failed to generate AI comments for ${portfolio.id}:`, err);
         results.push({ id: portfolio.id, success: false, error: errorMsg });
       }
     }
@@ -84,12 +95,12 @@ export default async function handler(
 
     res.status(200).json({
       success: true,
-      message: `Regenerated ${successCount} hot takes (${failedCount} failed)`,
+      message: `Regenerated ${successCount} AI comments (${failedCount} failed)`,
       duration: `${duration}ms`,
       results,
     });
   } catch (error: unknown) {
-    console.error('Refresh hot takes error:', error);
+    console.error('Refresh AI comments error:', error);
 
     let errorMessage = 'Unknown error';
     if (error instanceof Error) {
@@ -101,7 +112,7 @@ export default async function handler(
     }
 
     res.status(500).json({
-      error: 'Failed to refresh hot takes',
+      error: 'Failed to refresh AI comments',
       details: errorMessage,
     });
   }

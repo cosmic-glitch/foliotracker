@@ -42,6 +42,10 @@ interface ApiPortfolioResponse {
   benchmark: BenchmarkData | null;
   hotTake: string | null;
   hotTakeAt: string | null;
+  buffettComment: string | null;
+  buffettCommentAt: string | null;
+  mungerComment: string | null;
+  mungerCommentAt: string | null;
 }
 
 interface PrivatePortfolioResponse {
@@ -224,6 +228,10 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
       benchmark: p.benchmark,
       hotTake: p.hotTake,
       hotTakeAt: p.hotTakeAt,
+      buffettComment: p.buffettComment,
+      buffettCommentAt: p.buffettCommentAt,
+      mungerComment: p.mungerComment,
+      mungerCommentAt: p.mungerCommentAt,
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data]);
 

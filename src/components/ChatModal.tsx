@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader2, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import type { AIPersona } from '../types/portfolio';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -11,13 +12,39 @@ interface ChatMessage {
 interface ChatModalProps {
   portfolioId: string;
   password: string | null;
-  hotTake: string;
+  initialComment: string;
+  persona: AIPersona;
   onClose: () => void;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModalProps) {
+const PERSONA_CONFIG = {
+  'hot-take': {
+    title: 'Chat with AI',
+    label: 'AI Hot Take',
+    bgColor: 'bg-accent/10',
+    borderColor: 'border-accent/20',
+    textColor: 'text-accent',
+  },
+  'buffett': {
+    title: 'Chat with Buffett AI',
+    label: 'Buffett AI',
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/20',
+    textColor: 'text-amber-600 dark:text-amber-400',
+  },
+  'munger': {
+    title: 'Chat with Munger AI',
+    label: 'Munger AI',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/20',
+    textColor: 'text-purple-600 dark:text-purple-400',
+  },
+};
+
+export function ChatModal({ portfolioId, password, initialComment, persona, onClose }: ChatModalProps) {
+  const config = PERSONA_CONFIG[persona];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +74,7 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
   const fetchChatHistory = async () => {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/portfolio?id=${portfolioId}&action=chat`
+        `${API_BASE_URL}/api/portfolio?id=${portfolioId}&action=chat&persona=${persona}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -74,7 +101,7 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/portfolio?id=${portfolioId}&action=chat`,
+        `${API_BASE_URL}/api/portfolio?id=${portfolioId}&action=chat&persona=${persona}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -160,7 +187,7 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
       <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg h-[600px] max-h-[90vh] flex flex-col shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="font-semibold text-text-primary">Chat with AI</h2>
+          <h2 className="font-semibold text-text-primary">{config.title}</h2>
           <div className="flex items-center gap-2">
             {password && (
               <button
@@ -183,11 +210,11 @@ export function ChatModal({ portfolioId, password, hotTake, onClose }: ChatModal
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Show hot take as first message */}
-          <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
-            <p className="text-xs text-accent font-medium mb-1">AI Hot Take</p>
+          {/* Show initial comment as first message */}
+          <div className={`${config.bgColor} border ${config.borderColor} rounded-lg p-3`}>
+            <p className={`text-xs ${config.textColor} font-medium mb-1`}>{config.label}</p>
             <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-strong:text-text-primary">
-              <ReactMarkdown>{hotTake}</ReactMarkdown>
+              <ReactMarkdown>{initialComment}</ReactMarkdown>
             </div>
           </div>
 

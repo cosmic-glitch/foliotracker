@@ -100,7 +100,5 @@ Snapshot refresh is handled by an external cron service at https://console.cron-
 - **Preview-first deployment**: Always deploy to preview URL first, never directly to production
   1. Make changes and run `npm run build` to verify no errors
   2. Deploy to preview: `vercel` (without --prod)
-  3. **Test the preview in the browser** before reporting completion to the user
-  4. Provide preview URL to user for manual testing
-  5. **Wait for user sign-off** before proceeding
-  6. Only after approval: `vercel --prod` to deploy to production
+  3. Provide preview URL to user and **wait for user guidance** before proceeding
+  4. Only after approval: `vercel --prod` to deploy to production

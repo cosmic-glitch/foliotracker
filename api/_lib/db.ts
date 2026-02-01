@@ -21,6 +21,10 @@ export interface DbPortfolio {
   visibility: Visibility;
   hot_take: string | null;
   hot_take_at: string | null;
+  buffett_comment: string | null;
+  buffett_comment_at: string | null;
+  munger_comment: string | null;
+  munger_comment_at: string | null;
 }
 
 export interface DbPortfolioChat {
@@ -767,6 +771,57 @@ export async function updateHotTake(portfolioId: string, hotTake: string): Promi
     .eq('id', portfolioId.toLowerCase());
 
   if (error) throw error;
+}
+
+export async function updateBuffettComment(portfolioId: string, comment: string): Promise<void> {
+  const { error } = await supabase
+    .from('portfolios')
+    .update({
+      buffett_comment: comment,
+      buffett_comment_at: new Date().toISOString(),
+    })
+    .eq('id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}
+
+export async function updateMungerComment(portfolioId: string, comment: string): Promise<void> {
+  const { error } = await supabase
+    .from('portfolios')
+    .update({
+      munger_comment: comment,
+      munger_comment_at: new Date().toISOString(),
+    })
+    .eq('id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}
+
+export interface PortfolioAIComments {
+  hot_take: string | null;
+  hot_take_at: string | null;
+  buffett_comment: string | null;
+  buffett_comment_at: string | null;
+  munger_comment: string | null;
+  munger_comment_at: string | null;
+}
+
+export async function getPortfolioAIComments(portfolioId: string): Promise<PortfolioAIComments> {
+  const { data, error } = await supabase
+    .from('portfolios')
+    .select('hot_take, hot_take_at, buffett_comment, buffett_comment_at, munger_comment, munger_comment_at')
+    .eq('id', portfolioId.toLowerCase())
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data || {
+    hot_take: null,
+    hot_take_at: null,
+    buffett_comment: null,
+    buffett_comment_at: null,
+    munger_comment: null,
+    munger_comment_at: null,
+  };
 }
 
 export async function getPortfolioHotTake(portfolioId: string): Promise<{ hot_take: string | null; hot_take_at: string | null }> {

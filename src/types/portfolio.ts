@@ -33,6 +33,8 @@ export interface BenchmarkData {
 
 export type MarketStatus = 'open' | 'pre-market' | 'after-hours' | 'closed';
 
+export type AIPersona = 'hot-take' | 'buffett' | 'munger';
+
 export interface PortfolioData {
   portfolioId: string;
   displayName: string | null;
@@ -49,6 +51,10 @@ export interface PortfolioData {
   benchmark: BenchmarkData | null;
   hotTake: string | null;
   hotTakeAt: string | null;
+  buffettComment: string | null;
+  buffettCommentAt: string | null;
+  mungerComment: string | null;
+  mungerCommentAt: string | null;
 }
 
 export interface HoldingConfig {

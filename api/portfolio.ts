@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioHotTake, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
-import { chatWithPortfolio, type HoldingSummary } from './_lib/openai.js';
+import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
+import { chatWithPortfolio, type HoldingSummary, type AIPersona } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
 
@@ -50,6 +50,10 @@ interface PortfolioResponse {
   lastErrorAt?: string | null;
   hotTake: string | null;
   hotTakeAt: string | null;
+  buffettComment: string | null;
+  buffettCommentAt: string | null;
+  mungerComment: string | null;
+  mungerCommentAt: string | null;
 }
 
 // Helper to time async operations
@@ -65,6 +69,8 @@ const MAX_MESSAGES_PER_DAY = 10;
 // Chat action handler
 async function handleChatAction(req: VercelRequest, res: VercelResponse): Promise<void> {
   const portfolioId = req.query.id as string;
+  const persona = (req.query.persona as AIPersona) || 'hot-take';
+
   if (!portfolioId) {
     res.status(400).json({ error: 'Portfolio ID is required' });
     return;
@@ -78,9 +84,9 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
   }
 
   if (req.method === 'GET') {
-    // Return hot take and chat history
-    const [hotTakeData, chatHistory] = await Promise.all([
-      getPortfolioHotTake(portfolioId),
+    // Return all AI comments and chat history
+    const [aiComments, chatHistory] = await Promise.all([
+      getPortfolioAIComments(portfolioId),
       getChatHistory(portfolioId),
     ]);
 
@@ -93,8 +99,12 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
       }));
 
     res.status(200).json({
-      hotTake: hotTakeData.hot_take,
-      hotTakeAt: hotTakeData.hot_take_at,
+      hotTake: aiComments.hot_take,
+      hotTakeAt: aiComments.hot_take_at,
+      buffettComment: aiComments.buffett_comment,
+      buffettCommentAt: aiComments.buffett_comment_at,
+      mungerComment: aiComments.munger_comment,
+      mungerCommentAt: aiComments.munger_comment_at,
       messages,
     });
     return;
@@ -138,10 +148,26 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
       return;
     }
 
-    // Get hot take
-    const hotTakeData = await getPortfolioHotTake(portfolioId);
-    if (!hotTakeData.hot_take) {
-      res.status(400).json({ error: 'Portfolio has no hot take yet. Try editing the portfolio.' });
+    // Get AI comments
+    const aiComments = await getPortfolioAIComments(portfolioId);
+
+    // Get the appropriate comment based on persona
+    let initialComment: string | null = null;
+    switch (persona) {
+      case 'buffett':
+        initialComment = aiComments.buffett_comment;
+        break;
+      case 'munger':
+        initialComment = aiComments.munger_comment;
+        break;
+      case 'hot-take':
+      default:
+        initialComment = aiComments.hot_take;
+        break;
+    }
+
+    if (!initialComment) {
+      res.status(400).json({ error: 'No AI comment available for this persona. Try refreshing.' });
       return;
     }
 
@@ -163,16 +189,17 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
       instrumentType: h.instrumentType,
     }));
 
-    // Call OpenAI
+    // Call OpenAI with persona
     const userMessage = message.trim();
     let aiResponse: string;
     try {
       aiResponse = await chatWithPortfolio(
         holdings,
         snapshot.total_value,
-        hotTakeData.hot_take,
+        initialComment,
         history,
-        userMessage
+        userMessage,
+        persona
       );
     } catch (err) {
       console.error('OpenAI chat error:', err);
@@ -367,8 +394,8 @@ export default async function handler(
       ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
       : undefined;
 
-    // Fetch hot take
-    const hotTakeData = await timed('getPortfolioHotTake', () => getPortfolioHotTake(portfolioId));
+    // Fetch all AI comments
+    const aiComments = await timed('getPortfolioAIComments', () => getPortfolioAIComments(portfolioId));
 
     // Check if snapshot is stale (more than 10 minutes old during market hours)
     const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
@@ -392,8 +419,12 @@ export default async function handler(
       viewers,
       lastError: snapshot.last_error,
       lastErrorAt: snapshot.last_error_at,
-      hotTake: hotTakeData.hot_take,
-      hotTakeAt: hotTakeData.hot_take_at,
+      hotTake: aiComments.hot_take,
+      hotTakeAt: aiComments.hot_take_at,
+      buffettComment: aiComments.buffett_comment,
+      buffettCommentAt: aiComments.buffett_comment_at,
+      mungerComment: aiComments.munger_comment,
+      mungerCommentAt: aiComments.munger_comment_at,
     };
 
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);

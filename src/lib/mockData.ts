@@ -168,5 +168,9 @@ export function getMockPortfolioData(): PortfolioData {
     },
     hotTake: null,
     hotTakeAt: null,
+    buffettComment: null,
+    buffettCommentAt: null,
+    mungerComment: null,
+    mungerCommentAt: null,
   };
 }

@@ -26,7 +26,7 @@ export function AIResearchSection({ research, researchAt }: AIResearchSectionPro
         <div className="px-6 pt-4 flex justify-end">
           <div className="flex items-center gap-1 text-text-secondary text-sm">
             <Clock className="w-4 h-4" />
-            <span>Generated {formatRelativeTime(researchAt)}</span>
+            <span>Generated {formatRelativeTime(researchAt)} using OpenAI Deep Research</span>
           </div>
         </div>
       )}

@@ -25,6 +25,8 @@ export interface DbPortfolio {
   buffett_comment_at: string | null;
   munger_comment: string | null;
   munger_comment_at: string | null;
+  deep_research: string | null;
+  deep_research_at: string | null;
 }
 
 export interface DbPortfolioChat {
@@ -804,12 +806,14 @@ export interface PortfolioAIComments {
   buffett_comment_at: string | null;
   munger_comment: string | null;
   munger_comment_at: string | null;
+  deep_research: string | null;
+  deep_research_at: string | null;
 }
 
 export async function getPortfolioAIComments(portfolioId: string): Promise<PortfolioAIComments> {
   const { data, error } = await supabase
     .from('portfolios')
-    .select('hot_take, hot_take_at, buffett_comment, buffett_comment_at, munger_comment, munger_comment_at')
+    .select('hot_take, hot_take_at, buffett_comment, buffett_comment_at, munger_comment, munger_comment_at, deep_research, deep_research_at')
     .eq('id', portfolioId.toLowerCase())
     .single();
 
@@ -821,6 +825,8 @@ export async function getPortfolioAIComments(portfolioId: string): Promise<Portf
     buffett_comment_at: null,
     munger_comment: null,
     munger_comment_at: null,
+    deep_research: null,
+    deep_research_at: null,
   };
 }
 
@@ -833,4 +839,26 @@ export async function getPortfolioHotTake(portfolioId: string): Promise<{ hot_ta
 
   if (error && error.code !== 'PGRST116') throw error;
   return data || { hot_take: null, hot_take_at: null };
+}
+
+export async function updateDeepResearch(portfolioId: string, research: string): Promise<void> {
+  const { error } = await supabase
+    .from('portfolios')
+    .update({
+      deep_research: research,
+      deep_research_at: new Date().toISOString(),
+    })
+    .eq('id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}
+
+export async function getAllPortfolioIds(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('portfolios')
+    .select('id')
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map((p) => p.id);
 }

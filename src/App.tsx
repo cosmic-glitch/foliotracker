@@ -12,6 +12,7 @@ import {
   LoadingSkeleton,
   PermissionsModal,
   AICommentSection,
+  AIResearchSection,
   ChatModal,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
@@ -29,7 +30,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [chatModalPersona, setChatModalPersona] = useState<AIPersona | null>(null);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'ai' | 'news'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'ai' | 'research' | 'news'>('holdings');
 
   // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
   const storedPassword = portfolioId
@@ -187,6 +188,16 @@ function App() {
                   AI Insights
                 </button>
                 <button
+                  onClick={() => setActiveTab('research')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'research'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                  }`}
+                >
+                  AI Research
+                </button>
+                <button
                   onClick={() => setActiveTab('news')}
                   className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                     activeTab === 'news'
@@ -241,6 +252,13 @@ function App() {
                   onOpenChat={() => setChatModalPersona('hot-take')}
                 />
               </div>
+            )}
+
+            {activeTab === 'research' && (
+              <AIResearchSection
+                research={data.deepResearch}
+                researchAt={data.deepResearchAt}
+              />
             )}
 
             {activeTab === 'news' && (

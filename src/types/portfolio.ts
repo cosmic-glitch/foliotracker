@@ -55,6 +55,8 @@ export interface PortfolioData {
   buffettCommentAt: string | null;
   mungerComment: string | null;
   mungerCommentAt: string | null;
+  deepResearch: string | null;
+  deepResearchAt: string | null;
 }
 
 export interface HoldingConfig {

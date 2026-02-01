@@ -172,5 +172,7 @@ export function getMockPortfolioData(): PortfolioData {
     buffettCommentAt: null,
     mungerComment: null,
     mungerCommentAt: null,
+    deepResearch: null,
+    deepResearchAt: null,
   };
 }

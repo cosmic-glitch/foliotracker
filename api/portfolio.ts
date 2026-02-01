@@ -54,6 +54,8 @@ interface PortfolioResponse {
   buffettCommentAt: string | null;
   mungerComment: string | null;
   mungerCommentAt: string | null;
+  deepResearch: string | null;
+  deepResearchAt: string | null;
 }
 
 // Helper to time async operations
@@ -425,6 +427,8 @@ export default async function handler(
       buffettCommentAt: aiComments.buffett_comment_at,
       mungerComment: aiComments.munger_comment,
       mungerCommentAt: aiComments.munger_comment_at,
+      deepResearch: aiComments.deep_research,
+      deepResearchAt: aiComments.deep_research_at,
     };
 
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);

@@ -46,6 +46,8 @@ interface ApiPortfolioResponse {
   buffettCommentAt: string | null;
   mungerComment: string | null;
   mungerCommentAt: string | null;
+  deepResearch: string | null;
+  deepResearchAt: string | null;
 }
 
 interface PrivatePortfolioResponse {
@@ -232,6 +234,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
       buffettCommentAt: p.buffettCommentAt,
       mungerComment: p.mungerComment,
       mungerCommentAt: p.mungerCommentAt,
+      deepResearch: p.deepResearch,
+      deepResearchAt: p.deepResearchAt,
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data]);
 

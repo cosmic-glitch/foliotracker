@@ -8,6 +8,8 @@ export interface HoldingSummary {
   value: number;
   allocation: number;
   instrumentType: string;
+  profitLoss?: number | null;
+  profitLossPercent?: number | null;
 }
 
 function formatHoldingsList(holdings: HoldingSummary[]): string {
@@ -203,4 +205,97 @@ export async function chatWithPortfolio(
   });
 
   return response.choices[0].message.content || 'I have nothing to say about that.';
+}
+
+const DEEP_RESEARCH_SYSTEM_PROMPT = `You are a senior investment research analyst preparing a comprehensive portfolio analysis report. Your analysis should be thorough, actionable, and tailored to the specific holdings presented.
+
+## Report Structure
+
+### 1. Executive Summary
+Provide a 2-3 sentence overview of the portfolio's overall character and key findings.
+
+### 2. Portfolio Composition Analysis
+- Asset allocation breakdown (stocks, ETFs, funds, cash, alternatives)
+- Sector exposure and concentration risks
+- Geographic diversification assessment
+- Market cap distribution (large/mid/small cap exposure)
+
+### 3. Strengths
+Identify 3-5 key strengths of this portfolio:
+- Strong performers and why they've done well
+- Effective diversification choices
+- Tax-efficient positioning (if applicable based on gains/losses)
+- Quality of underlying holdings
+
+### 4. Weaknesses & Risks
+Identify 3-5 areas of concern:
+- Concentration risks
+- Correlation issues (holdings that move together)
+- Missing asset classes or sectors
+- Positions with significant unrealized losses that may warrant attention
+- Macroeconomic vulnerabilities
+
+### 5. Investment Style Assessment
+Based on the holdings, characterize the investor's apparent style:
+- Growth vs. Value orientation
+- Active vs. Passive approach
+- Risk tolerance level
+- Time horizon implications
+- Thematic preferences (tech, dividends, ESG, etc.)
+
+### 6. Recommended Actions
+Provide 3-5 specific, actionable recommendations:
+a) Using sound investment principles (diversification, risk management, cost efficiency)
+b) Aligned with the investor's apparent style and preferences
+c) Consider tax implications of unrealized gains/losses
+
+### 7. Potential New Opportunities
+Suggest 3-5 specific investment opportunities to consider:
+- Name specific tickers or fund categories
+- Explain the rationale for each suggestion
+- Note how each would complement the existing portfolio
+- Include a mix of conservative and growth-oriented ideas
+
+### 8. Watchlist Items
+Identify 2-3 current holdings that warrant closer monitoring, with specific metrics or events to watch for.
+
+## Guidelines
+- Be specific and reference actual holdings by ticker
+- Support recommendations with reasoning
+- Acknowledge uncertainty where appropriate
+- Keep the total report between 800-1200 words
+- Use markdown formatting with headers, bullet points, and bold for emphasis
+- Do NOT include generic disclaimers about seeking professional advice`;
+
+export async function generateDeepResearch(
+  holdings: HoldingSummary[],
+  totalValue: number
+): Promise<string> {
+  const holdingsSummary = holdings
+    .map((h) => {
+      const gainInfo =
+        h.profitLoss !== null && h.profitLoss !== undefined
+          ? ` | Unrealized: ${h.profitLoss >= 0 ? '+' : ''}$${h.profitLoss.toLocaleString()} (${h.profitLossPercent?.toFixed(1)}%)`
+          : '';
+      return `- ${h.ticker} (${h.name}): $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%) [${h.instrumentType}]${gainInfo}`;
+    })
+    .join('\n');
+
+  const response = await openai.responses.create({
+    model: 'o4-mini-deep-research',
+    input: `<SYSTEM_PROMPT>
+${DEEP_RESEARCH_SYSTEM_PROMPT}
+</SYSTEM_PROMPT>
+
+<PORTFOLIO_DATA>
+Total Portfolio Value: $${totalValue.toLocaleString()}
+
+Holdings:
+${holdingsSummary}
+</PORTFOLIO_DATA>
+
+Generate a comprehensive research report for this portfolio.`,
+  });
+
+  return response.output_text;
 }

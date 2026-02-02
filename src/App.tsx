@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Sparkles, TrendingUp, Brain } from 'lucide-react';
 import {
   Header,
   TotalValue,
@@ -11,16 +10,13 @@ import {
   Footer,
   LoadingSkeleton,
   PermissionsModal,
-  AICommentSection,
   AIResearchSection,
-  ChatModal,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
-import type { AIPersona } from './types/portfolio';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
@@ -29,8 +25,7 @@ function App() {
   const { loggedInAs, login, logout, getPassword: getLoginPassword } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [chatModalPersona, setChatModalPersona] = useState<AIPersona | null>(null);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'ai' | 'research' | 'news'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'research' | 'news'>('holdings');
 
   // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
   const storedPassword = portfolioId
@@ -177,26 +172,18 @@ function App() {
                 >
                   Holdings
                 </button>
-                <button
-                  onClick={() => setActiveTab('ai')}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === 'ai'
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
-                  }`}
-                >
-                  AI Insights
-                </button>
-                <button
-                  onClick={() => setActiveTab('research')}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === 'research'
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
-                  }`}
-                >
-                  AI Research
-                </button>
+                {data.deepResearch && (
+                  <button
+                    onClick={() => setActiveTab('research')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      activeTab === 'research'
+                        ? 'border-accent text-accent'
+                        : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                    }`}
+                  >
+                    AI Research
+                  </button>
+                )}
                 <button
                   onClick={() => setActiveTab('news')}
                   className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
@@ -222,39 +209,7 @@ function App() {
               </div>
             )}
 
-            {activeTab === 'ai' && (
-              <div className="space-y-4">
-                <AICommentSection
-                  persona="buffett"
-                  title="Buffett AI"
-                  icon={TrendingUp}
-                  iconColor="text-amber-500"
-                  comment={data.buffettComment}
-                  commentAt={data.buffettCommentAt}
-                  onOpenChat={() => setChatModalPersona('buffett')}
-                />
-                <AICommentSection
-                  persona="munger"
-                  title="Munger AI"
-                  icon={Brain}
-                  iconColor="text-purple-500"
-                  comment={data.mungerComment}
-                  commentAt={data.mungerCommentAt}
-                  onOpenChat={() => setChatModalPersona('munger')}
-                />
-                <AICommentSection
-                  persona="hot-take"
-                  title="AI Hot Take"
-                  icon={Sparkles}
-                  iconColor="text-accent"
-                  comment={data.hotTake}
-                  commentAt={data.hotTakeAt}
-                  onOpenChat={() => setChatModalPersona('hot-take')}
-                />
-              </div>
-            )}
-
-            {activeTab === 'research' && (
+            {activeTab === 'research' && data.deepResearch && (
               <AIResearchSection
                 research={data.deepResearch}
                 researchAt={data.deepResearchAt}
@@ -307,25 +262,6 @@ function App() {
         />
       )}
 
-      {/* Chat modal */}
-      {chatModalPersona && portfolioId && (() => {
-        const commentMap = {
-          'hot-take': data?.hotTake,
-          'buffett': data?.buffettComment,
-          'munger': data?.mungerComment,
-        };
-        const comment = commentMap[chatModalPersona];
-        if (!comment) return null;
-        return (
-          <ChatModal
-            portfolioId={portfolioId}
-            password={storedPassword}
-            initialComment={comment}
-            persona={chatModalPersona}
-            onClose={() => setChatModalPersona(null)}
-          />
-        );
-      })()}
     </div>
   );
 }

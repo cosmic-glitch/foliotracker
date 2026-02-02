@@ -82,14 +82,13 @@ vercel --prod    # Deploy to production
 
 ## Environment Variables
 
-Copy `.env.example` to `.env`. Required:
+Copy `.env.example` to `.env.local` and fill in values. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
 - `REFRESH_SECRET` - Authentication token for background refresh endpoint (generate with `openssl rand -hex 32`)
-- `REFRESH_URL` - Full URL to refresh endpoint (e.g., `https://foliotracker.vercel.app/api/refresh-prices`)
 - `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios
 
-**Local development:** API keys are stored in `.env.local` (use `source .env.local` before running local scripts)
+**Local development:** All secrets stored in `.env.local` (gitignored). Use `source .env.local` before running local scripts.
 
 ### External Cron Configuration (cron-job.org)
 Snapshot refresh is handled by an external cron service at https://console.cron-job.org/
@@ -105,10 +104,6 @@ Snapshot refresh is handled by an external cron service at https://console.cron-
   ```bash
   source .env.local && npx tsx scripts/run-migration.ts
   ```
-
-**Environment Variables by File:**
-- `.env.pulled` - Supabase credentials (SUPABASE_URL, SUPABASE_SERVICE_KEY) - pulled from Vercel
-- `.env.local` - Direct database URL (SUPABASE_DB_URL), OPENAI_API_KEY, other secrets
 
 **Example Migration Script:**
 ```typescript
@@ -128,14 +123,10 @@ Generate AI research reports for portfolios using OpenAI's o4-mini-deep-research
 
 **Command:**
 ```bash
-# Source both env files (Supabase from .env.pulled, OpenAI from .env.local)
-SUPABASE_URL="https://klftfyovapoyhprwscja.supabase.co" \
-SUPABASE_SERVICE_KEY="<from .env.pulled>" \
-OPENAI_API_KEY=$(grep OPENAI_API_KEY .env.local | cut -d'=' -f2 | tr -d '"') \
-npx tsx scripts/generate-research.ts <portfolio_id>
+source .env.local && npx tsx scripts/generate-research.ts <portfolio_id>
 
 # Or for all portfolios:
-npx tsx scripts/generate-research.ts --all
+source .env.local && npx tsx scripts/generate-research.ts --all
 ```
 
 **Notes:**

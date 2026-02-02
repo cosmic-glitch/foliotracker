@@ -97,11 +97,13 @@ Generate a comprehensive research report for this portfolio.`;
     model: 'o4-mini-deep-research',
     input,
     tools: [{ type: 'web_search_preview' }],
+    background: true, // Use background mode to avoid connection timeouts
   };
 
   console.log('\n  === OpenAI Request ===');
   console.log(`  Model: ${requestPayload.model}`);
   console.log(`  Tools: ${JSON.stringify(requestPayload.tools)}`);
+  console.log(`  Background: true`);
   console.log(`  Input length: ${input.length} chars`);
   console.log(`  Holdings count: ${holdings.length}`);
   console.log('  ---');
@@ -109,15 +111,34 @@ Generate a comprehensive research report for this portfolio.`;
   console.log(`  ${input.substring(0, 500).replace(/\n/g, '\n  ')}...`);
   console.log('  =====================\n');
 
-  console.log('  Calling o4-mini-deep-research (this may take a while)...');
+  console.log('  Starting background request...');
   const startTime = Date.now();
 
   try {
-    const response = await openai.responses.create(requestPayload as Parameters<typeof openai.responses.create>[0]);
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    // Start background request
+    let response = await openai.responses.create(requestPayload as Parameters<typeof openai.responses.create>[0]);
+    console.log(`  Response ID: ${response.id}`);
+    console.log(`  Initial status: ${response.status}`);
 
-    console.log('\n  === OpenAI Response ===');
-    console.log(`  Status: Success`);
+    // Poll for completion
+    const pollInterval = 10000; // 10 seconds
+    const maxWait = 30 * 60 * 1000; // 30 minutes max
+
+    while (response.status === 'queued' || response.status === 'in_progress') {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      process.stdout.write(`\r  Polling... ${elapsed}s elapsed (status: ${response.status})    `);
+
+      if (Date.now() - startTime > maxWait) {
+        throw new Error(`Timeout: request still ${response.status} after 30 minutes`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      response = await openai.responses.retrieve(response.id);
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n\n  === OpenAI Response ===`);
+    console.log(`  Final status: ${response.status}`);
     console.log(`  Elapsed: ${elapsed}s`);
     console.log(`  Response ID: ${response.id}`);
     console.log(`  Output length: ${response.output_text?.length || 0} chars`);
@@ -125,6 +146,10 @@ Generate a comprehensive research report for this portfolio.`;
       console.log(`  Usage: ${JSON.stringify(response.usage)}`);
     }
     console.log('  =====================\n');
+
+    if (response.status !== 'completed') {
+      throw new Error(`Request failed with status: ${response.status}`);
+    }
 
     return response.output_text;
   } catch (error: unknown) {

@@ -40,6 +40,8 @@ vercel --prod    # Deploy to production
 - `api/lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
 - `api/lib/cache.ts` - Market hours detection utilities
 - `api/lib/snapshot.ts` - Snapshot computation logic for portfolios
+- `api/_lib/prompts.ts` - Shared AI prompts (deep research report structure)
+- `scripts/generate-research.ts` - Generate AI research reports for portfolios
 - `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)
 
 ### Database (Supabase PostgreSQL)
@@ -105,8 +107,8 @@ Snapshot refresh is handled by an external cron service at https://console.cron-
   ```
 
 **Environment Variables by File:**
-- `.env` - Supabase client credentials (SUPABASE_URL, SUPABASE_SERVICE_KEY)
-- `.env.local` - Direct database URL (SUPABASE_DB_URL), API keys, secrets
+- `.env.pulled` - Supabase credentials (SUPABASE_URL, SUPABASE_SERVICE_KEY) - pulled from Vercel
+- `.env.local` - Direct database URL (SUPABASE_DB_URL), OPENAI_API_KEY, other secrets
 
 **Example Migration Script:**
 ```typescript
@@ -117,6 +119,30 @@ await client.connect();
 await client.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...');
 await client.end();
 ```
+
+## AI Research Generation
+
+Generate AI research reports for portfolios using OpenAI's o4-mini-deep-research model.
+
+**Script:** `scripts/generate-research.ts`
+
+**Command:**
+```bash
+# Source both env files (Supabase from .env.pulled, OpenAI from .env.local)
+SUPABASE_URL="https://klftfyovapoyhprwscja.supabase.co" \
+SUPABASE_SERVICE_KEY="<from .env.pulled>" \
+OPENAI_API_KEY=$(grep OPENAI_API_KEY .env.local | cut -d'=' -f2 | tr -d '"') \
+npx tsx scripts/generate-research.ts <portfolio_id>
+
+# Or for all portfolios:
+npx tsx scripts/generate-research.ts --all
+```
+
+**Notes:**
+- Deep research takes 5-15 minutes per portfolio (timeout set to 1 hour)
+- Script logs full request/response details for debugging
+- Prompt is defined in `api/_lib/prompts.ts` (shared between script and API)
+- Reports are stored in `portfolios.deep_research` column
 
 ## Workflow
 

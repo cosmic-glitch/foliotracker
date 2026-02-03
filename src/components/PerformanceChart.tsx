@@ -170,17 +170,35 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const range = maxValue - minValue;
   const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
 
+  // Helper to get ET offset string (-05:00 for EST or -04:00 for EDT)
+  const getETOffset = (date: Date): string => {
+    const etTime = date.toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const utcTime = date.toLocaleString('en-US', { timeZone: 'UTC' });
+    const diffHours = (new Date(etTime).getTime() - new Date(utcTime).getTime()) / 3600000;
+    return diffHours >= -4 ? '-04:00' : '-05:00';
+  };
+
   // Calculate market hours for x-axis domain (9:30 AM - 4:00 PM ET)
   const getMarketHoursDomain = (dataDate: Date): [number, number] => {
-    // Use the data's date, converted to ET timezone
-    const etDateStr = dataDate.toLocaleString('en-US', { timeZone: 'America/New_York' });
-    const etDate = new Date(etDateStr);
+    // Get date string in ET for the given data timestamp
+    const etDateParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(dataDate);
 
-    const marketOpen = new Date(etDate);
-    marketOpen.setHours(9, 30, 0, 0);
+    const year = etDateParts.find(p => p.type === 'year')!.value;
+    const month = etDateParts.find(p => p.type === 'month')!.value;
+    const day = etDateParts.find(p => p.type === 'day')!.value;
+    const baseDate = `${year}-${month}-${day}`;
 
-    const marketClose = new Date(etDate);
-    marketClose.setHours(16, 0, 0, 0);
+    // Get ET offset for this date (handles DST automatically)
+    const etOffset = getETOffset(new Date(`${baseDate}T12:00:00`));
+
+    // Create market open (9:30 AM ET) and close (4:00 PM ET) timestamps
+    const marketOpen = new Date(`${baseDate}T09:30:00${etOffset}`);
+    const marketClose = new Date(`${baseDate}T16:00:00${etOffset}`);
 
     return [marketOpen.getTime(), marketClose.getTime()];
   };
@@ -196,7 +214,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+            margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
           >
             <XAxis
               dataKey="timestamp"

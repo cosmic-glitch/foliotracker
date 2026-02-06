@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Plus, Users, Pencil, Lock, LogIn, LogOut, User, Globe, Settings } from 'lucide-react';
@@ -58,23 +58,45 @@ export function LandingPage() {
   const [showPermissions, setShowPermissions] = useState(false);
 
   // Use TanStack Query for auto-refresh
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch: refetchPortfolios } = useQuery({
     queryKey: ['portfolios', loggedInAs],
     queryFn: () => fetchPortfolios(loggedInAs),
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchInterval: () => isMarketOpen() ? 60 * 1000 : 30 * 60 * 1000,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
 
   // Fetch intraday values when market is open for more accurate totals
-  const { data: intradayData } = useQuery({
+  const { data: intradayData, refetch: refetchIntraday } = useQuery({
     queryKey: ['portfolios-intraday', loggedInAs],
     queryFn: () => fetchPortfolios(loggedInAs, true),
     enabled: isMarketOpen(),
     staleTime: 0, // Always refetch
     gcTime: 5 * 60 * 1000,
     refetchInterval: () => isMarketOpen() ? 60 * 1000 : false,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
+
+  useEffect(() => {
+    const handleTabVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refetchPortfolios();
+      if (isMarketOpen()) {
+        void refetchIntraday();
+      }
+    };
+
+    window.addEventListener('focus', handleTabVisible);
+    document.addEventListener('visibilitychange', handleTabVisible);
+
+    return () => {
+      window.removeEventListener('focus', handleTabVisible);
+      document.removeEventListener('visibilitychange', handleTabVisible);
+    };
+  }, [refetchPortfolios, refetchIntraday]);
 
   // Merge intraday values with base data when available
   const getPortfolioValues = (portfolio: Portfolio) => {

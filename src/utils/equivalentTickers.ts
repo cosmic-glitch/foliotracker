@@ -114,5 +114,8 @@ function mergeHoldings(holdings: Holding[], group: string[]): Holding {
     earnings: first.earnings,
     forwardPE: first.forwardPE,
     pctTo52WeekHigh: first.pctTo52WeekHigh,
+    operatingMargin: first.operatingMargin,
+    revenueGrowth3Y: first.revenueGrowth3Y,
+    epsGrowth3Y: first.epsGrowth3Y,
   };
 }

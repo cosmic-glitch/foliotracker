@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
-import { formatCurrency, formatChange, formatPercent, formatLargeValue, formatPERatio, formatPctTo52WeekHigh } from '../utils/formatters';
+import { formatCurrency, formatChange, formatPercent, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
 interface HoldingsTableProps {
@@ -62,7 +62,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
   const hasAnyFundamentals = consolidatedHoldings.some(
-    (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null
+    (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
   );
 
   return (
@@ -85,22 +85,6 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Gain/Loss
               </th>
-              {hasAnyFundamentals && (
-                <>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    Revenue
-                  </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    Earnings
-                  </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    Fwd PE
-                  </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    % to 52wk High
-                  </th>
-                </>
-              )}
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
               </th>
@@ -110,61 +94,55 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             </tr>
           </thead>
           <tbody>
-            {consolidatedHoldings.map((holding) => (
-              <tr
-                key={holding.ticker}
-                className="border-b border-border last:border-0 hover:bg-card-hover transition-colors"
-              >
-                <td className="px-4 py-2">
-                  <p className="font-semibold text-text-primary">{holding.ticker}</p>
-                </td>
-                <td className="text-right px-4 py-2">
-                  <span className="font-semibold text-text-primary">
-                    {formatCurrency(holding.value, true)}
-                  </span>
-                </td>
-                <td className="text-right px-4 py-2">
-                  <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
-                </td>
-                {hasAnyFundamentals && (
-                  <>
+            {consolidatedHoldings.map((holding) => {
+              const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
+              return (
+                <Fragment key={holding.ticker}>
+                  <tr
+                    className="border-b border-border last:border-0 hover:bg-card-hover transition-colors"
+                    style={holdingHasFundamentals ? { borderBottom: 'none' } : undefined}
+                  >
+                    <td className="px-4 py-2">
+                      <p className="font-semibold text-text-primary">{holding.ticker}</p>
+                    </td>
                     <td className="text-right px-4 py-2">
-                      <span className="text-text-primary text-sm">
-                        {formatLargeValue(holding.revenue)}
+                      <span className="font-semibold text-text-primary">
+                        {formatCurrency(holding.value, true)}
                       </span>
                     </td>
                     <td className="text-right px-4 py-2">
-                      <span className="text-text-primary text-sm">
-                        {formatLargeValue(holding.earnings)}
-                      </span>
+                      <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
                     </td>
                     <td className="text-right px-4 py-2">
-                      <span className="text-text-primary text-sm">
-                        {formatPERatio(holding.forwardPE)}
-                      </span>
+                      <ChangeIndicator
+                        value={holding.dayChange}
+                        percent={holding.dayChangePercent}
+                      />
                     </td>
-                    <td className="text-right px-4 py-2">
-                      <span className={`text-sm ${
-                        holding.pctTo52WeekHigh != null && holding.pctTo52WeekHigh > 0
-                          ? 'text-negative'
-                          : 'text-text-primary'
-                      }`}>
-                        {formatPctTo52WeekHigh(holding.pctTo52WeekHigh)}
-                      </span>
-                    </td>
-                  </>
-                )}
-                <td className="px-4 py-2">
-                  <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
-                </td>
-                <td className="text-right px-4 py-2">
-                  <ChangeIndicator
-                    value={holding.dayChange}
-                    percent={holding.dayChangePercent}
-                  />
-                </td>
-              </tr>
-            ))}
+                  </tr>
+                  {holdingHasFundamentals && (
+                    <tr className="border-b border-border last:border-0">
+                      <td colSpan={5} className="px-4 pb-2 pt-0">
+                        <div className="flex gap-4 text-xs text-text-secondary">
+                          <span>Rev: {formatLargeValue(holding.revenue)}</span>
+                          <span>Earn: {formatLargeValue(holding.earnings)}</span>
+                          <span>FwdPE: {formatPERatio(holding.forwardPE)}</span>
+                          <span>OpMgn: {formatMarginOrGrowth(holding.operatingMargin)}</span>
+                          <span>Rev3Y: {formatMarginOrGrowth(holding.revenueGrowth3Y)}</span>
+                          <span>EPS3Y: {formatMarginOrGrowth(holding.epsGrowth3Y)}</span>
+                          <span className={holding.pctTo52WeekHigh != null && holding.pctTo52WeekHigh > 0 ? 'text-negative' : ''}>
+                            52wk: {formatPctTo52WeekHigh(holding.pctTo52WeekHigh)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -194,11 +172,14 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 percent={holding.dayChangePercent}
               />
             </div>
-            {!holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null) && (
-              <div className="flex justify-between items-center text-xs text-text-secondary mt-2 pt-2 border-t border-border">
+            {!holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null) && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary mt-2 pt-2 border-t border-border">
                 <span>Rev: {formatLargeValue(holding.revenue)}</span>
                 <span>Earn: {formatLargeValue(holding.earnings)}</span>
-                <span>PE: {formatPERatio(holding.forwardPE)}</span>
+                <span>FwdPE: {formatPERatio(holding.forwardPE)}</span>
+                <span>OpMgn: {formatMarginOrGrowth(holding.operatingMargin)}</span>
+                <span>Rev3Y: {formatMarginOrGrowth(holding.revenueGrowth3Y)}</span>
+                <span>EPS3Y: {formatMarginOrGrowth(holding.epsGrowth3Y)}</span>
                 <span className={holding.pctTo52WeekHigh != null && holding.pctTo52WeekHigh > 0 ? 'text-negative' : ''}>
                   52wk: {formatPctTo52WeekHigh(holding.pctTo52WeekHigh)}
                 </span>

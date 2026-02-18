@@ -60,6 +60,9 @@ function calculateHoldings(): Holding[] {
         earnings: null,
         forwardPE: null,
         pctTo52WeekHigh: null,
+        operatingMargin: null,
+        revenueGrowth3Y: null,
+        epsGrowth3Y: null,
       };
     }
 
@@ -96,6 +99,9 @@ function calculateHoldings(): Holding[] {
       earnings: null,
       forwardPE: null,
       pctTo52WeekHigh: null,
+      operatingMargin: null,
+      revenueGrowth3Y: null,
+      epsGrowth3Y: null,
     };
   });
 

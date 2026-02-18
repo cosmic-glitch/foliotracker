@@ -387,6 +387,9 @@ export interface DbFundamentalsCache {
   earnings: number | null;
   forward_eps: number | null;
   week_52_high: number | null;
+  operating_margin: number | null;
+  revenue_growth_3y: number | null;
+  eps_growth_3y: number | null;
   updated_at: string;
 }
 
@@ -416,6 +419,9 @@ export async function upsertFundamentalsCache(
     earnings: number | null;
     forward_eps: number | null;
     week_52_high: number | null;
+    operating_margin: number | null;
+    revenue_growth_3y: number | null;
+    eps_growth_3y: number | null;
   }>
 ): Promise<void> {
   if (fundamentals.length === 0) return;
@@ -451,6 +457,9 @@ export interface SnapshotHolding {
   earnings: number | null;
   forwardPE: number | null;
   pctTo52WeekHigh: number | null;
+  operatingMargin: number | null;
+  revenueGrowth3Y: number | null;
+  epsGrowth3Y: number | null;
 }
 
 export interface HistoryDataPoint {

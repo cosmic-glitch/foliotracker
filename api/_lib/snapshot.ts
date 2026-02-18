@@ -50,7 +50,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
   if (staleTickers.length > 0) {
     console.log(`Fetching fundamentals for ${staleTickers.length} stale tickers...`);
     try {
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${staleTickers.join(',')}&fields=revenue,earnings,forwardEPS,week52High`;
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${staleTickers.join(',')}&fields=revenue,earnings,forwardEPS,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -61,6 +61,9 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
           earnings: number | null;
           forward_eps: number | null;
           week_52_high: number | null;
+          operating_margin: number | null;
+          revenue_growth_3y: number | null;
+          eps_growth_3y: number | null;
         }> = [];
 
         for (const ticker of staleTickers) {
@@ -72,6 +75,9 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
               earnings: data.earnings ?? null,
               forward_eps: data.forwardEPS ?? null,
               week_52_high: data.week52High ?? null,
+              operating_margin: data.operatingMargin ?? null,
+              revenue_growth_3y: data.revenueGrowth3Y ?? null,
+              eps_growth_3y: data.epsGrowth3Y ?? null,
             };
             upserts.push(entry);
             cached.set(ticker, { ...entry, updated_at: new Date().toISOString() });
@@ -133,6 +139,9 @@ function computeHoldings(
         earnings: null,
         forwardPE: null,
         pctTo52WeekHigh: null,
+        operatingMargin: null,
+        revenueGrowth3Y: null,
+        epsGrowth3Y: null,
       });
       totalValue += value;
 
@@ -185,6 +194,9 @@ function computeHoldings(
         earnings: fund?.earnings ?? null,
         forwardPE,
         pctTo52WeekHigh,
+        operatingMargin: fund?.operating_margin ?? null,
+        revenueGrowth3Y: fund?.revenue_growth_3y ?? null,
+        epsGrowth3Y: fund?.eps_growth_3y ?? null,
       });
 
       totalValue += value;

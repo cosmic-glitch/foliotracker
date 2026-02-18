@@ -40,6 +40,9 @@ interface ApiPortfolioResponse {
     earnings?: number | null;
     forwardPE?: number | null;
     pctTo52WeekHigh?: number | null;
+    operatingMargin?: number | null;
+    revenueGrowth3Y?: number | null;
+    epsGrowth3Y?: number | null;
   }>;
   lastUpdated: string;
   marketStatus: MarketStatus;
@@ -232,6 +235,9 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
         earnings: h.earnings ?? null,
         forwardPE: h.forwardPE ?? null,
         pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
+        operatingMargin: h.operatingMargin ?? null,
+        revenueGrowth3Y: h.revenueGrowth3Y ?? null,
+        epsGrowth3Y: h.epsGrowth3Y ?? null,
       })),
       historicalData: chartData,
       benchmarkHistory: historyQuery.data?.benchmark || [],

@@ -82,6 +82,11 @@ export function formatPERatio(value: number | null): string {
   return `${value.toFixed(1)}x`;
 }
 
+export function formatMarginOrGrowth(value: number | null): string {
+  if (value === null || value === undefined) return '--';
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export function formatPctTo52WeekHigh(value: number | null): string {
   if (value === null || value === undefined) return '--';
   if (value === 0) return '0.0%';

@@ -17,6 +17,9 @@ export interface Holding {
   earnings: number | null;
   forwardPE: number | null;
   pctTo52WeekHigh: number | null;
+  operatingMargin: number | null;
+  revenueGrowth3Y: number | null;
+  epsGrowth3Y: number | null;
 }
 
 export interface HistoricalDataPoint {

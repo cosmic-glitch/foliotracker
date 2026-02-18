@@ -52,5 +52,8 @@ Provide 5-7 specific, actionable recommendations combining changes to current ho
 - Acknowledge uncertainty where appropriate
 - Keep the total report between 700-1000 words
 - Use markdown formatting with headers, bullet points, and bold for emphasis
+- Holdings include a linkage tag: \`STATIC\` or \`MARKET_LINKED\`
+- Treat \`STATIC\` holdings as non-market-priced assets and avoid framing day-to-day moves as earnings/news-driven
+- Prioritize recent news and catalyst analysis for \`MARKET_LINKED\` holdings
 - **Include inline web links** to relevant sources discovered during research (news articles, SEC filings, analyst reports) using markdown format: [text](url)
 - Do NOT include generic disclaimers about seeking professional advice`;

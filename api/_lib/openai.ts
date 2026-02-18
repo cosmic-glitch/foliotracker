@@ -12,6 +12,7 @@ export interface HoldingSummary {
   value: number;
   allocation: number;
   instrumentType: string;
+  isStatic?: boolean;
   profitLoss?: number | null;
   profitLossPercent?: number | null;
 }
@@ -217,11 +218,12 @@ export async function generateDeepResearch(
 ): Promise<string> {
   const holdingsSummary = holdings
     .map((h) => {
+      const linkageTag = h.isStatic === true ? 'STATIC' : 'MARKET_LINKED';
       const gainInfo =
         h.profitLoss !== null && h.profitLoss !== undefined
           ? ` | Unrealized: ${h.profitLoss >= 0 ? '+' : ''}$${h.profitLoss.toLocaleString()} (${h.profitLossPercent?.toFixed(1)}%)`
           : '';
-      return `- ${h.ticker} (${h.name}): $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%) [${h.instrumentType}]${gainInfo}`;
+      return `- ${h.ticker} (${h.name}): $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%) [${h.instrumentType} | ${linkageTag}]${gainInfo}`;
     })
     .join('\n');
 

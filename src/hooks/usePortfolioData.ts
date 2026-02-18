@@ -36,6 +36,10 @@ interface ApiPortfolioResponse {
     costBasis: number | null;
     profitLoss: number | null;
     profitLossPercent: number | null;
+    revenue?: number | null;
+    earnings?: number | null;
+    forwardPE?: number | null;
+    pctTo52WeekHigh?: number | null;
   }>;
   lastUpdated: string;
   marketStatus: MarketStatus;
@@ -222,7 +226,13 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
       totalDayChangePercent: p.totalDayChangePercent,
       totalGain: p.totalGain,
       totalGainPercent: p.totalGainPercent,
-      holdings: p.holdings,
+      holdings: p.holdings.map(h => ({
+        ...h,
+        revenue: h.revenue ?? null,
+        earnings: h.earnings ?? null,
+        forwardPE: h.forwardPE ?? null,
+        pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
+      })),
       historicalData: chartData,
       benchmarkHistory: historyQuery.data?.benchmark || [],
       lastUpdated: new Date(p.lastUpdated),

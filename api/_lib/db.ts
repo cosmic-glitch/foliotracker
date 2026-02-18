@@ -380,6 +380,57 @@ export async function upsertPriceCache(
   if (error) throw error;
 }
 
+// Fundamentals cache types and functions
+export interface DbFundamentalsCache {
+  ticker: string;
+  revenue: number | null;
+  earnings: number | null;
+  forward_eps: number | null;
+  week_52_high: number | null;
+  updated_at: string;
+}
+
+export async function getCachedFundamentals(tickers: string[]): Promise<Map<string, DbFundamentalsCache>> {
+  if (tickers.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('fundamentals_cache')
+    .select('*')
+    .in('ticker', tickers);
+
+  if (error) throw error;
+
+  const result = new Map<string, DbFundamentalsCache>();
+  for (const row of data || []) {
+    result.set(row.ticker, row);
+  }
+  return result;
+}
+
+export async function upsertFundamentalsCache(
+  fundamentals: Array<{
+    ticker: string;
+    revenue: number | null;
+    earnings: number | null;
+    forward_eps: number | null;
+    week_52_high: number | null;
+  }>
+): Promise<void> {
+  if (fundamentals.length === 0) return;
+
+  const { error } = await supabase.from('fundamentals_cache').upsert(
+    fundamentals.map((f) => ({
+      ...f,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: 'ticker' }
+  );
+
+  if (error) throw error;
+}
+
 // Portfolio snapshot types and functions
 export interface SnapshotHolding {
   ticker: string;
@@ -396,6 +447,10 @@ export interface SnapshotHolding {
   costBasis: number | null;
   profitLoss: number | null;
   profitLossPercent: number | null;
+  revenue: number | null;
+  earnings: number | null;
+  forwardPE: number | null;
+  pctTo52WeekHigh: number | null;
 }
 
 export interface HistoryDataPoint {

@@ -6,8 +6,11 @@ import {
   upsertPriceCache,
   upsertPortfolioSnapshot,
   recordSnapshotError,
+  getCachedFundamentals,
+  upsertFundamentalsCache,
   type DbHolding,
   type DbPriceCache,
+  type DbFundamentalsCache,
   type SnapshotHolding,
   type HistoryDataPoint,
   type BenchmarkDataPoint,
@@ -25,10 +28,76 @@ interface PriceData {
   changePercent: number;
 }
 
+const FUNDAMENTALS_STALE_HOURS = 12;
+
+// Fetch fundamentals from companiesmarketcap API, using cache when fresh
+async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFundamentalsCache>> {
+  if (tickers.length === 0) return new Map();
+
+  const cached = await getCachedFundamentals(tickers);
+  const now = Date.now();
+  const staleMs = FUNDAMENTALS_STALE_HOURS * 60 * 60 * 1000;
+
+  // Find tickers that are stale or missing
+  const staleTickers: string[] = [];
+  for (const ticker of tickers) {
+    const entry = cached.get(ticker);
+    if (!entry || (now - new Date(entry.updated_at).getTime()) > staleMs) {
+      staleTickers.push(ticker);
+    }
+  }
+
+  if (staleTickers.length > 0) {
+    console.log(`Fetching fundamentals for ${staleTickers.length} stale tickers...`);
+    try {
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${staleTickers.join(',')}&fields=revenue,earnings,forwardEPS,week52High`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        const companies = json.companies || {};
+        const upserts: Array<{
+          ticker: string;
+          revenue: number | null;
+          earnings: number | null;
+          forward_eps: number | null;
+          week_52_high: number | null;
+        }> = [];
+
+        for (const ticker of staleTickers) {
+          const data = companies[ticker];
+          if (data) {
+            const entry = {
+              ticker,
+              revenue: data.revenue ?? null,
+              earnings: data.earnings ?? null,
+              forward_eps: data.forwardEPS ?? null,
+              week_52_high: data.week52High ?? null,
+            };
+            upserts.push(entry);
+            cached.set(ticker, { ...entry, updated_at: new Date().toISOString() });
+          }
+        }
+
+        if (upserts.length > 0) {
+          await upsertFundamentalsCache(upserts);
+          console.log(`Updated fundamentals_cache for ${upserts.length} tickers`);
+        }
+      } else {
+        console.warn(`Fundamentals API returned ${res.status}, using cached data`);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch fundamentals, using cached data:', error);
+    }
+  }
+
+  return cached;
+}
+
 // Compute holdings with current values from price cache
 function computeHoldings(
   dbHoldings: DbHolding[],
-  prices: Map<string, PriceData>
+  prices: Map<string, PriceData>,
+  fundamentals: Map<string, DbFundamentalsCache> = new Map()
 ): { holdings: SnapshotHolding[]; totalValue: number; totalDayChange: number; totalGain: number | null; totalGainPercent: number | null } {
   const holdings: SnapshotHolding[] = [];
   let totalValue = 0;
@@ -60,6 +129,10 @@ function computeHoldings(
         costBasis,
         profitLoss,
         profitLossPercent,
+        revenue: null,
+        earnings: null,
+        forwardPE: null,
+        pctTo52WeekHigh: null,
       });
       totalValue += value;
 
@@ -85,6 +158,14 @@ function computeHoldings(
         ? (profitLoss! / costBasis) * 100
         : null;
 
+      const fund = fundamentals.get(holding.ticker);
+      const forwardPE = (fund?.forward_eps && fund.forward_eps > 0 && price.currentPrice > 0)
+        ? price.currentPrice / fund.forward_eps
+        : null;
+      const pctTo52WeekHigh = (fund?.week_52_high && fund.week_52_high > 0 && price.currentPrice > 0)
+        ? ((fund.week_52_high - price.currentPrice) / price.currentPrice) * 100
+        : null;
+
       holdings.push({
         ticker: holding.ticker,
         name: holding.name,
@@ -100,6 +181,10 @@ function computeHoldings(
         costBasis,
         profitLoss,
         profitLossPercent,
+        revenue: fund?.revenue ?? null,
+        earnings: fund?.earnings ?? null,
+        forwardPE,
+        pctTo52WeekHigh,
       });
 
       totalValue += value;
@@ -352,6 +437,10 @@ export async function refreshAllSnapshots(): Promise<void> {
   })));
   console.log(`Updated price_cache for ${priceCacheUpdates.length} tickers`);
 
+  // Fetch fundamentals data (revenue, earnings, forward EPS, 52wk high)
+  const nonStaticTickers = Array.from(allTickers).filter(t => t !== BENCHMARK_TICKER);
+  const fundamentalsMap = await fetchFundamentals(nonStaticTickers);
+
   // Fetch 30D historical data for all tickers
   console.log('Fetching 30D historical data...');
   const today = new Date();
@@ -454,7 +543,7 @@ export async function refreshAllSnapshots(): Promise<void> {
   for (const portfolio of portfolios) {
     const holdings = allHoldingsMap.get(portfolio.id) || [];
 
-    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap);
+    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap);
     const previousTotalValue = totalValue - totalDayChange;
     const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 
@@ -529,6 +618,10 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     change_percent: p.change_percent,
     updated_at: new Date().toISOString(),
   })));
+
+  // Fetch fundamentals data
+  const nonStaticTickers = tickers.filter(t => t !== BENCHMARK_TICKER);
+  const fundamentalsMap = await fetchFundamentals(nonStaticTickers);
 
   // Fetch historical data
   const today = new Date();
@@ -616,7 +709,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const benchmarkHistory = computeBenchmarkHistory(spyPrices);
 
   // Compute snapshot
-  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap);
+  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap);
   const previousTotalValue = totalValue - totalDayChange;
   const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 

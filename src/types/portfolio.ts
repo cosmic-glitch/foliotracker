@@ -13,6 +13,10 @@ export interface Holding {
   costBasis: number | null;
   profitLoss: number | null;
   profitLossPercent: number | null;
+  revenue: number | null;
+  earnings: number | null;
+  forwardPE: number | null;
+  pctTo52WeekHigh: number | null;
 }
 
 export interface HistoricalDataPoint {

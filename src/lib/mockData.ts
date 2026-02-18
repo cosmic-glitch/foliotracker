@@ -56,6 +56,10 @@ function calculateHoldings(): Holding[] {
         costBasis: null,
         profitLoss: null,
         profitLossPercent: null,
+        revenue: null,
+        earnings: null,
+        forwardPE: null,
+        pctTo52WeekHigh: null,
       };
     }
 
@@ -88,6 +92,10 @@ function calculateHoldings(): Holding[] {
       costBasis: null,
       profitLoss: null,
       profitLossPercent: null,
+      revenue: null,
+      earnings: null,
+      forwardPE: null,
+      pctTo52WeekHigh: null,
     };
   });
 

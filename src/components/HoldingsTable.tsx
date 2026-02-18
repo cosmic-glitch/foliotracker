@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
-import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatChange, formatPercent, formatLargeValue, formatPERatio, formatPctTo52WeekHigh } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
 interface HoldingsTableProps {
@@ -61,6 +61,9 @@ function ProfitIndicator({ value, percent }: { value: number | null; percent: nu
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
+  const hasAnyFundamentals = consolidatedHoldings.some(
+    (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null
+  );
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -82,6 +85,22 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Gain/Loss
               </th>
+              {hasAnyFundamentals && (
+                <>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    Revenue
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    Earnings
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    Fwd PE
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    % to 52wk High
+                  </th>
+                </>
+              )}
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
               </th>
@@ -107,6 +126,34 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <td className="text-right px-4 py-2">
                   <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
                 </td>
+                {hasAnyFundamentals && (
+                  <>
+                    <td className="text-right px-4 py-2">
+                      <span className="text-text-primary text-sm">
+                        {formatLargeValue(holding.revenue)}
+                      </span>
+                    </td>
+                    <td className="text-right px-4 py-2">
+                      <span className="text-text-primary text-sm">
+                        {formatLargeValue(holding.earnings)}
+                      </span>
+                    </td>
+                    <td className="text-right px-4 py-2">
+                      <span className="text-text-primary text-sm">
+                        {formatPERatio(holding.forwardPE)}
+                      </span>
+                    </td>
+                    <td className="text-right px-4 py-2">
+                      <span className={`text-sm ${
+                        holding.pctTo52WeekHigh != null && holding.pctTo52WeekHigh > 0
+                          ? 'text-negative'
+                          : 'text-text-primary'
+                      }`}>
+                        {formatPctTo52WeekHigh(holding.pctTo52WeekHigh)}
+                      </span>
+                    </td>
+                  </>
+                )}
                 <td className="px-4 py-2">
                   <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
                 </td>
@@ -147,6 +194,16 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 percent={holding.dayChangePercent}
               />
             </div>
+            {!holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null) && (
+              <div className="flex justify-between items-center text-xs text-text-secondary mt-2 pt-2 border-t border-border">
+                <span>Rev: {formatLargeValue(holding.revenue)}</span>
+                <span>Earn: {formatLargeValue(holding.earnings)}</span>
+                <span>PE: {formatPERatio(holding.forwardPE)}</span>
+                <span className={holding.pctTo52WeekHigh != null && holding.pctTo52WeekHigh > 0 ? 'text-negative' : ''}>
+                  52wk: {formatPctTo52WeekHigh(holding.pctTo52WeekHigh)}
+                </span>
+              </div>
+            )}
           </div>
         ))}
       </div>

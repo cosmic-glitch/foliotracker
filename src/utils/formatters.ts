@@ -67,6 +67,28 @@ export function formatChartTime(dateString: string): string {
   }).format(date);
 }
 
+export function formatLargeValue(value: number | null): string {
+  if (value === null || value === undefined) return '--';
+  const abs = Math.abs(value);
+  if (abs >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
+  if (abs >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+  return `$${value.toFixed(0)}`;
+}
+
+export function formatPERatio(value: number | null): string {
+  if (value === null || value === undefined) return '--';
+  return `${value.toFixed(1)}x`;
+}
+
+export function formatPctTo52WeekHigh(value: number | null): string {
+  if (value === null || value === undefined) return '--';
+  if (value === 0) return '0.0%';
+  // Value is ((high - price) / price) * 100, so positive means below the high
+  return `-${value.toFixed(1)}%`;
+}
+
 export function formatRelativeTime(input: Date | string): string {
   const date = typeof input === 'string' ? new Date(input) : input;
   const now = new Date();

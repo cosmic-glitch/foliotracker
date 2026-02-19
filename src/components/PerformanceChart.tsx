@@ -111,7 +111,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   }, [data, chartView, currentValue]);
 
   const renderToggle = (overlay = false) => (
-    <div className={overlay ? "absolute top-0 right-0 z-10" : "mb-4"}>
+    <div className={overlay ? "absolute top-0 right-0 z-10" : "flex justify-end mb-4"}>
       <div className={`flex rounded-lg overflow-hidden border border-border ${overlay ? 'bg-card/80 backdrop-blur-sm' : ''}`}>
         <button
           onClick={() => onViewChange('1D')}

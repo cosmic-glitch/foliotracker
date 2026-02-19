@@ -199,11 +199,11 @@ function App() {
 
             {/* Tab Content */}
             {activeTab === 'holdings' && (
-              <div className="flex flex-col gap-6">
-                <div>
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex-1 min-w-0">
                   <HoldingsTable holdings={data.holdings} />
                 </div>
-                <div>
+                <div className="lg:w-72 lg:shrink-0">
                   <HoldingsByType holdings={data.holdings} />
                 </div>
               </div>

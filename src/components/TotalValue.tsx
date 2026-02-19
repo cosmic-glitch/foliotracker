@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { formatCurrency, formatChange, formatPercent, formatRelativeTime } from '../utils/formatters';
+import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 
 interface TotalValueProps {
   totalValue: number;
@@ -7,10 +7,9 @@ interface TotalValueProps {
   dayChangePercent: number;
   totalGain: number | null;
   totalGainPercent: number | null;
-  lastUpdated?: Date;
 }
 
-export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent, lastUpdated }: TotalValueProps) {
+export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain, totalGainPercent }: TotalValueProps) {
   const isPositive = dayChange >= 0;
   const DayIcon = isPositive ? TrendingUp : TrendingDown;
   const dayChangeColor = isPositive ? 'text-positive' : 'text-negative';
@@ -29,11 +28,6 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
           <p className="text-2xl md:text-5xl font-bold text-text-primary tracking-tight">
             {formatCurrency(totalValue)}
           </p>
-          {lastUpdated && (
-            <p className="text-xs text-text-secondary mt-2">
-              Last updated {formatRelativeTime(lastUpdated)}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-start gap-3 flex-shrink-0">
           <div className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl ${dayBgColor}`}>

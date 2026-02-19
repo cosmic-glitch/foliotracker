@@ -110,9 +110,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return points;
   }, [data, chartView, currentValue]);
 
-  const renderHeader = () => (
-    <div className="flex items-center mb-4">
-      <div className="flex rounded-lg overflow-hidden border border-border">
+  const renderToggle = (overlay = false) => (
+    <div className={overlay ? "absolute top-0 right-0 z-10" : "mb-4"}>
+      <div className={`flex rounded-lg overflow-hidden border border-border ${overlay ? 'bg-card/80 backdrop-blur-sm' : ''}`}>
         <button
           onClick={() => onViewChange('1D')}
           className={`px-3 py-1 text-sm font-medium transition-colors ${
@@ -140,8 +140,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl p-6 border border-border">
-        {renderHeader()}
+      <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+        {renderToggle()}
         <div className="h-64 md:h-72 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -154,8 +154,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl p-6 border border-border">
-        {renderHeader()}
+      <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+        {renderToggle()}
         <div className="h-64 flex items-center justify-center text-text-secondary">
           No data available
         </div>
@@ -208,50 +208,51 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl p-6 border border-border">
-      {renderHeader()}
-      <div className="h-64 md:h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartData}
-            margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-          >
-            <XAxis
-              dataKey="timestamp"
-              type="number"
-              scale="time"
-              domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
-              tickFormatter={(ts) => {
-                if (chartView === '1D') {
-                  return formatChartTime(new Date(ts).toISOString());
-                }
-                // ts is local midnight, so direct formatting works correctly
-                return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
-              }}
-              minTickGap={50}
-            />
-            <YAxis
-              domain={[minValue - padding, maxValue + padding]}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
-              tickFormatter={(value) => formatCurrency(value, true)}
-              width={65}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={false}
-              name="Portfolio"
-            />
-          </LineChart>
-        </ResponsiveContainer>
+    <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+      <div className="relative">
+        {renderToggle(true)}
+        <div className="h-64 md:h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+            >
+              <XAxis
+                dataKey="timestamp"
+                type="number"
+                scale="time"
+                domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tickFormatter={(ts) => {
+                  if (chartView === '1D') {
+                    return formatChartTime(new Date(ts).toISOString());
+                  }
+                  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
+                }}
+                minTickGap={50}
+              />
+              <YAxis
+                domain={[minValue - padding, maxValue + padding]}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tickFormatter={(value) => formatCurrency(value, true)}
+                width={58}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={false}
+                name="Portfolio"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );

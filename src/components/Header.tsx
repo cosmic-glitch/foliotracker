@@ -22,7 +22,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
               <TrendingUp className="w-6 h-6 text-accent" />
             </Link>
             <h1 className="text-xl font-semibold text-text-primary flex items-center gap-2">
-              <Link to="/" className="hover:text-accent transition-colors">
+              <Link to="/" className="hover:text-accent transition-colors hidden sm:inline">
                 Folio Tracker
               </Link>
               {portfolioId && (
@@ -33,8 +33,8 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
               )}
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            {marketStatus && <MarketStatusBadge status={marketStatus} />}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            {marketStatus && <div className="hidden sm:flex"><MarketStatusBadge status={marketStatus} /></div>}
             {loggedInAs && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
                 <User className="w-3.5 h-3.5 text-accent" />
@@ -50,7 +50,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 title="Edit portfolio"
               >
                 <Pencil className="w-5 h-5" />
-                <span>Edit</span>
+                <span className="hidden sm:inline">Edit</span>
               </button>
             )}
             {/* Show Permissions button only when logged in as this portfolio */}
@@ -61,7 +61,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 title="Manage permissions"
               >
                 <Settings className="w-5 h-5" />
-                <span>Permissions</span>
+                <span className="hidden sm:inline">Permissions</span>
               </button>
             )}
             {onLogout && loggedInAs && (
@@ -71,12 +71,12 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 title="Log out"
               >
                 <LogOut className="w-5 h-5" />
-                <span>Logout</span>
+                <span className="hidden sm:inline">Logout</span>
               </button>
             )}
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">
               <Home className="w-5 h-5" />
-              <span>Home</span>
+              <span className="hidden sm:inline">Home</span>
             </Link>
           </div>
         </div>

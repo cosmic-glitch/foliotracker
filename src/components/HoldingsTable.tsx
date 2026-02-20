@@ -61,6 +61,7 @@ function ProfitIndicator({ value, percent }: { value: number | null; percent: nu
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
+  const hasAnyGainLoss = consolidatedHoldings.some((h) => h.profitLoss != null);
   const hasAnyFundamentals = consolidatedHoldings.some(
     (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
   );
@@ -82,9 +83,11 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Value
               </th>
-              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Gain/Loss
-              </th>
+              {hasAnyGainLoss && (
+                <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                  Gain/Loss
+                </th>
+              )}
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
               </th>
@@ -110,9 +113,11 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                         {formatCurrency(holding.value, true)}
                       </span>
                     </td>
-                    <td className="text-right px-4 py-2">
-                      <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
-                    </td>
+                    {hasAnyGainLoss && (
+                      <td className="text-right px-4 py-2">
+                        <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
+                      </td>
+                    )}
                     <td className="px-4 py-2">
                       <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
                     </td>
@@ -125,7 +130,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </tr>
                   {holdingHasFundamentals && (
                     <tr className="border-b border-border last:border-0">
-                      <td colSpan={5} className="px-4 pb-2 pt-0">
+                      <td colSpan={hasAnyGainLoss ? 5 : 4} className="px-4 pb-2 pt-0">
                         <div className="flex gap-4 text-xs text-text-secondary">
                           <span>Rev: {formatLargeValue(holding.revenue)}</span>
                           <span>Earn: {formatLargeValue(holding.earnings)}</span>
@@ -163,14 +168,18 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </div>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-text-secondary">Gain/Loss:</span>
-                <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
+              {hasAnyGainLoss && (
+                <div className="flex items-center gap-1">
+                  <span className="text-text-secondary">Gain/Loss:</span>
+                  <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
+                </div>
+              )}
+              <div className={hasAnyGainLoss ? '' : 'ml-auto'}>
+                <ChangeIndicator
+                  value={holding.dayChange}
+                  percent={holding.dayChangePercent}
+                />
               </div>
-              <ChangeIndicator
-                value={holding.dayChange}
-                percent={holding.dayChangePercent}
-              />
             </div>
             {!holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null) && (
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary mt-2 pt-2 border-t border-border">

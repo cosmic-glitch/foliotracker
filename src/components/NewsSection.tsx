@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { ChevronDown, Newspaper } from 'lucide-react';
+import { useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews, type NewsArticle } from '../hooks/usePortfolioNews';
 
@@ -30,7 +29,6 @@ function NewsItem({ article }: NewsItemProps) {
 }
 
 export function NewsSection({ holdings }: NewsSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
   const { data, isLoading, error } = usePortfolioNews(holdings);
 
   // Get grouped news entries (already grouped by ticker from API)
@@ -53,55 +51,38 @@ export function NewsSection({ holdings }: NewsSectionProps) {
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 border-b border-border flex items-center justify-between hover:bg-background/50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Newspaper className="w-5 h-5 text-text-secondary" />
-          <h2 className="text-lg font-semibold text-text-primary">News About Your Holdings</h2>
-        </div>
-        <ChevronDown
-          className={`w-5 h-5 text-text-secondary transition-transform duration-200 ${
-            isExpanded ? 'rotate-0' : '-rotate-90'
-          }`}
-        />
-      </button>
-
-      {isExpanded && (
-        <div className="p-2">
-          {isLoading ? (
-            <div className="px-3 py-4 text-center text-text-secondary text-sm">
-              Loading news...
-            </div>
-          ) : error ? (
-            <div className="px-3 py-4 text-center text-text-secondary text-sm">
-              Failed to load news
-            </div>
-          ) : tickerEntries.length === 0 ? (
-            <div className="px-3 py-4 text-center text-text-secondary text-sm">
-              No recent news for your holdings
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {tickerEntries.map(([ticker, articles]) => (
-                <div key={ticker}>
-                  <div className="px-3 py-1">
-                    <span className="text-xs font-semibold bg-accent/10 text-accent px-2 py-0.5 rounded">
-                      {ticker}
-                    </span>
-                  </div>
-                  <div className="ml-2">
-                    {articles.map((article, index) => (
-                      <NewsItem key={`${ticker}-${index}`} article={article} />
-                    ))}
-                  </div>
+      <div className="p-2">
+        {isLoading ? (
+          <div className="px-3 py-4 text-center text-text-secondary text-sm">
+            Loading news...
+          </div>
+        ) : error ? (
+          <div className="px-3 py-4 text-center text-text-secondary text-sm">
+            Failed to load news
+          </div>
+        ) : tickerEntries.length === 0 ? (
+          <div className="px-3 py-4 text-center text-text-secondary text-sm">
+            No recent news for your holdings
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tickerEntries.map(([ticker, articles]) => (
+              <div key={ticker}>
+                <div className="px-3 py-1">
+                  <span className="text-xs font-semibold bg-accent/10 text-accent px-2 py-0.5 rounded">
+                    {ticker}
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                <div className="ml-2">
+                  {articles.map((article, index) => (
+                    <NewsItem key={`${ticker}-${index}`} article={article} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

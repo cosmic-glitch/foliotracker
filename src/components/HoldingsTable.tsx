@@ -77,10 +77,6 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
-        <h2 className="text-lg font-semibold text-text-primary">Holdings</h2>
-      </div>
-
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full">

@@ -153,7 +153,7 @@ export function LandingPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+        <div className="max-w-4xl mx-auto px-4 py-2 md:py-4">
           <div className="flex items-center justify-between">
             <button
               onClick={() => window.location.reload()}
@@ -181,7 +181,7 @@ export function LandingPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-3 md:py-8">
         {/* Intro */}
         <div className="mb-8">
           <ul className="text-text-secondary text-sm space-y-1">
@@ -226,51 +226,53 @@ export function LandingPage() {
                 return (
                   <div
                     key={portfolio.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-4 hover:bg-card-hover transition-colors"
+                    className="flex flex-col gap-1 px-4 py-2 sm:py-4 hover:bg-card-hover transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text-primary flex items-center gap-2">
-                        {portfolio.id.toUpperCase()}
-                        {portfolio.visibility === 'public' && (
-                          <span className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full">
-                            <Globe className="w-3 h-3" />
-                            Public
-                          </span>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-text-primary flex items-center gap-2">
+                          {portfolio.id.toUpperCase()}
+                          {portfolio.visibility === 'public' && (
+                            <span className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <Globe className="w-3 h-3" />
+                              Public
+                            </span>
+                          )}
+                          {portfolio.visibility === 'private' && (
+                            <span className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <Lock className="w-3 h-3" />
+                              Private
+                            </span>
+                          )}
+                          {portfolio.visibility === 'selective' && (
+                            <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <Users className="w-3 h-3" />
+                              By Invite
+                            </span>
+                          )}
+                        </p>
+                        {shouldBlurValues ? (
+                          <div className="flex items-start gap-3 text-right">
+                            <span className="text-sm text-positive blur-sm select-none">
+                              +$X.Xk (+X.XX%)
+                            </span>
+                            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+                              $X,XXX,XXX
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-3 text-right">
+                            <span className={`text-sm ${changeColor}`}>
+                              {sign}{formatCompactValue(Math.abs(values.dayChange ?? 0))} ({sign}{(values.dayChangePercent ?? 0).toFixed(2)}%)
+                            </span>
+                            <span className="text-lg font-semibold text-text-primary">
+                              ${(values.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
                         )}
-                        {portfolio.visibility === 'private' && (
-                          <span className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full">
-                            <Lock className="w-3 h-3" />
-                            Private
-                          </span>
-                        )}
-                        {portfolio.visibility === 'selective' && (
-                          <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full">
-                            <Users className="w-3 h-3" />
-                            By Invite
-                          </span>
-                        )}
-                      </p>
-                      {shouldBlurValues ? (
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-                            $X,XXX,XXX
-                          </span>
-                          <span className="text-sm text-positive blur-sm select-none">
-                            +$X.Xk (+X.XX%)
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-lg font-semibold text-text-primary">
-                            ${(values.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </span>
-                          <span className={`text-sm ${changeColor}`}>
-                            {sign}{formatCompactValue(Math.abs(values.dayChange ?? 0))} ({sign}{(values.dayChangePercent ?? 0).toFixed(2)}%)
-                          </span>
-                        </div>
-                      )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       {(portfolio.visibility === 'public' ||
                         loggedInAs === portfolio.id.toLowerCase() ||
                         (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (

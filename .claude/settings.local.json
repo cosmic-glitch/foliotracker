@@ -77,7 +77,8 @@
       "Bash(git -C /Users/anuragved/code/foliotracker commit -m \"$\\(cat <<''EOF''\nHide AI Insights tab, show AI Research only when report exists\n\n- Remove AI Insights tab and all related components \\(Buffett, Munger, Hot Take\\)\n- Conditionally render AI Research tab only when deepResearch data is available\n- Darken AI Research background from slate-200 to slate-300 for better contrast\n- Clean up unused imports \\(Sparkles, TrendingUp, Brain, AICommentSection, ChatModal\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git -C /Users/anuragved/code/foliotracker push origin main)",
       "Bash(env)",
-      "Bash(launchctl list:*)"
+      "Bash(launchctl list:*)",
+      "mcp__plugin_playwright_playwright__browser_resize"
     ]
   }
 }

@@ -24,13 +24,13 @@ function ChangeIndicator({ value, percent }: { value: number; percent: number })
   );
 }
 
-function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: number }) {
+function AllocationBar({ percent, maxPercent, compact }: { percent: number; maxPercent: number; compact?: boolean }) {
   // Scale the bar relative to the max allocation so the largest fills the bar
   const scaledWidth = maxPercent > 0 ? (percent / maxPercent) * 100 : 0;
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-3 bg-background rounded-full overflow-hidden">
+      <div className={`flex-1 ${compact ? 'h-2' : 'h-3'} bg-background rounded-full overflow-hidden`}>
         <div
           className="h-full bg-accent rounded-full transition-all duration-500"
           style={{ width: `${scaledWidth}%` }}
@@ -147,8 +147,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         {consolidatedHoldings.map((holding) => {
           const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
           return (
-            <div key={holding.ticker} className="p-3">
-              <div className="flex justify-between items-start mb-2">
+            <div key={holding.ticker} className="px-3 py-2">
+              <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-1.5">
                   <p className="font-semibold text-text-primary">{holding.ticker}</p>
                   {holdingHasFundamentals && (
@@ -157,28 +157,32 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </button>
                   )}
                 </div>
-                <span className="font-semibold text-text-primary">
-                  {formatCurrency(holding.value, true)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex-1 mr-4">
-                  <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
+                <div className="flex items-center gap-3">
+                  {holding.dayChange !== 0 ? (
+                    <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      {formatChange(holding.dayChange, true)} ({formatPercent(holding.dayChangePercent)})
+                    </span>
+                  ) : (
+                    <span className="text-sm text-text-secondary">--</span>
+                  )}
+                  <span className="font-semibold text-text-primary">
+                    {formatCurrency(holding.value, true)}
+                  </span>
                 </div>
               </div>
-              <div className="flex justify-between items-center text-sm">
+              <div className="flex justify-between items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} compact />
+                </div>
                 {hasAnyGainLoss && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-text-secondary">Gain/Loss:</span>
-                    <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
-                  </div>
+                  holding.profitLoss != null && holding.profitLossPercent != null ? (
+                    <span className={`text-xs whitespace-nowrap ${holding.profitLoss >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      {formatChange(holding.profitLoss, true)} ({holding.profitLoss >= 0 ? '+' : ''}{holding.profitLossPercent.toFixed(1)}%)
+                    </span>
+                  ) : (
+                    <span className="text-xs text-text-secondary">--</span>
+                  )
                 )}
-                <div className={hasAnyGainLoss ? '' : 'ml-auto'}>
-                  <ChangeIndicator
-                    value={holding.dayChange}
-                    percent={holding.dayChangePercent}
-                  />
-                </div>
               </div>
             </div>
           );

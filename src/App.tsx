@@ -133,7 +133,7 @@ function App() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} onLogout={handleLogout} />
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 space-y-6">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-3 md:py-6 space-y-3 md:space-y-6">
         {error && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 text-accent text-sm">
             {error}
@@ -151,13 +151,15 @@ function App() {
               totalGain={data.totalGain}
               totalGainPercent={data.totalGainPercent}
             />
-            <PerformanceChart
-              data={data.historicalData}
-              isLoading={isHistoryLoading}
-              chartView={chartView}
-              onViewChange={setChartView}
-              currentValue={data.totalValue}
-            />
+            <div className="-mb-0.5 md:mb-0">
+              <PerformanceChart
+                data={data.historicalData}
+                isLoading={isHistoryLoading}
+                chartView={chartView}
+                onViewChange={setChartView}
+                currentValue={data.totalValue}
+              />
+            </div>
             {/* Tab Navigation */}
             <div className="border-b border-border">
               <nav className="flex gap-1">
@@ -198,7 +200,7 @@ function App() {
 
             {/* Tab Content */}
             {activeTab === 'holdings' && (
-              <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex flex-col lg:flex-row gap-3 lg:gap-6">
                 <div className="flex-1 min-w-0">
                   <HoldingsTable holdings={data.holdings} />
                 </div>

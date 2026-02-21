@@ -16,8 +16,8 @@ npm run build    # TypeScript compile + Vite production build
 npm run lint     # ESLint
 npm run preview  # Preview production build locally
 
-vercel           # Deploy to preview
-vercel --prod    # Deploy to production
+vercel build && vercel deploy --prebuilt          # Deploy to preview (no remote build)
+vercel build && vercel deploy --prebuilt --prod    # Deploy to production (no remote build)
 ```
 
 ## Architecture
@@ -139,6 +139,8 @@ source .env.local && npx tsx scripts/generate-research.ts --all
 
 - **Preview-first deployment**: Always deploy to preview URL first, never directly to production
   1. Make changes and run `npm run build` to verify no errors
-  2. Deploy to preview: `vercel` (without --prod)
+  2. Deploy to preview: `vercel build && vercel deploy --prebuilt`
   3. Provide preview URL to user and **wait for user guidance** before proceeding
-  4. Only after approval: `vercel --prod` to deploy to production
+  4. Only after approval: `vercel build && vercel deploy --prebuilt --prod`
+  - **Note:** `npm run build` in step 1 is redundant if you're about to run `vercel build` (which runs the Vite build internally). You can skip step 1 and go straight to step 2.
+  - **Why prebuilt:** Builds run locally instead of on Vercel's servers, consuming zero remote build minutes.

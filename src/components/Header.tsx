@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { TrendingUp, Home, Pencil, Settings, User, LogOut } from 'lucide-react';
+import { TrendingUp, Home } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
+import { UserMenu } from './UserMenu';
 
 interface HeaderProps {
   marketStatus?: MarketStatus;
@@ -10,9 +11,10 @@ interface HeaderProps {
   onEdit?: () => void;
   onPermissions?: () => void;
   onLogout?: () => void;
+  showEditAndPermissions?: boolean;
 }
 
-export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onLogout }: HeaderProps) {
+export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onLogout, showEditAndPermissions }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 py-2 md:py-4">
@@ -35,44 +37,14 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             {marketStatus && <div className="hidden sm:flex"><MarketStatusBadge status={marketStatus} /></div>}
-            {loggedInAs && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
-                <User className="w-3.5 h-3.5 text-accent" />
-                <span className="text-sm font-medium text-accent">
-                  {loggedInAs.toUpperCase()}
-                </span>
-              </div>
-            )}
-            {onEdit && (
-              <button
-                onClick={onEdit}
-                className="flex items-center gap-1.5 p-2 hover:bg-card hover:text-accent rounded-lg transition-colors text-sm text-text-secondary"
-                title="Edit portfolio"
-              >
-                <Pencil className="w-5 h-5" />
-                <span className="hidden sm:inline">Edit</span>
-              </button>
-            )}
-            {/* Show Permissions button only when logged in as this portfolio */}
-            {onPermissions && loggedInAs && portfolioId && loggedInAs === portfolioId.toLowerCase() && (
-              <button
-                onClick={onPermissions}
-                className="flex items-center gap-1.5 p-2 hover:bg-card hover:text-accent rounded-lg transition-colors text-sm text-text-secondary"
-                title="Manage permissions"
-              >
-                <Settings className="w-5 h-5" />
-                <span className="hidden sm:inline">Permissions</span>
-              </button>
-            )}
-            {onLogout && loggedInAs && (
-              <button
-                onClick={onLogout}
-                className="flex items-center gap-1.5 p-2 hover:bg-card hover:text-accent rounded-lg transition-colors text-sm text-text-secondary"
-                title="Log out"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
+            {loggedInAs && onLogout && (
+              <UserMenu
+                loggedInAs={loggedInAs}
+                onEdit={onEdit}
+                onPermissions={onPermissions}
+                onLogout={onLogout}
+                showEditAndPermissions={showEditAndPermissions}
+              />
             )}
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">
               <Home className="w-5 h-5" />

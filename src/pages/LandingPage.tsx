@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Pencil, Lock, LogIn, LogOut, User, Globe, Settings } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, Globe } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
+import { UserMenu } from '../components/UserMenu';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { Footer } from '../components/Footer';
@@ -168,12 +169,13 @@ export function LandingPage() {
             </button>
             <div className="flex items-center gap-3">
               {loggedInAs && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 rounded-lg">
-                  <User className="w-3.5 h-3.5 text-accent" />
-                  <span className="text-sm font-medium text-accent">
-                    {loggedInAs.toUpperCase()}
-                  </span>
-                </div>
+                <UserMenu
+                  loggedInAs={loggedInAs}
+                  onEdit={() => navigate(`/${loggedInAs}/edit`, { state: { password: getPassword() } })}
+                  onPermissions={() => setShowPermissions(true)}
+                  onLogout={logout}
+                  showEditAndPermissions
+                />
               )}
               <MarketStatusBadge status={getMarketStatus()} />
             </div>
@@ -283,33 +285,7 @@ export function LandingPage() {
                           View →
                         </Link>
                       )}
-                      {loggedInAs === portfolio.id.toLowerCase() && (
-                        <>
-                          <button
-                            onClick={() => navigate(`/${portfolio.id}/edit`, { state: { password: getPassword() } })}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Edit</span>
-                          </button>
-                          <button
-                            onClick={() => setShowPermissions(true)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Permissions</span>
-                          </button>
-                        </>
-                      )}
-                      {loggedInAs === portfolio.id.toLowerCase() ? (
-                        <button
-                          onClick={logout}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-lg transition-colors text-sm"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Logout</span>
-                        </button>
-                      ) : (
+                      {loggedInAs !== portfolio.id.toLowerCase() && (
                         <button
                           onClick={() => setLoginTarget(portfolio)}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"

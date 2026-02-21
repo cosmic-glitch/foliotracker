@@ -131,7 +131,15 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header marketStatus={data?.marketStatus} portfolioId={portfolioId} loggedInAs={loggedInAs} onEdit={handleEdit} onPermissions={handlePermissions} onLogout={handleLogout} />
+      <Header
+        marketStatus={data?.marketStatus}
+        portfolioId={portfolioId}
+        loggedInAs={loggedInAs}
+        onEdit={handleEdit}
+        onPermissions={handlePermissions}
+        onLogout={handleLogout}
+        showEditAndPermissions={loggedInAs === portfolioId?.toLowerCase()}
+      />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-3 md:py-6 space-y-3 md:space-y-6">
         {error && (

@@ -151,7 +151,7 @@ function App() {
               totalGain={data.totalGain}
               totalGainPercent={data.totalGainPercent}
             />
-            <div className="-mb-0.5 md:mb-0">
+            <div className="mb-2 md:mb-3">
               <PerformanceChart
                 data={data.historicalData}
                 isLoading={isHistoryLoading}

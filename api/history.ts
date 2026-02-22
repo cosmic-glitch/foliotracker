@@ -73,10 +73,11 @@ export default async function handler(
     }
 
     // Handle visibility-based authentication
-    // If password is provided, verify it regardless of visibility (for login flow)
+    // If password is provided, verify it once and cache the result
+    let passwordVerified = false;
     if (password) {
-      const isValid = await verifyPortfolioPassword(portfolioId, password);
-      if (!isValid) {
+      passwordVerified = await verifyPortfolioPassword(portfolioId, password);
+      if (!passwordVerified) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
@@ -94,15 +95,10 @@ export default async function handler(
         });
         return;
       }
-
-      const isValid = await verifyPortfolioPassword(portfolioId, password);
-      if (!isValid) {
-        res.status(401).json({ error: 'Invalid password' });
-        return;
-      }
+      // Password already verified above
     } else if (portfolio.visibility === 'selective') {
       // Selective portfolios require either password or being an allowed viewer
-      const hasPassword = password && await verifyPortfolioPassword(portfolioId, password);
+      const hasPassword = password && passwordVerified;
       const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
 
       if (!hasPassword && !isViewer) {

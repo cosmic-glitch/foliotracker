@@ -76,13 +76,13 @@ export const portfolioKeys = {
 // Fetch functions with HTTP cache support
 async function fetchPortfolioApi(
   portfolioId: string,
-  password?: string | null,
+  token?: string | null,
   loggedInAs?: string | null
 ): Promise<ApiPortfolioResponse | PrivatePortfolioResponse | null> {
   const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
   url.searchParams.set('id', portfolioId);
-  if (password) {
-    url.searchParams.set('password', password);
+  if (token) {
+    url.searchParams.set('token', token);
   }
   if (loggedInAs) {
     url.searchParams.set('logged_in_as', loggedInAs);
@@ -98,15 +98,15 @@ async function fetchPortfolioApi(
 async function fetchHistoryApi(
   portfolioId: string,
   days: number,
-  password?: string | null,
+  token?: string | null,
   loggedInAs?: string | null
 ): Promise<ApiHistoryResponse> {
   // Don't use browser HTTP cache - history depends on current holdings which can change
   const url = new URL(`${API_BASE_URL}/api/history`, window.location.origin);
   url.searchParams.set('id', portfolioId);
   url.searchParams.set('days', days.toString());
-  if (password) {
-    url.searchParams.set('password', password);
+  if (token) {
+    url.searchParams.set('token', token);
   }
   if (loggedInAs) {
     url.searchParams.set('logged_in_as', loggedInAs);
@@ -118,14 +118,14 @@ async function fetchHistoryApi(
 
 async function fetchIntradayApi(
   portfolioId: string,
-  password?: string | null,
+  token?: string | null,
   loggedInAs?: string | null
 ): Promise<ApiHistoryResponse> {
   const url = new URL(`${API_BASE_URL}/api/history`, window.location.origin);
   url.searchParams.set('id', portfolioId);
   url.searchParams.set('interval', '1m');
-  if (password) {
-    url.searchParams.set('password', password);
+  if (token) {
+    url.searchParams.set('token', token);
   }
   if (loggedInAs) {
     url.searchParams.set('logged_in_as', loggedInAs);
@@ -137,15 +137,15 @@ async function fetchIntradayApi(
 
 const MAX_DAYS = 30; // Fetch 30 days of history
 
-export function usePortfolioData(portfolioId: string, password?: string | null, loggedInAs?: string | null) {
+export function usePortfolioData(portfolioId: string, token?: string | null, loggedInAs?: string | null) {
   const queryClient = useQueryClient();
   const [chartView, setChartView] = useState<ChartView>('1D');
 
   // Portfolio query - needs frequent updates for live prices
-  // Include password and loggedInAs in queryKey so it refetches when they change
+  // Include token and loggedInAs in queryKey so it refetches when they change
   const portfolioQuery = useQuery({
-    queryKey: [...portfolioKeys.detail(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
-    queryFn: () => fetchPortfolioApi(portfolioId, password, loggedInAs),
+    queryKey: [...portfolioKeys.detail(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchPortfolioApi(portfolioId, token, loggedInAs),
     enabled: !!portfolioId,
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
@@ -157,8 +157,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
   // History query (30D) - refetch when switching to this view
   // Include auth params in queryKey so it refetches when they change
   const historyQuery = useQuery({
-    queryKey: [...portfolioKeys.history(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
-    queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS, password, loggedInAs),
+    queryKey: [...portfolioKeys.history(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS, token, loggedInAs),
     enabled: !!portfolioId && !!portfolioQuery.data && chartView === '30D',
     staleTime: 5 * 60 * 1000, // Fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
@@ -170,8 +170,8 @@ export function usePortfolioData(portfolioId: string, password?: string | null, 
   // Intraday query - always fetched when market is open (used as ground truth for total value)
   // Include auth params in queryKey so it refetches when they change
   const intradayQuery = useQuery({
-    queryKey: [...portfolioKeys.intraday(portfolioId), password ?? 'no-auth', loggedInAs ?? 'no-login'],
-    queryFn: () => fetchIntradayApi(portfolioId, password, loggedInAs),
+    queryKey: [...portfolioKeys.intraday(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login'],
+    queryFn: () => fetchIntradayApi(portfolioId, token, loggedInAs),
     // Fetch when viewing 1D OR when market is open (for accurate total value)
     enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isMarketOpen()),
     staleTime: 0, // Always stale - fetch fresh

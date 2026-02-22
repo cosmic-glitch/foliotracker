@@ -4,7 +4,7 @@ import {
   getPortfolioViewers,
   setPortfolioViewers,
   updatePortfolioSettings,
-  verifyPortfolioPassword,
+  authenticateRequest,
   Visibility,
 } from './_lib/db.js';
 
@@ -36,16 +36,17 @@ export default async function handler(
 
   try {
     if (req.method === 'GET') {
-      // GET requires password to view permissions
+      // GET requires token or password to view permissions
+      const token = req.query.token as string;
       const password = req.query.password as string;
 
-      if (!password) {
+      if (!token && !password) {
         res.status(401).json({ error: 'Password is required' });
         return;
       }
 
-      const isValid = await verifyPortfolioPassword(portfolioId, password);
-      if (!isValid) {
+      const { authenticated } = await authenticateRequest(portfolioId, token, password);
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
@@ -68,15 +69,15 @@ export default async function handler(
     }
 
     if (req.method === 'PUT') {
-      const { password, visibility, viewers } = req.body;
+      const { password, token, visibility, viewers } = req.body;
 
-      if (!password) {
+      if (!token && !password) {
         res.status(401).json({ error: 'Password is required' });
         return;
       }
 
-      const isValid = await verifyPortfolioPassword(portfolioId, password);
-      if (!isValid) {
+      const { authenticated } = await authenticateRequest(portfolioId, token, password);
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }

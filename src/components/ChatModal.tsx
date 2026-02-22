@@ -11,7 +11,7 @@ interface ChatMessage {
 
 interface ChatModalProps {
   portfolioId: string;
-  password: string | null;
+  token: string | null;
   initialComment: string;
   persona: AIPersona;
   onClose: () => void;
@@ -43,7 +43,7 @@ const PERSONA_CONFIG = {
   },
 };
 
-export function ChatModal({ portfolioId, password, initialComment, persona, onClose }: ChatModalProps) {
+export function ChatModal({ portfolioId, token, initialComment, persona, onClose }: ChatModalProps) {
   const config = PERSONA_CONFIG[persona];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -105,7 +105,7 @@ export function ChatModal({ portfolioId, password, initialComment, persona, onCl
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: userMessage, password }),
+          body: JSON.stringify({ message: userMessage, token }),
         }
       );
 
@@ -140,8 +140,8 @@ export function ChatModal({ portfolioId, password, initialComment, persona, onCl
   };
 
   const resetChat = async () => {
-    if (!password) {
-      setError('Password required to reset chat');
+    if (!token) {
+      setError('Authentication required to reset chat');
       return;
     }
 
@@ -151,7 +151,7 @@ export function ChatModal({ portfolioId, password, initialComment, persona, onCl
         {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
+          body: JSON.stringify({ token }),
         }
       );
 
@@ -189,7 +189,7 @@ export function ChatModal({ portfolioId, password, initialComment, persona, onCl
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="font-semibold text-text-primary">{config.title}</h2>
           <div className="flex items-center gap-2">
-            {password && (
+            {token && (
               <button
                 onClick={resetChat}
                 className="flex items-center gap-1 text-sm text-text-secondary hover:text-negative transition-colors"

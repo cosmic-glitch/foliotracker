@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, getPortfolioSnapshot, verifyPortfolioPassword, isAllowedViewer } from './_lib/db.js';
+import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer } from './_lib/db.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
@@ -43,6 +43,7 @@ export default async function handler(
   try {
     const portfolioId = req.query.id as string;
     const interval = (req.query.interval as string) === '1m' ? '1m' : '1d';
+    const token = req.query.token as string;
     const password = req.query.password as string;
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
@@ -73,19 +74,18 @@ export default async function handler(
     }
 
     // Handle visibility-based authentication
-    // If password is provided, verify it once and cache the result
-    let passwordVerified = false;
-    if (password) {
-      passwordVerified = await verifyPortfolioPassword(portfolioId, password);
-      if (!passwordVerified) {
+    let authResult = { authenticated: false, isAdmin: false };
+    if (token || password) {
+      authResult = await authenticateRequest(portfolioId, token, password);
+      if ((token || password) && !authResult.authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
     }
 
     if (portfolio.visibility === 'private') {
-      // Private portfolios require password
-      if (!password) {
+      // Private portfolios require authentication
+      if (!authResult.authenticated) {
         res.status(200).json({
           data: [],
           benchmark: [],
@@ -95,13 +95,11 @@ export default async function handler(
         });
         return;
       }
-      // Password already verified above
     } else if (portfolio.visibility === 'selective') {
-      // Selective portfolios require either password or being an allowed viewer
-      const hasPassword = password && passwordVerified;
+      // Selective portfolios require either authentication or being an allowed viewer
       const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
 
-      if (!hasPassword && !isViewer) {
+      if (!authResult.authenticated && !isViewer) {
         res.status(200).json({
           data: [],
           benchmark: [],

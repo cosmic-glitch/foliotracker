@@ -9,6 +9,7 @@ import { UserMenu } from '../components/UserMenu';
 import { isMarketOpen, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { Footer } from '../components/Footer';
+import { loginToPortfolio } from '../lib/auth';
 
 interface Portfolio {
   id: string;
@@ -54,7 +55,7 @@ function formatCompactValue(value: number): string {
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { loggedInAs, login, logout, getPassword } = useLoggedInPortfolio();
+  const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   const [loginTarget, setLoginTarget] = useState<Portfolio | null>(null);
   const [showPermissions, setShowPermissions] = useState(false);
 
@@ -131,22 +132,11 @@ export function LandingPage() {
   const handleLogin = async (password: string) => {
     if (!loginTarget) return;
 
-    // Verify password via the portfolio API
-    const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
-    url.searchParams.set('id', loginTarget.id);
-    url.searchParams.set('password', password);
+    // Verify password via login endpoint — get token back
+    const result = await loginToPortfolio(loginTarget.id, password);
 
-    const response = await fetch(url.toString());
-
-    if (response.status === 401) {
-      throw new Error('Invalid password');
-    }
-    if (!response.ok) {
-      throw new Error('Failed to verify password');
-    }
-
-    // Password is valid, log in
-    login(loginTarget.id, password);
+    // Token received, log in
+    login(loginTarget.id, result.token, result.expiresAt);
     setLoginTarget(null);
   };
 
@@ -171,7 +161,7 @@ export function LandingPage() {
               {loggedInAs && (
                 <UserMenu
                   loggedInAs={loggedInAs}
-                  onEdit={() => navigate(`/${loggedInAs}/edit`, { state: { password: getPassword() } })}
+                  onEdit={() => navigate(`/${loggedInAs}/edit`, { state: { token: getToken() } })}
                   onPermissions={() => setShowPermissions(true)}
                   onLogout={logout}
                   showEditAndPermissions
@@ -350,7 +340,7 @@ export function LandingPage() {
       {showPermissions && loggedInAs && (
         <PermissionsModal
           portfolioId={loggedInAs}
-          password={getPassword() || ''}
+          token={getToken() || ''}
           onClose={() => setShowPermissions(false)}
         />
       )}

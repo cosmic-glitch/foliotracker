@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { TrendingUp, ArrowLeft, Loader2, Globe, Lock, Users, Plus, Trash2 } from 'lucide-react';
 import type { TradeableHoldingInput, StaticHoldingInput, HoldingsInput } from '../types/portfolio';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { loginToPortfolio } from '../lib/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -188,7 +189,13 @@ export function CreatePortfolio() {
         throw new Error(data.error || 'Failed to create portfolio');
       }
 
-      login(portfolioId, password);
+      // Get a session token after creation
+      try {
+        const loginResult = await loginToPortfolio(portfolioId, password);
+        login(portfolioId, loginResult.token, loginResult.expiresAt);
+      } catch {
+        // Non-blocking — user can log in manually later
+      }
       navigate(`/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

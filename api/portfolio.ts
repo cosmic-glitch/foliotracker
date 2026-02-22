@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, verifyPortfolioPassword, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
+import { getPortfolio, verifyPortfolioPassword, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
 import { chatWithPortfolio, type HoldingSummary, type AIPersona } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -113,7 +113,7 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
   }
 
   if (req.method === 'POST') {
-    const { message, password } = req.body;
+    const { message, password, token } = req.body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       res.status(400).json({ error: 'Message is required' });
@@ -122,12 +122,12 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
 
     // Verify access for private portfolios
     if (portfolio.visibility === 'private') {
-      if (!password) {
+      if (!token && !password) {
         res.status(401).json({ error: 'Password required for private portfolio' });
         return;
       }
-      const isValid = await verifyPortfolioPassword(portfolioId, password);
-      if (!isValid) {
+      const { authenticated } = await authenticateRequest(portfolioId, token, password);
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
@@ -222,15 +222,15 @@ async function handleChatAction(req: VercelRequest, res: VercelResponse): Promis
   }
 
   if (req.method === 'DELETE') {
-    const { password } = req.body;
+    const { password, token } = req.body;
 
-    if (!password) {
+    if (!token && !password) {
       res.status(401).json({ error: 'Password required to reset chat' });
       return;
     }
 
-    const isValid = await verifyPortfolioPassword(portfolioId, password);
-    if (!isValid) {
+    const { authenticated } = await authenticateRequest(portfolioId, token, password);
+    if (!authenticated) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
@@ -301,22 +301,23 @@ export default async function handler(
     }
 
     // Handle visibility-based authentication
+    const token = req.query.token as string;
     const password = req.query.password as string;
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
-    // If password is provided, verify it once and cache the result
-    let passwordVerified = false;
-    if (password) {
-      passwordVerified = await verifyPortfolioPassword(portfolioId, password);
-      if (!passwordVerified) {
+    // If token or password is provided, verify once and cache the result
+    let authResult = { authenticated: false, isAdmin: false };
+    if (token || password) {
+      authResult = await authenticateRequest(portfolioId, token, password);
+      if ((token || password) && !authResult.authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
     }
 
     if (portfolio.visibility === 'private') {
-      // Private portfolios require password
-      if (!password) {
+      // Private portfolios require authentication
+      if (!authResult.authenticated) {
         res.status(200).json({
           portfolioId,
           displayName: portfolio.display_name,
@@ -326,13 +327,11 @@ export default async function handler(
         });
         return;
       }
-      // Password already verified above
     } else if (portfolio.visibility === 'selective') {
-      // Selective portfolios require either password or being an allowed viewer
-      const hasPassword = password && passwordVerified;
+      // Selective portfolios require either authentication or being an allowed viewer
       const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
 
-      if (!hasPassword && !isViewer) {
+      if (!authResult.authenticated && !isViewer) {
         res.status(200).json({
           portfolioId,
           displayName: portfolio.display_name,

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { timingSafeEqual } from 'crypto';
 import { refreshAllSnapshots } from './_lib/snapshot.js';
+import { deleteExpiredSessions } from './_lib/db.js';
 
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
@@ -62,6 +63,10 @@ export default async function handler(
   try {
     const startTime = Date.now();
     await refreshAllSnapshots();
+
+    // Clean up expired sessions
+    await deleteExpiredSessions();
+
     const duration = Date.now() - startTime;
 
     res.status(200).json({

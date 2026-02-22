@@ -8,7 +8,7 @@ import type { TradeableHoldingInput, StaticHoldingInput, HoldingsInput } from '.
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 interface LocationState {
-  password?: string;
+  token?: string;
 }
 
 interface TradeablePreview {
@@ -43,7 +43,7 @@ export function EditPortfolio() {
   const queryClient = useQueryClient();
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const location = useLocation();
-  const password = (location.state as LocationState)?.password;
+  const token = (location.state as LocationState)?.token;
   const { logout } = useLoggedInPortfolio();
 
   const [tradeableHoldings, setTradeableHoldings] = useState<TradeableHoldingInput[]>([
@@ -64,7 +64,7 @@ export function EditPortfolio() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!password) {
+    if (!token) {
       navigate('/');
       return;
     }
@@ -73,8 +73,8 @@ export function EditPortfolio() {
       try {
         const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
         url.searchParams.set('id', portfolioId!);
-        if (password) {
-          url.searchParams.set('password', password);
+        if (token) {
+          url.searchParams.set('token', token);
         }
 
         const response = await fetch(url.toString());
@@ -117,7 +117,7 @@ export function EditPortfolio() {
     }
 
     fetchPortfolio();
-  }, [portfolioId, password, navigate]);
+  }, [portfolioId, token, navigate]);
 
   useEffect(() => {
     async function fetchPortfolios() {
@@ -209,7 +209,7 @@ export function EditPortfolio() {
       const previewResponse = await fetch(`${API_BASE_URL}/api/portfolios?preview=true`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: portfolioId, password, holdings: holdingsInput }),
+        body: JSON.stringify({ id: portfolioId, token, holdings: holdingsInput }),
       });
 
       const previewData = await previewResponse.json();
@@ -244,7 +244,7 @@ export function EditPortfolio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: portfolioId,
-          password,
+          token,
           holdings: holdingsInput,
           visibility,
           viewers: visibility === 'selective' ? viewers : [],
@@ -289,7 +289,7 @@ export function EditPortfolio() {
       const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: portfolioId, password }),
+        body: JSON.stringify({ id: portfolioId, token }),
       });
 
       const data = await response.json();

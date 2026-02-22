@@ -8,6 +8,9 @@ import {
   deletePortfolio,
   setHoldings,
   verifyPortfolioPassword,
+  authenticateRequest,
+  verifySessionToken,
+  deleteSessionsForPortfolio,
   updatePortfolioSettings,
   isAllowedViewer,
   setPortfolioViewers,
@@ -337,13 +340,24 @@ export default async function handler(
   try {
     // Handle analytics action (admin-only)
     if (req.method === 'GET' && req.query.action === 'analytics') {
+      const token = req.query.token as string;
       const password = req.query.password as string;
-      if (!password) {
+
+      if (!token && !password) {
         res.status(401).json({ error: 'Admin password required' });
         return;
       }
 
-      const isAdmin = await bcrypt.compare(password, ADMIN_HASH);
+      // Try token auth first (any portfolio ID works — just checking isAdmin)
+      let isAdmin = false;
+      if (token) {
+        const session = await verifySessionToken(token);
+        isAdmin = session?.isAdmin ?? false;
+      }
+      if (!isAdmin && password) {
+        isAdmin = await bcrypt.compare(password, ADMIN_HASH);
+      }
+
       if (!isAdmin) {
         res.status(401).json({ error: 'Invalid admin password' });
         return;
@@ -616,7 +630,7 @@ export default async function handler(
 
     if (req.method === 'PUT') {
       // Update existing portfolio (or preview classification)
-      const { id, password, holdings: holdingsInput, visibility, viewers, newPassword } = req.body;
+      const { id, password, token, holdings: holdingsInput, visibility, viewers, newPassword } = req.body;
       const isPreview = req.query.preview === 'true';
 
       if (!id || typeof id !== 'string') {
@@ -624,9 +638,9 @@ export default async function handler(
         return;
       }
 
-      // Verify password
-      const isValid = await verifyPortfolioPassword(id, password);
-      if (!isValid) {
+      // Verify authentication (token or password)
+      const { authenticated } = await authenticateRequest(id, token, password);
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
@@ -716,6 +730,11 @@ export default async function handler(
         await updatePortfolioSettings(id, settings);
       }
 
+      // Invalidate all sessions if password was changed
+      if (settings.password_hash) {
+        await deleteSessionsForPortfolio(id);
+      }
+
       // Update viewers if selective visibility
       if (visibility === 'selective' && Array.isArray(viewers)) {
         const validViewers = viewers.filter((v: unknown) => typeof v === 'string').map((v: string) => v.toLowerCase());
@@ -773,16 +792,16 @@ export default async function handler(
 
     if (req.method === 'DELETE') {
       // Delete portfolio
-      const { id, password } = req.body;
+      const { id, password, token } = req.body;
 
       if (!id || typeof id !== 'string') {
         res.status(400).json({ error: 'Portfolio ID is required' });
         return;
       }
 
-      // Verify password
-      const isValid = await verifyPortfolioPassword(id, password);
-      if (!isValid) {
+      // Verify authentication (token or password)
+      const { authenticated } = await authenticateRequest(id, token, password);
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }

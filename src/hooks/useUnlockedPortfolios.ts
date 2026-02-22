@@ -3,8 +3,9 @@ import { useState, useCallback, useEffect } from 'react';
 const STORAGE_KEY = 'unlocked_portfolios';
 
 interface UnlockedEntry {
-  password: string;
+  token: string;
   timestamp: number;
+  expiresAt: string;
 }
 
 export function useUnlockedPortfolios() {
@@ -15,7 +16,16 @@ export function useUnlockedPortfolios() {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        setUnlocked(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        // Clear any legacy entries that have password instead of token
+        const cleaned: Record<string, UnlockedEntry> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          const entry = value as Record<string, unknown>;
+          if (entry.token && typeof entry.token === 'string') {
+            cleaned[key] = entry as unknown as UnlockedEntry;
+          }
+        }
+        setUnlocked(cleaned);
       } catch {
         // Invalid JSON, clear it
         sessionStorage.removeItem(STORAGE_KEY);
@@ -32,10 +42,10 @@ export function useUnlockedPortfolios() {
     }
   }, [unlocked]);
 
-  const unlock = useCallback((portfolioId: string, password: string) => {
+  const unlock = useCallback((portfolioId: string, token: string, expiresAt: string) => {
     setUnlocked((prev) => ({
       ...prev,
-      [portfolioId]: { password, timestamp: Date.now() },
+      [portfolioId]: { token, timestamp: Date.now(), expiresAt },
     }));
   }, []);
 
@@ -46,9 +56,13 @@ export function useUnlockedPortfolios() {
     });
   }, []);
 
-  const getPassword = useCallback(
+  const getToken = useCallback(
     (portfolioId: string): string | null => {
-      return unlocked[portfolioId]?.password ?? null;
+      const entry = unlocked[portfolioId];
+      if (!entry) return null;
+      // Check expiry
+      if (new Date(entry.expiresAt) < new Date()) return null;
+      return entry.token;
     },
     [unlocked]
   );
@@ -60,5 +74,5 @@ export function useUnlockedPortfolios() {
     [unlocked]
   );
 
-  return { unlock, lock, getPassword, isUnlocked };
+  return { unlock, lock, getToken, isUnlocked };
 }

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
@@ -167,6 +168,94 @@ export async function verifyPortfolioPassword(
   if (!portfolio) return false;
 
   return bcrypt.compare(password, portfolio.password_hash);
+}
+
+// Session token functions
+export interface SessionData {
+  portfolioId: string;
+  isAdmin: boolean;
+}
+
+export async function createSession(
+  portfolioId: string,
+  isAdmin: boolean
+): Promise<{ token: string; expiresAt: string }> {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+
+  const { error } = await supabase.from('sessions').insert({
+    token,
+    portfolio_id: portfolioId.toLowerCase(),
+    is_admin: isAdmin,
+    expires_at: expiresAt,
+  });
+
+  if (error) throw error;
+  return { token, expiresAt };
+}
+
+export async function verifySessionToken(token: string): Promise<SessionData | null> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('portfolio_id, is_admin, expires_at')
+    .eq('token', token)
+    .single();
+
+  if (error || !data) return null;
+
+  // Check expiry
+  if (new Date(data.expires_at) < new Date()) {
+    // Clean up expired token
+    await supabase.from('sessions').delete().eq('token', token);
+    return null;
+  }
+
+  return { portfolioId: data.portfolio_id, isAdmin: data.is_admin };
+}
+
+export async function deleteSessionsForPortfolio(portfolioId: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .delete()
+    .eq('portfolio_id', portfolioId.toLowerCase());
+
+  if (error) throw error;
+}
+
+export async function authenticateRequest(
+  portfolioId: string,
+  token?: string | null,
+  password?: string | null
+): Promise<{ authenticated: boolean; isAdmin: boolean }> {
+  // Try token first (fast path)
+  if (token) {
+    const session = await verifySessionToken(token);
+    if (session) {
+      // Token is valid if it's for this portfolio OR it's an admin session
+      if (session.portfolioId === portfolioId.toLowerCase() || session.isAdmin) {
+        return { authenticated: true, isAdmin: session.isAdmin };
+      }
+    }
+  }
+
+  // Fall back to password (slow path — bcrypt)
+  if (password) {
+    const isValid = await verifyPortfolioPassword(portfolioId, password);
+    return { authenticated: isValid, isAdmin: false };
+  }
+
+  return { authenticated: false, isAdmin: false };
+}
+
+export async function deleteExpiredSessions(): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .delete()
+    .lt('expires_at', new Date().toISOString());
+
+  if (error) {
+    console.error('Failed to clean up expired sessions:', error);
+  }
 }
 
 export async function deletePortfolio(id: string): Promise<void> {

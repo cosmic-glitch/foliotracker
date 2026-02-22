@@ -7,11 +7,11 @@ type Visibility = 'public' | 'private' | 'selective';
 
 interface PermissionsModalProps {
   portfolioId: string;
-  password: string;
+  token: string;
   onClose: () => void;
 }
 
-export function PermissionsModal({ portfolioId, password, onClose }: PermissionsModalProps) {
+export function PermissionsModal({ portfolioId, token, onClose }: PermissionsModalProps) {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
   const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
@@ -26,7 +26,7 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
         // Fetch permissions
         const permUrl = new URL(`${API_BASE_URL}/api/permissions`, window.location.origin);
         permUrl.searchParams.set('id', portfolioId);
-        permUrl.searchParams.set('password', password);
+        permUrl.searchParams.set('token', token);
 
         const permResponse = await fetch(permUrl.toString());
         if (!permResponse.ok) {
@@ -52,7 +52,7 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
     }
 
     fetchData();
-  }, [portfolioId, password]);
+  }, [portfolioId, token]);
 
   // Get available portfolios (exclude self and already added viewers)
   const availablePortfolios = allPortfolios.filter(
@@ -72,7 +72,7 @@ export function PermissionsModal({ portfolioId, password, onClose }: Permissions
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password,
+          token,
           visibility,
           viewers,
         }),

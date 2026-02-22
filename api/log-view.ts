@@ -21,7 +21,7 @@ export default async function handler(
   }
 
   try {
-    const { portfolio_id, password, logged_in_as } = req.body;
+    const { portfolio_id, password, token, logged_in_as } = req.body;
 
     if (!portfolio_id) {
       res.status(400).json({ error: 'Portfolio ID is required' });
@@ -40,7 +40,7 @@ export default async function handler(
     const geo = await getGeoFromIP(ip);
 
     await logAnalyticsEvent({
-      event_type: password ? 'login' : 'view',
+      event_type: (password || token) ? 'login' : 'view',
       portfolio_id,
       viewer_id: logged_in_as || undefined,
       ip_address: ip,

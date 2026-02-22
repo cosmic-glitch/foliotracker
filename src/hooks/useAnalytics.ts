@@ -4,23 +4,23 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export function useViewAnalytics(
   portfolioId: string | undefined,
-  password: string | null,
+  token: string | null,
   loggedInAs: string | null
 ) {
   const hasLoggedInitial = useRef(false);
   const currentPortfolioId = useRef(portfolioId);
 
   // Store current values in refs so the callback always has the latest values
-  const passwordRef = useRef(password);
+  const tokenRef = useRef(token);
   const loggedInAsRef = useRef(loggedInAs);
 
   // Keep refs updated
   useEffect(() => {
-    passwordRef.current = password;
+    tokenRef.current = token;
     loggedInAsRef.current = loggedInAs;
-  }, [password, loggedInAs]);
+  }, [token, loggedInAs]);
 
-  // Stable logView function that uses refs for password/loggedInAs
+  // Stable logView function that uses refs for token/loggedInAs
   const logView = useCallback(async () => {
     if (!portfolioId) return;
 
@@ -30,7 +30,7 @@ export function useViewAnalytics(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolio_id: portfolioId,
-          password: passwordRef.current || undefined,
+          token: tokenRef.current || undefined,
           logged_in_as: loggedInAsRef.current || undefined,
         }),
       });

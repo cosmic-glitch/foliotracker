@@ -18,19 +18,20 @@ import { usePortfolioData } from './hooks/usePortfolioData';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
+import { loginToPortfolio } from './lib/auth';
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
   const navigate = useNavigate();
-  const { unlock, getPassword } = useUnlockedPortfolios();
-  const { loggedInAs, login, logout, getPassword: getLoginPassword } = useLoggedInPortfolio();
+  const { unlock, getToken } = useUnlockedPortfolios();
+  const { loggedInAs, login, logout, getToken: getLoginToken } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'holdings' | 'research' | 'news'>('holdings');
 
-  // Get stored password if portfolio was previously unlocked OR if logged in as this portfolio
-  const storedPassword = portfolioId
-    ? (getPassword(portfolioId) || (loggedInAs === portfolioId.toLowerCase() ? getLoginPassword() : null))
+  // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
+  const storedToken = portfolioId
+    ? (getToken(portfolioId) || (loggedInAs === portfolioId.toLowerCase() ? getLoginToken() : null))
     : null;
 
   const {
@@ -43,10 +44,10 @@ function App() {
     chartView,
     setChartView,
     refresh,
-  } = usePortfolioData(portfolioId || '', storedPassword, loggedInAs);
+  } = usePortfolioData(portfolioId || '', storedToken, loggedInAs);
 
   // Analytics hook - logs views on initial load, tab visibility, and manual refresh
-  const { logView } = useViewAnalytics(portfolioId, storedPassword, loggedInAs);
+  const { logView } = useViewAnalytics(portfolioId, storedToken, loggedInAs);
 
   const handleRefresh = () => {
     logView();
@@ -56,31 +57,20 @@ function App() {
   const handleUnlock = async (password: string) => {
     if (!portfolioId) return;
 
-    // Verify password by trying to fetch with it
-    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-    const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
-    url.searchParams.set('id', portfolioId);
-    url.searchParams.set('password', password);
+    // Verify password via login endpoint — get token back
+    const result = await loginToPortfolio(portfolioId, password);
 
-    const response = await fetch(url.toString());
-    if (response.status === 401) {
-      throw new Error('Invalid password');
-    }
-    if (!response.ok) {
-      throw new Error('Failed to verify password');
-    }
-
-    // Password is valid, store it and the hook will refetch
-    unlock(portfolioId, password);
-    login(portfolioId, password);
+    // Token received, store it and the hook will refetch
+    unlock(portfolioId, result.token, result.expiresAt);
+    login(portfolioId, result.token, result.expiresAt);
   };
 
   const handleEdit = () => {
     if (!portfolioId) return;
 
-    // If we already have a stored password, go directly to edit
-    if (storedPassword) {
-      navigate(`/${portfolioId}/edit`, { state: { password: storedPassword } });
+    // If we already have a stored token, go directly to edit
+    if (storedToken) {
+      navigate(`/${portfolioId}/edit`, { state: { token: storedToken } });
     } else {
       // Show password modal
       setShowEditModal(true);
@@ -90,20 +80,11 @@ function App() {
   const handleEditVerify = async (password: string) => {
     if (!portfolioId) return;
 
-    // Verify password
-    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-    const response = await fetch(`${API_BASE_URL}/api/portfolios`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: portfolioId, password, holdings: '' }),
-    });
+    // Verify password via login endpoint — get token back
+    const result = await loginToPortfolio(portfolioId, password);
 
-    if (response.status === 401) {
-      throw new Error('Invalid password');
-    }
-
-    // Password verified, navigate to edit page
-    navigate(`/${portfolioId}/edit`, { state: { password } });
+    // Token received, navigate to edit page
+    navigate(`/${portfolioId}/edit`, { state: { token: result.token } });
   };
 
   const handlePermissions = () => {
@@ -268,7 +249,7 @@ function App() {
       {showPermissionsModal && portfolioId && loggedInAs === portfolioId.toLowerCase() && (
         <PermissionsModal
           portfolioId={portfolioId}
-          password={getLoginPassword() || ''}
+          token={getLoginToken() || ''}
           onClose={() => setShowPermissionsModal(false)}
         />
       )}

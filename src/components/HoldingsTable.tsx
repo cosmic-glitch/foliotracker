@@ -10,7 +10,7 @@ interface HoldingsTableProps {
 
 function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
   if (value === 0) {
-    return <span className="text-text-secondary">--</span>;
+    return <div className="h-10" />;
   }
 
   const isPositive = value >= 0;
@@ -105,10 +105,14 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
                   </td>
                   <td className="text-right px-4 py-2">
-                    <ChangeIndicator
-                      value={holding.dayChange}
-                      percent={holding.dayChangePercent}
-                    />
+                    {!holding.isStatic ? (
+                      <ChangeIndicator
+                        value={holding.dayChange}
+                        percent={holding.dayChangePercent}
+                      />
+                    ) : (
+                      <div className="h-10" />
+                    )}
                   </td>
                 </tr>
               );
@@ -133,12 +137,10 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {holding.dayChange !== 0 ? (
+                  {!holding.isStatic && holding.dayChange !== 0 && (
                     <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
                       {formatChange(holding.dayChange, true)} ({formatPercent(holding.dayChangePercent)})
                     </span>
-                  ) : (
-                    <span className="text-sm text-text-secondary">--</span>
                   )}
                   <span className="font-semibold text-text-primary">
                     {formatCurrency(holding.value, true)}

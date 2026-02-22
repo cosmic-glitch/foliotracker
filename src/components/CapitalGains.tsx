@@ -24,7 +24,7 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
       <div className="px-4 py-3 border-b border-border">
-        <h2 className="text-lg font-semibold text-text-primary">Capital Gains</h2>
+        <h2 className="text-lg font-semibold text-text-primary">Unrealized Gains</h2>
       </div>
 
       {/* Desktop Table */}

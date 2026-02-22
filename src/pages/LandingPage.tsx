@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, Globe } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, Globe, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -184,134 +184,154 @@ export function LandingPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8">
-        {/* Intro */}
-        <div className="mb-8">
-          <ul className="text-text-secondary text-sm space-y-1">
-            <li>• Pick a user ID — no email or real name needed</li>
-            <li>• Enter your current holdings — no transaction history or brokerage connection needed</li>
-            <li>• Mark your portfolio as public, private, or invite-only for select friends</li>
-          </ul>
-        </div>
-
         {error && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 text-accent text-sm mb-6">
             {error.message || 'Could not load portfolios'}
           </div>
         )}
 
-        {/* Portfolios List */}
-        <div className="bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <Users className="w-5 h-5 text-text-secondary" />
-            <h3 className="text-lg font-semibold text-text-primary">
-              Users
-            </h3>
-          </div>
+        <div className="md:flex md:gap-6">
+          {/* Left column: Users table + Create button */}
+          <div className="md:flex-1 min-w-0">
+            {/* Portfolios List */}
+            <div className="bg-card rounded-2xl border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h3 className="text-lg font-semibold text-text-primary">
+                  Users
+                </h3>
+              </div>
 
-          {isLoading ? (
-            <div className="p-8 text-center text-text-secondary">
-              Loading portfolios...
-            </div>
-          ) : data?.portfolios.length === 0 ? (
-            <div className="p-8 text-center text-text-secondary">
-              No portfolios yet. Be the first to create one!
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {data?.portfolios.map((portfolio) => {
-                const values = getPortfolioValues(portfolio);
-                const shouldBlurValues = portfolio.visibility !== 'public' && values.totalValue === null;
-                const isPositive = (values.dayChange ?? 0) >= 0;
-                const changeColor = isPositive ? 'text-positive' : 'text-negative';
-                const sign = isPositive ? '+' : '';
+              {isLoading ? (
+                <div className="p-8 text-center text-text-secondary">
+                  Loading portfolios...
+                </div>
+              ) : data?.portfolios.length === 0 ? (
+                <div className="p-8 text-center text-text-secondary">
+                  No portfolios yet. Be the first to create one!
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {data?.portfolios.map((portfolio) => {
+                    const values = getPortfolioValues(portfolio);
+                    const shouldBlurValues = portfolio.visibility !== 'public' && values.totalValue === null;
+                    const isPositive = (values.dayChange ?? 0) >= 0;
+                    const changeColor = isPositive ? 'text-positive' : 'text-negative';
+                    const sign = isPositive ? '+' : '';
 
-                return (
-                  <div
-                    key={portfolio.id}
-                    className="flex flex-col gap-1 px-4 py-2 sm:py-4 hover:bg-card-hover transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-text-primary flex items-center gap-2">
-                          {portfolio.id.toUpperCase()}
+                    return (
+                      <div
+                        key={portfolio.id}
+                        className="flex items-center gap-3 px-4 py-2 sm:py-3 hover:bg-card-hover transition-colors"
+                      >
+                        {/* Left: Username + visibility tag */}
+                        <div className="min-w-0 shrink-0">
+                          <p className="font-medium text-text-primary">
+                            {portfolio.id.toUpperCase()}
+                          </p>
                           {portfolio.visibility === 'public' && (
-                            <span className="flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full mt-0.5">
                               <Globe className="w-3 h-3" />
                               Public
                             </span>
                           )}
                           {portfolio.visibility === 'private' && (
-                            <span className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5">
                               <Lock className="w-3 h-3" />
                               Private
                             </span>
                           )}
                           {portfolio.visibility === 'selective' && (
-                            <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full mt-0.5">
                               <Users className="w-3 h-3" />
                               By Invite
                             </span>
                           )}
-                        </p>
-                        {shouldBlurValues ? (
-                          <div className="flex items-start gap-3 text-right">
-                            <span className="text-sm text-positive blur-sm select-none">
-                              +$X.Xk (+X.XX%)
-                            </span>
-                            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-                              $X,XXX,XXX
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-start gap-3 text-right">
-                            <span className={`text-sm ${changeColor}`}>
-                              {sign}{formatCompactValue(Math.abs(values.dayChange ?? 0))} ({sign}{(values.dayChangePercent ?? 0).toFixed(2)}%)
-                            </span>
-                            <span className="text-lg font-semibold text-text-primary">
-                              ${(values.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {(portfolio.visibility === 'public' ||
-                        loggedInAs === portfolio.id.toLowerCase() ||
-                        (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
-                        <Link
-                          to={`/${portfolio.id}`}
-                          className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
-                        >
-                          View →
-                        </Link>
-                      )}
-                      {loggedInAs !== portfolio.id.toLowerCase() && (
-                        <button
-                          onClick={() => setLoginTarget(portfolio)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                        >
-                          <LogIn className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Login</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                        </div>
 
-        {/* Create Button */}
-        {data?.canCreate && (
-          <Link
-            to="/create"
-            className="flex items-center justify-center gap-2 w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 px-4 rounded-xl transition-colors mt-6"
-          >
-            <Plus className="w-5 h-5" />
-            Add Your Portfolio
-          </Link>
-        )}
+                        {/* Middle: Value + day change */}
+                        <div className="flex-1 min-w-0 text-right">
+                          {shouldBlurValues ? (
+                            <div>
+                              <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+                                $X,XXX,XXX
+                              </span>
+                              <p className="text-sm text-positive blur-sm select-none">
+                                +$X.Xk (+X.XX%)
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="text-lg font-semibold text-text-primary">
+                                ${(values.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
+                              <p className={`text-sm ${changeColor}`}>
+                                {sign}{formatCompactValue(Math.abs(values.dayChange ?? 0))} ({sign}{(values.dayChangePercent ?? 0).toFixed(2)}%)
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right: Action buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {(portfolio.visibility === 'public' ||
+                            loggedInAs === portfolio.id.toLowerCase() ||
+                            (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
+                            <Link
+                              to={`/${portfolio.id}`}
+                              className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
+                            >
+                              View →
+                            </Link>
+                          )}
+                          {!loggedInAs && (
+                            <button
+                              onClick={() => setLoginTarget(portfolio)}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+                            >
+                              <LogIn className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Login</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Create Button */}
+            {data?.canCreate && (
+              <Link
+                to="/create"
+                className="flex items-center justify-center gap-2 w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 px-4 rounded-xl transition-colors mt-6"
+              >
+                <Plus className="w-5 h-5" />
+                Add Your Portfolio
+              </Link>
+            )}
+          </div>
+
+          {/* Right column: Intro blurb */}
+          <div className="mt-6 md:mt-0 md:w-64 md:shrink-0">
+            <p className="text-text-secondary text-sm font-medium mb-3">A privacy-first social portfolio tracker.</p>
+            <ul className="text-text-secondary text-sm space-y-4">
+              <li className="flex items-start gap-3">
+                <UserPlus className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                <span>Pick a user ID and password. No email or real name needed.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Briefcase className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                <span>Enter your current holdings. No transaction history or brokerage link needed.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                <span>Choose who sees your portfolio: public, private, or invite-only.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </main>
 
       {/* Login Modal */}

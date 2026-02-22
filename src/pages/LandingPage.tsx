@@ -282,7 +282,7 @@ export function LandingPage() {
                               className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">View</span>
+                              View
                             </Link>
                           )}
                           {!loggedInAs && (
@@ -291,7 +291,7 @@ export function LandingPage() {
                               className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
                             >
                               <LogIn className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Login</span>
+                              Login
                             </button>
                           )}
                         </div>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, Globe, UserPlus, Briefcase, Shield } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, Eye, Globe, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -163,11 +163,11 @@ export function LandingPage() {
               <div className="p-2 bg-accent/10 rounded-lg">
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
-              <h1 className="text-xl font-semibold text-text-primary">
+              <h1 className="text-xl font-semibold text-text-primary whitespace-nowrap">
                 Folio Tracker
               </h1>
             </button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 md:gap-3">
               {loggedInAs && (
                 <UserMenu
                   loggedInAs={loggedInAs}
@@ -273,15 +273,16 @@ export function LandingPage() {
                         </div>
 
                         {/* Right: Action buttons */}
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex flex-col items-end gap-0.5 shrink-0">
                           {(portfolio.visibility === 'public' ||
                             loggedInAs === portfolio.id.toLowerCase() ||
                             (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
                             <Link
                               to={`/${portfolio.id}`}
-                              className="text-accent hover:text-accent/80 px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
+                              className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
                             >
-                              View →
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">View</span>
                             </Link>
                           )}
                           {!loggedInAs && (

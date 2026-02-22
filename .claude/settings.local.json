@@ -78,7 +78,16 @@
       "Bash(git -C /Users/anuragved/code/foliotracker push origin main)",
       "Bash(env)",
       "Bash(launchctl list:*)",
-      "mcp__plugin_playwright_playwright__browser_resize"
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "Bash(git -C /Users/anuragved/code/foliotracker status)",
+      "Bash(git -C /Users/anuragved/code/foliotracker diff CLAUDE.md)",
+      "Bash(git -C /Users/anuragved/code/foliotracker log --oneline -5)",
+      "Bash(git -C /Users/anuragved/code/foliotracker push)",
+      "Bash(git -C /Users/anuragved/code/foliotracker log --oneline -3)",
+      "Bash(git -C /Users/anuragved/code/foliotracker diff src/App.tsx)",
+      "Bash(git -C /Users/anuragved/code/foliotracker diff)",
+      "Bash(git -C /Users/anuragved/code/foliotracker add src/components/UserMenu.tsx src/components/Header.tsx src/pages/LandingPage.tsx src/App.tsx src/index.css)",
+      "Bash(git -C:*)"
     ]
   }
 }

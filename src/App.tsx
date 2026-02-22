@@ -6,6 +6,7 @@ import {
   PerformanceChart,
   HoldingsTable,
   HoldingsByType,
+  CapitalGains,
   NewsSection,
   Footer,
   LoadingSkeleton,
@@ -208,11 +209,12 @@ function App() {
 
             {/* Tab Content */}
             {activeTab === 'holdings' && (
-              <div className="flex flex-col lg:flex-row gap-3 lg:gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-6">
                 <div className="flex-1 min-w-0">
                   <HoldingsTable holdings={data.holdings} />
                 </div>
-                <div className="lg:w-72 lg:shrink-0">
+                <div className="flex flex-col gap-3 lg:gap-6 lg:w-72 lg:shrink-0">
+                  <CapitalGains holdings={data.holdings} />
                   <HoldingsByType holdings={data.holdings} />
                 </div>
               </div>

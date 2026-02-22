@@ -43,22 +43,6 @@ function AllocationBar({ percent, maxPercent, compact }: { percent: number; maxP
   );
 }
 
-function ProfitIndicator({ value, percent }: { value: number | null; percent: number | null }) {
-  if (value === null || percent === null) {
-    return <span className="text-text-secondary">--</span>;
-  }
-
-  const isPositive = value >= 0;
-  const color = isPositive ? 'text-positive' : 'text-negative';
-
-  return (
-    <div className={`flex flex-col items-end ${color}`}>
-      <span className="font-medium">{formatChange(value, true)}</span>
-      <span className="text-sm opacity-75">{isPositive ? '+' : ''}{percent.toFixed(1)}%</span>
-    </div>
-  );
-}
-
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
@@ -70,7 +54,6 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setPopover({ ticker, top: rect.bottom + 4, left: rect.left });
   };
-  const hasAnyGainLoss = consolidatedHoldings.some((h) => h.profitLoss != null);
   const hasAnyFundamentals = consolidatedHoldings.some(
     (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
   );
@@ -88,11 +71,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Value
               </th>
-              {hasAnyGainLoss && (
-                <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                  Gain/Loss
-                </th>
-              )}
+
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
               </th>
@@ -121,11 +100,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       {formatCurrency(holding.value, true)}
                     </span>
                   </td>
-                  {hasAnyGainLoss && (
-                    <td className="text-right px-4 py-2">
-                      <ProfitIndicator value={holding.profitLoss} percent={holding.profitLossPercent} />
-                    </td>
-                  )}
+
                   <td className="px-4 py-2">
                     <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
                   </td>
@@ -174,15 +149,6 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <div className="flex-1 min-w-0">
                   <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} compact />
                 </div>
-                {hasAnyGainLoss && (
-                  holding.profitLoss != null && holding.profitLossPercent != null ? (
-                    <span className={`text-xs whitespace-nowrap ${holding.profitLoss >= 0 ? 'text-positive' : 'text-negative'}`}>
-                      {formatChange(holding.profitLoss, true)} ({holding.profitLoss >= 0 ? '+' : ''}{holding.profitLossPercent.toFixed(1)}%)
-                    </span>
-                  ) : (
-                    <span className="text-xs text-text-secondary">--</span>
-                  )
-                )}
               </div>
             </div>
           );
@@ -236,7 +202,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               )}
               {popoverHolding.pctTo52WeekHigh != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">From 52-Wk High</span>
+                  <span className="text-text-secondary">% to 52-Wk High</span>
                   <span className={`font-medium ${popoverHolding.pctTo52WeekHigh > 0 ? 'text-negative' : 'text-positive'}`}>{formatPctTo52WeekHigh(popoverHolding.pctTo52WeekHigh)}</span>
                 </div>
               )}

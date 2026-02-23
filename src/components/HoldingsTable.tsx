@@ -140,20 +140,22 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           return (
             <div key={holding.ticker} className="px-3 py-2">
               <div className="flex justify-between items-center mb-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-semibold text-text-primary">{holding.ticker}</p>
-                  {holdingHasFundamentals && (
-                    <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors">
-                      <Info className="w-3.5 h-3.5" />
-                    </button>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-text-primary">{holding.ticker}</p>
+                    {holdingHasFundamentals && (
+                      <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors">
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {!holding.isStatic && (
+                    <p className="text-xs text-text-secondary">
+                      {formatPrice(holding.currentPrice)}
+                    </p>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {!holding.isStatic && (
-                    <span className="text-sm text-text-secondary">
-                      {formatPrice(holding.currentPrice)}
-                    </span>
-                  )}
                   {!holding.isStatic && holding.dayChange !== 0 && (
                     <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
                       {formatChange(holding.dayChange, true)} ({formatPercent(holding.dayChangePercent)})

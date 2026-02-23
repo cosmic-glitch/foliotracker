@@ -83,7 +83,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <div className={`flex flex-col items-end ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
                         <span className="font-medium">{formatPrice(holding.currentPrice)}</span>
                         {holding.dayChangePercent !== 0 && (
-                          <span className="text-sm opacity-75">{formatPercent(holding.dayChangePercent)}</span>
+                          <span className="text-sm opacity-75">({formatPercent(holding.dayChangePercent)})</span>
                         )}
                       </div>
                     ) : (
@@ -130,7 +130,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </div>
                   {!holding.isStatic && (
                     <p className={`text-xs ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
-                      {formatPrice(holding.currentPrice)} {holding.dayChangePercent !== 0 && formatPercent(holding.dayChangePercent)}
+                      {formatPrice(holding.currentPrice)} {holding.dayChangePercent !== 0 && `(${formatPercent(holding.dayChangePercent)})`}
                     </p>
                   )}
                 </div>

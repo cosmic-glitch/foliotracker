@@ -91,7 +91,7 @@ export function formatPctTo52WeekHigh(value: number | null): string {
   if (value === null || value === undefined) return '--';
   if (value === 0) return '0.0%';
   // Value is ((high - price) / price) * 100, so positive means below the high
-  return `-${value.toFixed(1)}%`;
+  return `${value.toFixed(1)}%`;
 }
 
 export function formatRelativeTime(input: Date | string): string {

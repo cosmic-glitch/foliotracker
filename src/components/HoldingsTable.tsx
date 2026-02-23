@@ -204,8 +204,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               )}
               {popoverHolding.pctTo52WeekHigh != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">% to 52-Wk High</span>
-                  <span className={`font-medium ${popoverHolding.pctTo52WeekHigh > 0 ? 'text-negative' : 'text-positive'}`}>{formatPctTo52WeekHigh(popoverHolding.pctTo52WeekHigh)}</span>
+                  <span className="text-text-secondary">% to 52wk high</span>
+                  <span className="font-medium text-text-primary">{formatPctTo52WeekHigh(popoverHolding.pctTo52WeekHigh)}</span>
                 </div>
               )}
             </div>

@@ -8,22 +8,6 @@ interface HoldingsTableProps {
   holdings: Holding[];
 }
 
-function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
-  if (value === 0) {
-    return <div className="h-10" />;
-  }
-
-  const isPositive = value >= 0;
-  const color = isPositive ? 'text-positive' : 'text-negative';
-
-  return (
-    <div className={`flex flex-col items-end ${color}`}>
-      <span className="font-medium">{formatChange(value, true)}</span>
-      <span className="text-sm opacity-75">{formatPercent(percent)}</span>
-    </div>
-  );
-}
-
 function AllocationBar({ percent, maxPercent, compact }: { percent: number; maxPercent: number; compact?: boolean }) {
   // Scale the bar relative to the max allocation so the largest fills the bar
   const scaledWidth = maxPercent > 0 ? (percent / maxPercent) * 100 : 0;
@@ -74,12 +58,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Value
               </th>
-
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation
-              </th>
-              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Day Change
               </th>
             </tr>
           </thead>
@@ -100,31 +80,30 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </td>
                   <td className="text-right px-4 py-2">
                     {!holding.isStatic ? (
-                      <span className="text-text-secondary">
-                        {formatPrice(holding.currentPrice)}
-                      </span>
+                      <div className={`flex flex-col items-end ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        <span className="font-medium">{formatPrice(holding.currentPrice)}</span>
+                        {holding.dayChangePercent !== 0 && (
+                          <span className="text-sm opacity-75">{formatPercent(holding.dayChangePercent)}</span>
+                        )}
+                      </div>
                     ) : (
                       <span />
                     )}
                   </td>
                   <td className="text-right px-4 py-2">
-                    <span className="font-semibold text-text-primary">
-                      {formatCurrency(holding.value, true)}
-                    </span>
+                    <div className="flex flex-col items-end">
+                      <span className="font-semibold text-text-primary">
+                        {formatCurrency(holding.value, true)}
+                      </span>
+                      {!holding.isStatic && holding.dayChange !== 0 && (
+                        <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                          ({formatChange(holding.dayChange, true)})
+                        </span>
+                      )}
+                    </div>
                   </td>
-
                   <td className="px-4 py-2">
                     <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
-                  </td>
-                  <td className="text-right px-4 py-2">
-                    {!holding.isStatic ? (
-                      <ChangeIndicator
-                        value={holding.dayChange}
-                        percent={holding.dayChangePercent}
-                      />
-                    ) : (
-                      <div className="h-10" />
-                    )}
                   </td>
                 </tr>
               );
@@ -150,20 +129,20 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     )}
                   </div>
                   {!holding.isStatic && (
-                    <p className="text-xs text-text-secondary">
-                      {formatPrice(holding.currentPrice)}
+                    <p className={`text-xs ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      {formatPrice(holding.currentPrice)} {holding.dayChangePercent !== 0 && formatPercent(holding.dayChangePercent)}
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {!holding.isStatic && holding.dayChange !== 0 && (
-                    <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
-                      {formatChange(holding.dayChange, true)} ({formatPercent(holding.dayChangePercent)})
-                    </span>
-                  )}
+                <div className="text-right">
                   <span className="font-semibold text-text-primary">
                     {formatCurrency(holding.value, true)}
                   </span>
+                  {!holding.isStatic && holding.dayChange !== 0 && (
+                    <p className={`text-xs ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      ({formatChange(holding.dayChange, true)})
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-between items-center gap-3">

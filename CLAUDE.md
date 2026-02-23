@@ -135,6 +135,16 @@ source .env.local && npx tsx scripts/generate-research.ts --all
 - Prompt is defined in `api/_lib/prompts.ts` (shared between script and API)
 - Reports are stored in `portfolios.deep_research` column
 
+## Password Reset
+
+Reset a forgotten portfolio password from the CLI:
+
+```bash
+source .env.local && npx tsx scripts/reset-password.ts <portfolio_id> <new_password>
+```
+
+This hashes the new password with bcrypt, updates the database, and invalidates all existing sessions for that portfolio.
+
 ## Workflow
 
 - **Preview-first deployment**: Always deploy to preview URL first, never directly to production

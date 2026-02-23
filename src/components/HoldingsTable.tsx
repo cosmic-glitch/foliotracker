@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
 import { Info } from 'lucide-react';
-import { formatCurrency, formatChange, formatPercent, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
+import { formatCurrency, formatChange, formatPercent, formatPrice, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
 interface HoldingsTableProps {
@@ -69,6 +69,9 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 Asset
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                Price
+              </th>
+              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Value
               </th>
 
@@ -94,6 +97,15 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td className="text-right px-4 py-2">
+                    {!holding.isStatic ? (
+                      <span className="text-text-secondary">
+                        {formatPrice(holding.currentPrice)}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
                   </td>
                   <td className="text-right px-4 py-2">
                     <span className="font-semibold text-text-primary">
@@ -137,6 +149,11 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
+                  {!holding.isStatic && (
+                    <span className="text-sm text-text-secondary">
+                      {formatPrice(holding.currentPrice)}
+                    </span>
+                  )}
                   {!holding.isStatic && holding.dayChange !== 0 && (
                     <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
                       {formatChange(holding.dayChange, true)} ({formatPercent(holding.dayChangePercent)})

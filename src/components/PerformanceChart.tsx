@@ -140,9 +140,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-3 pt-3 pb-1 sm:p-6 border border-border">
         {renderToggle()}
-        <div className="h-64 md:h-72 flex items-center justify-center">
+        <div className="h-48 md:h-72 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
             <span className="text-text-secondary text-sm">Loading chart data...</span>
@@ -154,9 +154,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-3 pt-3 pb-1 sm:p-6 border border-border">
         {renderToggle()}
-        <div className="h-64 flex items-center justify-center text-text-secondary">
+        <div className="h-48 flex items-center justify-center text-text-secondary">
           No data available
         </div>
       </div>

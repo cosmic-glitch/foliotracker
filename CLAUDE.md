@@ -145,7 +145,8 @@ source .env.local && bash scripts/backup-db.sh
 
 - Dumps roles, schema, and data to `backups/<date>/`
 - 30-day retention (auto-cleans old backups)
-- Run manually, roughly weekly
+- **Automated via launchd**: `com.foliotracker.backup` agent runs every 3 days (plist at `~/Library/LaunchAgents/com.foliotracker.backup.plist`)
+- Logs to `backups/backup.log`
 
 ## Password Reset
 

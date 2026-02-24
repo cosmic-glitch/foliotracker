@@ -137,7 +137,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden h-full">
       <div className="px-4 py-3 border-b border-border">
-        <h2 className="text-lg font-semibold text-text-primary">By Type</h2>
+        <h2 className="text-lg font-semibold text-text-primary">By Asset Class</h2>
       </div>
 
       <div className="p-3 space-y-3">

@@ -3,6 +3,7 @@ export { TotalValue } from './TotalValue';
 export { PerformanceChart } from './PerformanceChart';
 export { HoldingsTable } from './HoldingsTable';
 export { HoldingsByType } from './HoldingsByType';
+export { AllocationView } from './AllocationView';
 export { CapitalGains } from './CapitalGains';
 export { NewsSection } from './NewsSection';
 export { Footer } from './Footer';

@@ -5,7 +5,7 @@ import {
   TotalValue,
   PerformanceChart,
   HoldingsTable,
-  HoldingsByType,
+  AllocationView,
   CapitalGains,
   NewsSection,
   Footer,
@@ -27,7 +27,7 @@ function App() {
   const { loggedInAs, login, logout, getToken: getLoginToken } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'research' | 'news'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'research' | 'news'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId
@@ -163,6 +163,16 @@ function App() {
                 >
                   Holdings
                 </button>
+                <button
+                  onClick={() => setActiveTab('allocation')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'allocation'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                  }`}
+                >
+                  Alloc %
+                </button>
                 {data.deepResearch && (
                   <button
                     onClick={() => setActiveTab('research')}
@@ -172,7 +182,7 @@ function App() {
                         : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                     }`}
                   >
-                    AI Research
+                    Research
                   </button>
                 )}
                 <button
@@ -190,15 +200,14 @@ function App() {
 
             {/* Tab Content */}
             {activeTab === 'holdings' && (
-              <div className="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-6">
-                <div className="flex-1 min-w-0">
-                  <HoldingsTable holdings={data.holdings} />
-                </div>
-                <div className="flex flex-col gap-3 lg:gap-6 lg:w-72 lg:shrink-0">
-                  <CapitalGains holdings={data.holdings} />
-                  <HoldingsByType holdings={data.holdings} />
-                </div>
+              <div className="space-y-3 md:space-y-6">
+                <HoldingsTable holdings={data.holdings} />
+                <CapitalGains holdings={data.holdings} />
               </div>
+            )}
+
+            {activeTab === 'allocation' && (
+              <AllocationView holdings={data.holdings} />
             )}
 
             {activeTab === 'research' && data.deepResearch && (

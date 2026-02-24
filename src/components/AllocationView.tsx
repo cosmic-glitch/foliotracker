@@ -10,7 +10,10 @@ interface AllocationViewProps {
 
 export function AllocationView({ holdings }: AllocationViewProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
-  const maxAllocation = Math.max(...consolidatedHoldings.map((h) => h.allocation));
+  // Sort purely by value for allocation view (no static/non-static grouping)
+  const byValue = useMemo(() => [...consolidatedHoldings].sort((a, b) => b.value - a.value), [consolidatedHoldings]);
+  const maxAllocation = Math.max(...byValue.map((h) => h.allocation));
+  const maxTickerLength = Math.max(...byValue.map((h) => h.ticker.length));
 
   return (
     <div className="space-y-3 md:space-y-6">
@@ -19,9 +22,9 @@ export function AllocationView({ holdings }: AllocationViewProps) {
           <h2 className="text-lg font-semibold text-text-primary">By Holding</h2>
         </div>
         <div className="p-3 space-y-2">
-          {consolidatedHoldings.map((holding) => (
+          {byValue.map((holding) => (
             <div key={holding.ticker} className="flex items-center gap-3 px-1">
-              <span className="font-medium text-text-primary text-sm w-16 shrink-0">{holding.ticker}</span>
+              <span className="font-medium text-text-primary text-sm shrink-0 whitespace-nowrap" style={{ minWidth: `${maxTickerLength}ch` }}>{holding.ticker}</span>
               <div className="flex-1 min-w-0">
                 <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
               </div>

@@ -10,6 +10,7 @@ interface HoldingsTableProps {
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
+  const maxTickerLength = useMemo(() => Math.max(...consolidatedHoldings.map((h) => h.ticker.length)), [consolidatedHoldings]);
   const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
   const popoverHolding = popover ? consolidatedHoldings.find(h => h.ticker === popover.ticker) : null;
 
@@ -94,7 +95,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             <div key={holding.ticker} className="px-3 py-2">
               <div className="flex items-center gap-2">
                 {/* Left: ticker + info */}
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0" style={{ minWidth: `${maxTickerLength + 2}ch` }}>
                   <p className="font-semibold text-text-primary">{holding.ticker}</p>
                   {holdingHasFundamentals && (
                     <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors">
@@ -114,7 +115,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   <div className="flex-1" />
                 )}
                 {/* Right: value + $ change */}
-                <div className="text-left shrink-0">
+                <div className="text-right shrink-0">
                   <span className="font-semibold text-text-primary">{formatCurrency(holding.value, true)}</span>
                   {!holding.isStatic && holding.dayChange !== 0 && (
                     <span className={`text-xs ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>{formatChange(holding.dayChange, true)}</span>

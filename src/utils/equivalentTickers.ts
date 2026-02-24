@@ -52,8 +52,11 @@ export function consolidateHoldings(holdings: Holding[]): Holding[] {
     result.push(mergeHoldings(groupHoldings, group));
   }
 
-  // Re-sort by value descending to maintain expected order after merging
-  return result.sort((a, b) => b.value - a.value);
+  // Non-static holdings first, then static; within each group sort by value descending
+  return result.sort((a, b) => {
+    if (a.isStatic !== b.isStatic) return a.isStatic ? 1 : -1;
+    return b.value - a.value;
+  });
 }
 
 /**

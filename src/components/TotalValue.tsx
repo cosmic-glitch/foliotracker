@@ -21,10 +21,9 @@ export function TotalValue({ totalValue, dayChange, dayChangePercent, totalGain,
   const gainBgColor = gainIsPositive ? 'bg-positive/10' : 'bg-negative/10';
 
   return (
-    <div className="bg-card rounded-2xl px-2.5 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 border border-border">
+    <div className="bg-card rounded-2xl px-2.5 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4 border border-border">
       <div className="flex flex-row items-stretch justify-between gap-2 md:gap-4">
-        <div className="min-w-0 flex-shrink">
-          <p className="text-text-secondary text-sm font-medium mb-1">Portfolio Value</p>
+        <div className="min-w-0 flex-shrink flex items-center">
           <p className="text-2xl md:text-5xl font-bold text-text-primary tracking-tight">
             {formatCurrency(totalValue)}
           </p>

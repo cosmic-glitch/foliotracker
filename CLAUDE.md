@@ -160,9 +160,9 @@ This hashes the new password with bcrypt, updates the database, and invalidates 
 
 ## Workflow
 
-- **Preview-first deployment**: Always deploy to preview URL first, never directly to production
-  1. Make changes and run `npm run build` to verify no errors
-  2. Deploy to preview: `vercel` (without --prod)
-  3. Provide preview URL to user and **wait for user guidance** before proceeding
-  4. Only after approval: `vercel --prod` to deploy to production
+- **Build-only by default**: After making changes, run `npm run build` to verify no errors. Do **not** auto-deploy to Vercel preview — only deploy when the user explicitly asks.
+- **Preview-first deployment**: When deploying, always deploy to preview URL first, never directly to production
+  1. Deploy to preview: `vercel` (without --prod)
+  2. Provide preview URL to user and **wait for user guidance** before proceeding
+  3. Only after approval: `vercel --prod` to deploy to production
   - **Build costs:** Vercel is configured with Standard build machine + on-demand concurrency disabled = $0/minute.

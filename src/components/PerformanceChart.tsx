@@ -208,10 +208,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl p-3 sm:p-6 border border-border">
+    <div className="bg-card rounded-2xl px-3 pt-3 pb-1 sm:p-6 border border-border">
       <div className="relative">
         {renderToggle(true)}
-        <div className="h-64 md:h-72">
+        <div className="h-48 md:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
@@ -238,7 +238,15 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value) => formatCurrency(value, true)}
+                tickFormatter={(value) => {
+                  if (Math.abs(value) >= 1_000_000) {
+                    return `$${(value / 1_000_000).toFixed(2)}M`;
+                  }
+                  if (Math.abs(value) >= 1_000) {
+                    return `$${(value / 1_000).toFixed(1)}k`;
+                  }
+                  return `$${value.toFixed(0)}`;
+                }}
                 width={58}
               />
               <Tooltip content={<CustomTooltip />} />

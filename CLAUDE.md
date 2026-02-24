@@ -135,6 +135,18 @@ source .env.local && npx tsx scripts/generate-research.ts --all
 - Prompt is defined in `api/_lib/prompts.ts` (shared between script and API)
 - Reports are stored in `portfolios.deep_research` column
 
+## Database Backups
+
+Local backup script using `pg_dump` against the Supabase DB.
+
+```bash
+source .env.local && bash scripts/backup-db.sh
+```
+
+- Dumps roles, schema, and data to `backups/<date>/`
+- 30-day retention (auto-cleans old backups)
+- Run manually, roughly weekly
+
 ## Password Reset
 
 Reset a forgotten portfolio password from the CLI:

@@ -1,18 +1,17 @@
-export function AllocationBar({ percent, maxPercent, compact }: { percent: number; maxPercent: number; compact?: boolean }) {
+export function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: number }) {
   // Scale the bar relative to the max allocation so the largest fills the bar
   const scaledWidth = maxPercent > 0 ? (percent / maxPercent) * 100 : 0;
 
   return (
     <div className="flex items-center gap-3">
-      <div className={`flex-1 ${compact ? 'h-2' : 'h-3'} bg-background rounded-full overflow-hidden`}>
+      <div className="flex-1">
         <div
-          className="h-full bg-accent rounded-full transition-all duration-500"
-          style={{ width: `${scaledWidth}%` }}
-        />
+          className="h-5 bg-accent/80 rounded transition-all duration-500 flex items-center justify-end px-1.5"
+          style={{ width: `${scaledWidth}%`, minWidth: 'fit-content' }}
+        >
+          <span className="text-xs font-medium text-white/90">{percent.toFixed(1)}%</span>
+        </div>
       </div>
-      <span className="text-text-secondary text-sm w-14 text-right">
-        {percent.toFixed(1)}%
-      </span>
     </div>
   );
 }

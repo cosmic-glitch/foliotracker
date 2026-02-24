@@ -23,7 +23,7 @@ export function AllocationView({ holdings }: AllocationViewProps) {
             <div key={holding.ticker} className="flex items-center gap-3 px-1">
               <span className="font-medium text-text-primary text-sm w-16 shrink-0">{holding.ticker}</span>
               <div className="flex-1 min-w-0">
-                <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} compact />
+                <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
               </div>
             </div>
           ))}

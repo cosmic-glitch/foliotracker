@@ -53,10 +53,10 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 Asset
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Price
+                Unit Price
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Value
+                Holding Size
               </th>
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2 w-72">
                 Allocation

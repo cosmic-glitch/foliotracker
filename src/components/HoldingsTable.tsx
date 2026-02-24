@@ -95,7 +95,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             <div key={holding.ticker} className="px-3 py-2">
               <div className="flex items-center gap-2">
                 {/* Left: ticker + info */}
-                <div className="flex items-center gap-1 shrink-0" style={{ minWidth: `${maxTickerLength + 2}ch` }}>
+                <div className="flex items-center gap-1 shrink-0" style={{ minWidth: `${maxTickerLength + 4}ch` }}>
                   <p className="font-semibold text-text-primary">{holding.ticker}</p>
                   {holdingHasFundamentals && (
                     <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors">

@@ -10,7 +10,7 @@ interface HoldingsTableProps {
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
-  const maxTickerLength = useMemo(() => Math.max(...consolidatedHoldings.map((h) => h.ticker.length)), [consolidatedHoldings]);
+  const maxTickerLength = useMemo(() => Math.max(...consolidatedHoldings.filter((h) => !h.isStatic).map((h) => h.ticker.length)), [consolidatedHoldings]);
   const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
   const popoverHolding = popover ? consolidatedHoldings.find(h => h.ticker === popover.ticker) : null;
 

@@ -39,21 +39,25 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
                 Holding Size
               </th>
+              {hasAnyFundamentals && (
+                <>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Rev.</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Earn.</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Fwd P/E</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Op. Mar.</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Rev. Gr. 3Y</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">EPS Gr. 3Y</th>
+                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">% to 52w Hi</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {consolidatedHoldings.map((holding) => {
-              const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
-              return (
+            {consolidatedHoldings.map((holding) => (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-1.5">
                       <p className="font-semibold text-text-primary">{holding.ticker}</p>
-                      {holdingHasFundamentals && (
-                        <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors">
-                          <Info className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                   </td>
                   <td className="text-right px-4 py-2">
@@ -80,9 +84,19 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       )}
                     </div>
                   </td>
+                  {hasAnyFundamentals && (
+                    <>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
+                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
+                    </>
+                  )}
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>

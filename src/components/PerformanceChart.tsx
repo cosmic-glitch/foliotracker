@@ -139,7 +139,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   if (isLoading) {
     return (
       <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-        <div className="flex items-center h-48 md:h-72">
+        <div className="flex items-start h-48 md:h-72">
           <div className="flex-1 h-full min-w-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -155,7 +155,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   if (chartData.length === 0) {
     return (
       <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-        <div className="flex items-center h-48 md:h-72">
+        <div className="flex items-start h-48 md:h-72">
           <div className="flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
           </div>
@@ -211,7 +211,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   return (
     <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-      <div className="flex items-center h-48 md:h-72">
+      <div className="flex items-start h-48 md:h-72">
         <div className="flex-1 h-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart

@@ -111,7 +111,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   }, [data, chartView, currentValue]);
 
   const renderToggle = () => (
-    <div className="flex flex-col rounded-lg overflow-hidden border border-border ml-1">
+    <div className="flex flex-col rounded-lg overflow-hidden border border-border ml-1 mt-2">
       <button
         onClick={() => onViewChange('1D')}
         className={`px-2 py-0.5 text-xs font-medium transition-colors ${

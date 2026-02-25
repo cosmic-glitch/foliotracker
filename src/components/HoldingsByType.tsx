@@ -150,7 +150,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
             <div key={type.name}>
               <button
                 onClick={() => toggleCategory(type.name)}
-                className="w-full flex items-center gap-1.5 px-1 hover:bg-background/50 rounded transition-colors"
+                className="w-full text-left flex items-center gap-1.5 px-1 hover:bg-background/50 rounded transition-colors"
               >
                 <span
                   className="font-medium text-text-primary text-sm shrink-0 whitespace-nowrap"

@@ -160,11 +160,8 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
                 </span>
                 <div className="flex-1 min-w-0 flex items-center gap-1">
                   <div
-                    className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5"
-                    style={{
-                      width: `${barWidth}%`,
-                      backgroundColor: type.color,
-                    }}
+                    className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 bg-accent/80"
+                    style={{ width: `${barWidth}%` }}
                   >
                     {barWidth >= 12 && (
                       <span className="text-xs font-medium text-white/90">

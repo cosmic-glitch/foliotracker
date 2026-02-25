@@ -4,8 +4,8 @@ export function formatCurrency(value: number, compact = false): string {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(value / 1_000_000) + 'M';
     }
     if (Math.abs(value) >= 1_000) {

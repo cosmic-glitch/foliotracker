@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, ChevronDown, Pencil, Settings, LogOut } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface UserMenuProps {
   loggedInAs: string;
@@ -12,6 +13,7 @@ interface UserMenuProps {
 export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEditAndPermissions = true }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +72,23 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEdit
           {showEditAndPermissions && (onEdit || onPermissions) && (
             <div className="mx-3 my-1 border-t border-border" />
           )}
+          <button
+            onClick={toggleTheme}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-text-secondary" />
+                Light Mode
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-text-secondary" />
+                Dark Mode
+              </>
+            )}
+          </button>
+          <div className="mx-3 my-1 border-t border-border" />
           <button
             onClick={() => { setOpen(false); onLogout(); }}
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-negative/10 hover:text-negative transition-colors"

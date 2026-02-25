@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
-import { formatCurrency, formatPercent } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
-import { TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface HoldingsByTypeProps {
   holdings: Holding[];
@@ -24,25 +24,6 @@ const TYPE_CATEGORY_MAP: Record<string, { name: string; color: string }> = {
   'Other': { name: 'Other', color: '#6b7280' }, // gray
 };
 
-function ChangeIndicator({ value, percent }: { value: number; percent: number }) {
-  if (value === 0) {
-    return (
-      <span className="text-text-secondary text-sm w-16 text-right">--</span>
-    );
-  }
-
-  const isPositive = value >= 0;
-  const Icon = isPositive ? TrendingUp : TrendingDown;
-  const color = isPositive ? 'text-positive' : 'text-negative';
-
-  return (
-    <span className={`flex items-center justify-end gap-1 text-sm w-16 ${color}`}>
-      <Icon className="w-3 h-3" />
-      {formatPercent(percent)}
-    </span>
-  );
-}
-
 interface CategoryData {
   name: string;
   value: number;
@@ -53,13 +34,13 @@ interface CategoryData {
   holdings: Holding[];
 }
 
-function HoldingsBreakdown({ holdings, categoryValue }: { holdings: Holding[]; categoryValue: number }) {
+function HoldingsBreakdown({ holdings, totalValue }: { holdings: Holding[]; totalValue: number }) {
   const sortedHoldings = [...holdings].sort((a, b) => b.value - a.value);
 
   return (
-    <div className="mt-2 mb-1 ml-1 space-y-1.5">
+    <div className="mt-2 mb-1 ml-4 space-y-1.5">
       {sortedHoldings.map((holding) => {
-        const categoryPercent = categoryValue > 0 ? (holding.value / categoryValue) * 100 : 0;
+        const portfolioPercent = totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
 
         return (
           <div
@@ -72,9 +53,8 @@ function HoldingsBreakdown({ holdings, categoryValue }: { holdings: Holding[]; c
                 {formatCurrency(holding.value, true)}
               </span>
               <span className="text-text-secondary w-12 text-right">
-                {categoryPercent.toFixed(1)}%
+                {portfolioPercent.toFixed(1)}%
               </span>
-              <ChangeIndicator value={holding.dayChange} percent={holding.dayChangePercent} />
             </div>
           </div>
         );
@@ -183,7 +163,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
               </button>
               {isExpanded && (
                 <div className="ml-1">
-                  <HoldingsBreakdown holdings={type.holdings} categoryValue={type.value} />
+                  <HoldingsBreakdown holdings={type.holdings} totalValue={totalValue} />
                 </div>
               )}
             </div>

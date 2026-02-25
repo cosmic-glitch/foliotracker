@@ -158,19 +158,25 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
                 >
                   {type.name}
                 </span>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex items-center gap-1">
                   <div
                     className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5"
                     style={{
                       width: `${barWidth}%`,
-                      minWidth: 'fit-content',
                       backgroundColor: type.color,
                     }}
                   >
-                    <span className="text-xs font-medium text-white/90">
+                    {barWidth >= 12 && (
+                      <span className="text-xs font-medium text-white/90">
+                        {type.allocation.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  {barWidth < 12 && (
+                    <span className="text-xs font-medium text-text-secondary">
                       {type.allocation.toFixed(1)}%
                     </span>
-                  </div>
+                  )}
                 </div>
                 <ChevronDown
                   className={`w-3.5 h-3.5 text-text-secondary shrink-0 transition-transform duration-200 ${

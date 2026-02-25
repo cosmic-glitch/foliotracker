@@ -115,7 +115,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   <div className="flex-1" />
                 )}
                 {/* Right: value + $ change */}
-                <div className="text-right shrink-0">
+                <div className="flex-1 text-left">
                   <span className="font-semibold text-text-primary">{formatCurrency(holding.value, true)}</span>
                   {!holding.isStatic && holding.dayChange !== 0 && (
                     <span className={`text-xs ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>{formatChange(holding.dayChange, true)}</span>

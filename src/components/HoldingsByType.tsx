@@ -133,6 +133,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
   }).filter((t) => t.value > 0).sort((a, b) => b.value - a.value);
 
   const maxAllocation = Math.max(...typeData.map((t) => t.allocation));
+  const maxNameLength = Math.max(...typeData.map((t) => t.name.length));
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden h-full">
@@ -140,54 +141,45 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
         <h2 className="text-lg font-semibold text-text-primary">By Asset Class</h2>
       </div>
 
-      <div className="p-3 space-y-3">
+      <div className="p-3 space-y-0.5">
         {typeData.map((type) => {
           const barWidth = maxAllocation > 0 ? (type.allocation / maxAllocation) * 100 : 0;
           const isExpanded = expandedCategories.has(type.name);
-          const holdingCount = type.holdings.length;
 
           return (
-            <div key={type.name} className="space-y-1">
+            <div key={type.name}>
               <button
                 onClick={() => toggleCategory(type.name)}
-                className="w-full text-left hover:bg-background/50 rounded-lg p-1 -m-1 transition-colors"
+                className="w-full flex items-center gap-1.5 px-1 hover:bg-background/50 rounded transition-colors"
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-2">
-                    <ChevronDown
-                      className={`w-4 h-4 mt-1 text-text-secondary transition-transform duration-200 ${
-                        isExpanded ? 'rotate-0' : '-rotate-90'
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-text-primary">{type.name}</p>
-                      <p className="text-sm text-text-secondary">
-                        {formatCurrency(type.value, true)}
-                        <span className="ml-1 text-text-secondary/70">
-                          ({holdingCount} {holdingCount === 1 ? 'holding' : 'holdings'})
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-text-primary">
+                <span
+                  className="font-medium text-text-primary text-sm shrink-0 whitespace-nowrap"
+                  style={{ minWidth: `${maxNameLength}ch` }}
+                >
+                  {type.name}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5"
+                    style={{
+                      width: `${barWidth}%`,
+                      minWidth: 'fit-content',
+                      backgroundColor: type.color,
+                    }}
+                  >
+                    <span className="text-xs font-medium text-white/90">
                       {type.allocation.toFixed(1)}%
-                    </p>
-                    <ChangeIndicator value={type.dayChange} percent={type.dayChangePercent} />
+                    </span>
                   </div>
                 </div>
-              </button>
-              <div className="h-2 bg-background rounded-full overflow-hidden ml-6">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${barWidth}%`,
-                    backgroundColor: type.color
-                  }}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-text-secondary shrink-0 transition-transform duration-200 ${
+                    isExpanded ? 'rotate-0' : '-rotate-90'
+                  }`}
                 />
-              </div>
+              </button>
               {isExpanded && (
-                <div className="ml-6">
+                <div className="ml-1">
                   <HoldingsBreakdown holdings={type.holdings} categoryValue={type.value} />
                 </div>
               )}

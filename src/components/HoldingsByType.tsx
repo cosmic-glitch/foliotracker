@@ -143,13 +143,13 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
                     className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 bg-accent/80"
                     style={{ width: `${barWidth}%` }}
                   >
-                    {barWidth >= 12 && (
+                    {barWidth >= 20 && (
                       <span className="text-xs font-medium text-white/90">
                         {type.allocation.toFixed(1)}%
                       </span>
                     )}
                   </div>
-                  {barWidth < 12 && (
+                  {barWidth < 20 && (
                     <span className="text-xs font-medium text-text-secondary">
                       {type.allocation.toFixed(1)}%
                     </span>

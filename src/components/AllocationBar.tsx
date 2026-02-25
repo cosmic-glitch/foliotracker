@@ -1,7 +1,7 @@
 export function AllocationBar({ percent, maxPercent }: { percent: number; maxPercent: number }) {
   // Scale the bar relative to the max allocation so the largest fills the bar
   const scaledWidth = maxPercent > 0 ? (percent / maxPercent) * 100 : 0;
-  const labelInside = scaledWidth >= 12;
+  const labelInside = scaledWidth >= 20;
 
   return (
     <div className="flex items-center">

@@ -41,13 +41,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </th>
               {hasAnyFundamentals && (
                 <>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Rev.</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Earn.</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Fwd P/E</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Op. Mar.</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">Rev. Gr. 3Y</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">EPS Gr. 3Y</th>
-                  <th className="text-right text-text-secondary text-xs font-medium px-2 py-2">% to 52w Hi</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Rev.</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Earn.</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Fwd P/E</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Op. Mar.</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Rev. Gr. 3Y</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">EPS Gr. 3Y</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">% to 52w Hi</th>
                 </>
               )}
             </tr>
@@ -60,39 +60,37 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <p className="font-semibold text-text-primary">{holding.ticker}</p>
                     </div>
                   </td>
-                  <td className="text-right px-4 py-2">
+                  <td className="text-right px-4 py-2 whitespace-nowrap">
                     {!holding.isStatic ? (
-                      <div className="flex flex-col items-end">
+                      <>
                         <span className="font-medium text-text-primary">{formatPrice(holding.currentPrice)}</span>
                         {holding.dayChangePercent !== 0 && (
-                          <span className={`text-sm ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>({formatPercent(holding.dayChangePercent)})</span>
+                          <span className={`text-sm ml-1 ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>({formatPercent(holding.dayChangePercent)})</span>
                         )}
-                      </div>
+                      </>
                     ) : (
                       <span />
                     )}
                   </td>
-                  <td className="text-right px-4 py-2">
-                    <div className="flex flex-col items-end">
-                      <span className="font-semibold text-text-primary">
-                        {formatCurrency(holding.value, true)}
+                  <td className="text-right px-4 py-2 whitespace-nowrap">
+                    <span className="font-semibold text-text-primary">
+                      {formatCurrency(holding.value, true)}
+                    </span>
+                    {!holding.isStatic && holding.dayChange !== 0 && (
+                      <span className={`text-sm ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        ({formatChange(holding.dayChange, true)})
                       </span>
-                      {!holding.isStatic && holding.dayChange !== 0 && (
-                        <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
-                          ({formatChange(holding.dayChange, true)})
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </td>
                   {hasAnyFundamentals && (
                     <>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
-                      <td className="text-right px-2 py-2 text-xs text-text-secondary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
+                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
                     </>
                   )}
                 </tr>

@@ -111,7 +111,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   }, [data, chartView, currentValue]);
 
   const renderToggle = () => (
-    <div className="absolute top-1 right-1 z-10 flex flex-col rounded-lg overflow-hidden border border-border bg-card/80 backdrop-blur-sm">
+    <div className="flex justify-end mb-1">
+    <div className="flex rounded-lg overflow-hidden border border-border">
       <button
         onClick={() => onViewChange('1D')}
         className={`px-2 py-0.5 text-xs font-medium transition-colors ${
@@ -133,19 +134,18 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
         30D
       </button>
     </div>
+    </div>
   );
 
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-        <div className="relative">
-          {renderToggle()}
-          <div className="h-48 md:h-72 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-              <span className="text-text-secondary text-sm">Loading chart data...</span>
-            </div>
+      <div className="bg-card rounded-2xl px-3 pt-2 pb-0 sm:p-6 border border-border">
+        {renderToggle()}
+        <div className="h-48 md:h-72 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <span className="text-text-secondary text-sm">Loading chart data...</span>
           </div>
         </div>
       </div>
@@ -154,12 +154,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-        <div className="relative">
-          {renderToggle()}
-          <div className="h-48 flex items-center justify-center text-text-secondary">
-            No data available
-          </div>
+      <div className="bg-card rounded-2xl px-3 pt-2 pb-0 sm:p-6 border border-border">
+        {renderToggle()}
+        <div className="h-48 flex items-center justify-center text-text-secondary">
+          No data available
         </div>
       </div>
     );
@@ -210,59 +208,57 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
-      <div className="relative">
-        {renderToggle()}
-        <div className="h-48 md:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-            >
-              <XAxis
-                dataKey="timestamp"
-                type="number"
-                scale="time"
-                domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(ts) => {
-                  if (chartView === '1D') {
-                    return formatChartTime(new Date(ts).toISOString());
-                  }
-                  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
-                }}
-                minTickGap={50}
-              />
-              <YAxis
-                domain={[minValue - padding, maxValue + padding]}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value) => {
-                  if (Math.abs(value) >= 1_000_000) {
-                    return `$${(value / 1_000_000).toFixed(2)}M`;
-                  }
-                  if (Math.abs(value) >= 1_000) {
-                    return `$${(value / 1_000).toFixed(1)}k`;
-                  }
-                  return `$${value.toFixed(0)}`;
-                }}
-                width={58}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-                name="Portfolio"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+    <div className="bg-card rounded-2xl px-3 pt-2 pb-0 sm:p-6 border border-border">
+      {renderToggle()}
+      <div className="h-48 md:h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+          >
+            <XAxis
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tickFormatter={(ts) => {
+                if (chartView === '1D') {
+                  return formatChartTime(new Date(ts).toISOString());
+                }
+                return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
+              }}
+              minTickGap={50}
+            />
+            <YAxis
+              domain={[minValue - padding, maxValue + padding]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tickFormatter={(value) => {
+                if (Math.abs(value) >= 1_000_000) {
+                  return `$${(value / 1_000_000).toFixed(2)}M`;
+                }
+                if (Math.abs(value) >= 1_000) {
+                  return `$${(value / 1_000).toFixed(1)}k`;
+                }
+                return `$${value.toFixed(0)}`;
+              }}
+              width={58}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={false}
+              name="Portfolio"
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

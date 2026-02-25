@@ -110,9 +110,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return points;
   }, [data, chartView, currentValue]);
 
-  const renderToggle = (overlay = false) => (
-    <div className={overlay ? "absolute top-0 right-0 z-10" : "flex justify-end mb-4"}>
-      <div className={`flex rounded-lg overflow-hidden border border-border ${overlay ? 'bg-card/80 backdrop-blur-sm' : ''}`}>
+  const renderToggle = () => (
+    <div className="flex justify-end mb-2">
+      <div className="flex rounded-lg overflow-hidden border border-border">
         <button
           onClick={() => onViewChange('1D')}
           className={`px-3 py-1 text-sm font-medium transition-colors ${
@@ -209,9 +209,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   return (
     <div className="bg-card rounded-2xl px-3 pt-3 pb-0 sm:p-6 border border-border">
-      <div className="relative">
-        {renderToggle(true)}
-        <div className="h-48 md:h-72">
+      {renderToggle()}
+      <div className="h-48 md:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
@@ -260,7 +259,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               />
             </LineChart>
           </ResponsiveContainer>
-        </div>
       </div>
     </div>
   );

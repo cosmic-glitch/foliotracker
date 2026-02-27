@@ -161,7 +161,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               <span className="text-text-secondary text-sm">Loading chart data...</span>
             </div>
-            <div className="absolute top-2 right-0 z-10">
+            <div className="hidden md:block absolute top-2 right-0 z-10">
               {renderToggle()}
             </div>
           </div>
@@ -176,7 +176,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
-            <div className="absolute top-2 right-0 z-10">
+            <div className="hidden md:block absolute top-2 right-0 z-10">
               {renderToggle()}
             </div>
           </div>
@@ -320,25 +320,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               </LineChart>
             </ResponsiveContainer>
           </div>
-          {chartView === '1D' && sessionBoundaries && (
-            <div className="pointer-events-none absolute top-2 left-2 z-10 md:hidden">
-              <div className="flex items-center gap-1.5 rounded-md bg-background/70 backdrop-blur-sm px-2 py-1 text-[9px] text-text-secondary">
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400/90" />
-                  Pre
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
-                  Reg
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500/90" />
-                  AH
-                </span>
-              </div>
-            </div>
-          )}
-          <div className="absolute top-2 right-0 z-10">
+          <div className="hidden md:block absolute top-2 right-0 z-10">
             {renderToggle()}
           </div>
           {chartView === '1D' && sessionBoundaries && (

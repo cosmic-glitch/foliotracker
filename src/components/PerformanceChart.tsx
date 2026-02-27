@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -49,6 +49,21 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 }
 
 export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue }: PerformanceChartProps) {
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  ));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(max-width: 640px)');
+    const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener('change', onChange);
+    return () => mediaQuery.removeEventListener('change', onChange);
+  }, []);
+
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
 
@@ -112,7 +127,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   }, [data, chartView, currentValue]);
 
   const renderToggle = () => (
-    <div className="flex flex-col rounded-lg overflow-hidden border border-border ml-1 mt-2">
+    <div className="flex flex-col rounded-lg overflow-hidden border border-border bg-card/90 backdrop-blur-sm">
       <button
         onClick={() => onViewChange('1D')}
         className={`px-2 py-0.5 text-xs font-medium transition-colors ${
@@ -139,15 +154,17 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
         <div className="flex items-start h-48 md:h-72">
-          <div className="flex-1 h-full min-w-0 flex items-center justify-center">
+          <div className="relative flex-1 h-full min-w-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               <span className="text-text-secondary text-sm">Loading chart data...</span>
             </div>
+            <div className="absolute top-2 right-0 z-10">
+              {renderToggle()}
+            </div>
           </div>
-          {renderToggle()}
         </div>
       </div>
     );
@@ -155,12 +172,14 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
         <div className="flex items-start h-48 md:h-72">
-          <div className="flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
+          <div className="relative flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
+            <div className="absolute top-2 right-0 z-10">
+              {renderToggle()}
+            </div>
           </div>
-          {renderToggle()}
         </div>
       </div>
     );
@@ -223,9 +242,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
+    <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
       <div className="flex items-start h-48 md:h-72">
-        <div className="flex-1 h-full min-w-0 flex flex-col">
+        <div className="relative flex-1 h-full min-w-0 flex flex-col">
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
@@ -287,7 +306,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     }
                     return `$${value.toFixed(0)}`;
                   }}
-                  width={58}
+                  width={isMobile ? 46 : 58}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line
@@ -302,7 +321,28 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
             </ResponsiveContainer>
           </div>
           {chartView === '1D' && sessionBoundaries && (
-            <div className="flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
+            <div className="pointer-events-none absolute top-2 left-2 z-10 md:hidden">
+              <div className="flex items-center gap-1.5 rounded-md bg-background/70 backdrop-blur-sm px-2 py-1 text-[9px] text-text-secondary">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400/90" />
+                  Pre
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
+                  Reg
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500/90" />
+                  AH
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="absolute top-2 right-0 z-10">
+            {renderToggle()}
+          </div>
+          {chartView === '1D' && sessionBoundaries && (
+            <div className="hidden md:flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-teal-400/90" />
                 Pre
@@ -318,7 +358,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
             </div>
           )}
         </div>
-        {renderToggle()}
       </div>
     </div>
   );

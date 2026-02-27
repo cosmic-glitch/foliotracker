@@ -62,7 +62,7 @@ vercel --prod    # Deploy to production
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
 - **Snapshot-based architecture**: Portfolio data is pre-computed in the background
   - External cron service (cron-job.org) triggers `/api/refresh-prices` endpoint
-  - Refresh frequency: Every 1 minute during market hours, every 30 minutes after hours
+  - Refresh frequency: Every 1 minute during live US sessions (pre-market, market, after-hours), every 30 minutes otherwise
   - Requires `REFRESH_SECRET` auth header
   - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
   - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
@@ -94,7 +94,7 @@ Copy `.env.example` to `.env.local` and fill in values. Required:
 Snapshot refresh is handled by an external cron service at https://console.cron-job.org/
 - **Endpoint:** `POST https://foliotracker.vercel.app/api/refresh-prices`
 - **Auth header:** `Authorization: Bearer <REFRESH_SECRET>`
-- **Schedule:** Every 1 minute during US market hours (9:30 AM - 4:00 PM ET), every 30 minutes otherwise
+- **Schedule:** Every 1 minute during live US sessions (4:00 AM - 8:00 PM ET, Mon-Fri), every 30 minutes otherwise
 
 ## Database Migrations
 

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
-import { Info } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent, formatPrice, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
@@ -8,10 +8,59 @@ interface HoldingsTableProps {
   holdings: Holding[];
 }
 
+type SortColumn =
+  | 'ticker'
+  | 'currentPrice'
+  | 'value'
+  | 'revenue'
+  | 'earnings'
+  | 'forwardPE'
+  | 'operatingMargin'
+  | 'revenueGrowth3Y'
+  | 'epsGrowth3Y'
+  | 'pctTo52WeekHigh';
+
+type SortDirection = 'asc' | 'desc';
+
+function getDefaultSortDirection(column: SortColumn): SortDirection {
+  return column === 'ticker' ? 'asc' : 'desc';
+}
+
+function getSortValue(holding: Holding, column: SortColumn): string | number | null {
+  switch (column) {
+    case 'ticker':
+      return holding.ticker;
+    case 'currentPrice':
+      return holding.isStatic ? null : holding.currentPrice;
+    case 'value':
+      return holding.value;
+    case 'revenue':
+      return holding.revenue;
+    case 'earnings':
+      return holding.earnings;
+    case 'forwardPE':
+      return holding.forwardPE;
+    case 'operatingMargin':
+      return holding.operatingMargin;
+    case 'revenueGrowth3Y':
+      return holding.revenueGrowth3Y;
+    case 'epsGrowth3Y':
+      return holding.epsGrowth3Y;
+    case 'pctTo52WeekHigh':
+      return holding.pctTo52WeekHigh;
+    default:
+      return null;
+  }
+}
+
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxTickerLength = useMemo(() => Math.max(...consolidatedHoldings.filter((h) => !h.isStatic).map((h) => h.ticker.length)), [consolidatedHoldings]);
   const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ column: SortColumn; direction: SortDirection }>({
+    column: 'value',
+    direction: 'desc',
+  });
   const popoverHolding = popover ? consolidatedHoldings.find(h => h.ticker === popover.ticker) : null;
 
   const openPopover = (ticker: string, e: React.MouseEvent) => {
@@ -19,9 +68,56 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setPopover({ ticker, top: rect.bottom + 4, left: rect.left });
   };
+
+  const handleSort = (column: SortColumn) => {
+    setSortConfig((prev) => {
+      if (prev.column === column) {
+        return {
+          column,
+          direction: prev.direction === 'asc' ? 'desc' : 'asc',
+        };
+      }
+      return { column, direction: getDefaultSortDirection(column) };
+    });
+  };
+
+  const sortedDesktopHoldings = useMemo(() => {
+    const sorted = [...consolidatedHoldings];
+    sorted.sort((a, b) => {
+      const aValue = getSortValue(a, sortConfig.column);
+      const bValue = getSortValue(b, sortConfig.column);
+
+      // Keep null/empty fundamental values at the bottom in both directions.
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const result = aValue.localeCompare(bValue);
+        return sortConfig.direction === 'asc' ? result : -result;
+      }
+
+      const result = Number(aValue) - Number(bValue);
+      return sortConfig.direction === 'asc' ? result : -result;
+    });
+    return sorted;
+  }, [consolidatedHoldings, sortConfig]);
+
   const hasAnyFundamentals = consolidatedHoldings.some(
     (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
   );
+
+  const renderSortIcon = (column: SortColumn) => {
+    if (sortConfig.column !== column) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-text-secondary/70 group-hover:text-text-secondary" />;
+    }
+    return sortConfig.direction === 'asc'
+      ? <ChevronUp className="w-3.5 h-3.5 text-accent" />
+      : <ChevronDown className="w-3.5 h-3.5 text-accent" />;
+  };
+
+  const getHeaderButtonClass = (align: 'left' | 'right') =>
+    `group inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors ${align === 'right' ? 'ml-auto' : ''}`;
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -31,29 +127,73 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           <thead>
             <tr className="border-b border-border">
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                Asset
+                <button type="button" onClick={() => handleSort('ticker')} className={getHeaderButtonClass('left')}>
+                  <span>Asset</span>
+                  {renderSortIcon('ticker')}
+                </button>
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Unit Price
+                <button type="button" onClick={() => handleSort('currentPrice')} className={getHeaderButtonClass('right')}>
+                  <span>Unit Price</span>
+                  {renderSortIcon('currentPrice')}
+                </button>
               </th>
               <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                Holding Size
+                <button type="button" onClick={() => handleSort('value')} className={getHeaderButtonClass('right')}>
+                  <span>Holding Size</span>
+                  {renderSortIcon('value')}
+                </button>
               </th>
               {hasAnyFundamentals && (
                 <>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Rev.</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Earn.</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Fwd P/E</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Op. Mar.</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">Rev. Gr. 3Y</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">EPS Gr. 3Y</th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">% to 52w Hi</th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass('right')}>
+                      <span>Rev.</span>
+                      {renderSortIcon('revenue')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('earnings')} className={getHeaderButtonClass('right')}>
+                      <span>Earn.</span>
+                      {renderSortIcon('earnings')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass('right')}>
+                      <span>Fwd P/E</span>
+                      {renderSortIcon('forwardPE')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass('right')}>
+                      <span>Op. Mar.</span>
+                      {renderSortIcon('operatingMargin')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass('right')}>
+                      <span>Rev. Gr. 3Y</span>
+                      {renderSortIcon('revenueGrowth3Y')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass('right')}>
+                      <span>EPS Gr. 3Y</span>
+                      {renderSortIcon('epsGrowth3Y')}
+                    </button>
+                  </th>
+                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass('right')}>
+                      <span>% to 52w Hi</span>
+                      {renderSortIcon('pctTo52WeekHigh')}
+                    </button>
+                  </th>
                 </>
               )}
             </tr>
           </thead>
           <tbody>
-            {consolidatedHoldings.map((holding) => (
+            {sortedDesktopHoldings.map((holding) => (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-1.5">

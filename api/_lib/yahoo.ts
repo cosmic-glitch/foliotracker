@@ -222,7 +222,8 @@ export async function getHistoricalData(
   symbol: string,
   from: Date,
   to: Date,
-  interval: '1d' | '1m' = '1d'
+  interval: '1d' | '1m' = '1d',
+  includePrePost = false
 ): Promise<{ date: string; close: number }[]> {
   try {
     return await withRetry(async () => {
@@ -230,7 +231,8 @@ export async function getHistoricalData(
         // Use Yahoo Finance for intraday (free, no API key needed)
         const period1 = Math.floor(from.getTime() / 1000);
         const period2 = Math.floor(to.getTime() / 1000);
-        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1m`;
+        const prePostParam = includePrePost ? '&includePrePost=true' : '';
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1m${prePostParam}`;
 
         const response = await fetch(yahooUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0' },

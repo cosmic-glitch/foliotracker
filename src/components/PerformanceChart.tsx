@@ -6,6 +6,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  ReferenceArea,
 } from 'recharts';
 import type { HistoricalDataPoint } from '../types/portfolio';
 import type { ChartView } from '../hooks/usePortfolioData';
@@ -172,17 +173,26 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const range = maxValue - minValue;
   const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
 
-  // Helper to get ET offset string (-05:00 for EST or -04:00 for EDT)
-  const getETOffset = (date: Date): string => {
-    const etTime = date.toLocaleString('en-US', { timeZone: 'America/New_York' });
-    const utcTime = date.toLocaleString('en-US', { timeZone: 'UTC' });
-    const diffHours = (new Date(etTime).getTime() - new Date(utcTime).getTime()) / 3600000;
-    return diffHours >= -4 ? '-04:00' : '-05:00';
+  const getETOffsetIso = (date: Date): string => {
+    const offsetPart = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      timeZoneName: 'shortOffset',
+    })
+      .formatToParts(date)
+      .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT-5';
+
+    const match = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+    if (!match) return '-05:00';
+
+    const sign = match[1];
+    const hours = match[2].padStart(2, '0');
+    const minutes = (match[3] ?? '00').padStart(2, '0');
+    return `${sign}${hours}:${minutes}`;
   };
 
-  // Calculate market hours for x-axis domain (9:30 AM - 4:00 PM ET)
-  const getMarketHoursDomain = (dataDate: Date): [number, number] => {
-    // Get date string in ET for the given data timestamp
+  const getIntradaySessionBoundaries = (
+    dataDate: Date
+  ): { preStart: number; regularStart: number; regularEnd: number; postEnd: number } => {
     const etDateParts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/New_York',
       year: 'numeric',
@@ -190,77 +200,123 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       day: '2-digit',
     }).formatToParts(dataDate);
 
-    const year = etDateParts.find(p => p.type === 'year')!.value;
-    const month = etDateParts.find(p => p.type === 'month')!.value;
-    const day = etDateParts.find(p => p.type === 'day')!.value;
+    const year = etDateParts.find((part) => part.type === 'year')?.value ?? '1970';
+    const month = etDateParts.find((part) => part.type === 'month')?.value ?? '01';
+    const day = etDateParts.find((part) => part.type === 'day')?.value ?? '01';
     const baseDate = `${year}-${month}-${day}`;
+    const etOffset = getETOffsetIso(new Date(`${baseDate}T12:00:00Z`));
 
-    // Get ET offset for this date (handles DST automatically)
-    const etOffset = getETOffset(new Date(`${baseDate}T12:00:00`));
+    const preStart = new Date(`${baseDate}T04:00:00${etOffset}`).getTime();
+    const regularStart = new Date(`${baseDate}T09:30:00${etOffset}`).getTime();
+    const regularEnd = new Date(`${baseDate}T16:00:00${etOffset}`).getTime();
+    const postEnd = new Date(`${baseDate}T20:00:00${etOffset}`).getTime();
 
-    // Create market open (9:30 AM ET) and close (4:00 PM ET) timestamps
-    const marketOpen = new Date(`${baseDate}T09:30:00${etOffset}`);
-    const marketClose = new Date(`${baseDate}T16:00:00${etOffset}`);
-
-    return [marketOpen.getTime(), marketClose.getTime()];
+    return { preStart, regularStart, regularEnd, postEnd };
   };
 
-  const xDomain = chartView === '1D' && chartData.length > 0
-    ? getMarketHoursDomain(new Date(chartData[0].timestamp))
+  const sessionBoundaries = chartView === '1D' && chartData.length > 0
+    ? getIntradaySessionBoundaries(new Date(chartData[0].timestamp))
+    : null;
+
+  const xDomain = chartView === '1D' && sessionBoundaries
+    ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
     : ['dataMin', 'dataMax'];
 
   return (
     <div className="bg-card rounded-2xl px-3 pt-0 pb-0 sm:p-6 border border-border">
       <div className="flex items-start h-48 md:h-72">
-        <div className="flex-1 h-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-            >
-              <XAxis
-                dataKey="timestamp"
-                type="number"
-                scale="time"
-                domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(ts) => {
-                  if (chartView === '1D') {
-                    return formatChartTime(new Date(ts).toISOString());
-                  }
-                  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
-                }}
-                minTickGap={50}
-              />
-              <YAxis
-                domain={[minValue - padding, maxValue + padding]}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value) => {
-                  if (Math.abs(value) >= 1_000_000) {
-                    return `$${(value / 1_000_000).toFixed(2)}M`;
-                  }
-                  if (Math.abs(value) >= 1_000) {
-                    return `$${(value / 1_000).toFixed(1)}k`;
-                  }
-                  return `$${value.toFixed(0)}`;
-                }}
-                width={58}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={false}
-                name="Portfolio"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="flex-1 h-full min-w-0 flex flex-col">
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+              >
+                {chartView === '1D' && sessionBoundaries && (
+                  <>
+                    <ReferenceArea
+                      x1={sessionBoundaries.preStart}
+                      x2={sessionBoundaries.regularStart}
+                      fill="#f59e0b"
+                      fillOpacity={0.08}
+                      ifOverflow="visible"
+                    />
+                    <ReferenceArea
+                      x1={sessionBoundaries.regularStart}
+                      x2={sessionBoundaries.regularEnd}
+                      fill="#3b82f6"
+                      fillOpacity={0.06}
+                      ifOverflow="visible"
+                    />
+                    <ReferenceArea
+                      x1={sessionBoundaries.regularEnd}
+                      x2={sessionBoundaries.postEnd}
+                      fill="#f97316"
+                      fillOpacity={0.08}
+                      ifOverflow="visible"
+                    />
+                  </>
+                )}
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  scale="time"
+                  domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickFormatter={(ts) => {
+                    if (chartView === '1D') {
+                      return formatChartTime(new Date(ts).toISOString());
+                    }
+                    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(ts));
+                  }}
+                  minTickGap={50}
+                />
+                <YAxis
+                  domain={[minValue - padding, maxValue + padding]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickFormatter={(value) => {
+                    if (Math.abs(value) >= 1_000_000) {
+                      return `$${(value / 1_000_000).toFixed(2)}M`;
+                    }
+                    if (Math.abs(value) >= 1_000) {
+                      return `$${(value / 1_000).toFixed(1)}k`;
+                    }
+                    return `$${value.toFixed(0)}`;
+                  }}
+                  width={58}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Portfolio"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          {chartView === '1D' && sessionBoundaries && (
+            <div className="flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
+              <span className="inline-flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                Pre
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500/80" />
+                Regular
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-orange-500/80" />
+                AH
+              </span>
+            </div>
+          )}
         </div>
         {renderToggle()}
       </div>

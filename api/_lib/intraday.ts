@@ -1,5 +1,6 @@
 import { getHoldings } from './db.js';
 import { getHistoricalData, getMultipleQuotes } from './yahoo.js';
+import { getCurrentTradingSessionRange, isLiveMarketSession } from './cache.js';
 
 export interface IntradayValue {
   totalValue: number;
@@ -19,10 +20,10 @@ export async function getIntradayPortfolioValue(
   const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
   const staticHoldings = dbHoldings.filter((h) => h.is_static);
 
-  // For intraday, fetch today's data
+  // For intraday, fetch data for the current/most-recent ET trading session.
   const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
+  const sessionRange = getCurrentTradingSessionRange(now);
+  const sessionEnd = isLiveMarketSession(now) ? now : sessionRange.end;
 
   // Fetch intraday data and quotes in parallel
   const tickers = tradeableHoldings.map((h) => h.ticker);
@@ -31,7 +32,7 @@ export async function getIntradayPortfolioValue(
     // Fetch intraday data for all tradeable holdings
     Promise.all(
       tradeableHoldings.map((holding) =>
-        getHistoricalData(holding.ticker, startOfDay, now, '1m').then((data) => ({
+        getHistoricalData(holding.ticker, sessionRange.start, sessionEnd, '1m', true).then((data) => ({
           ticker: holding.ticker,
           shares: holding.shares,
           data,
@@ -79,7 +80,7 @@ export async function getIntradayPortfolioValue(
 
   // Get the most recent price for each holding with intraday data
   let intradayValue = 0;
-  for (const { ticker, shares, data } of holdingsWithData) {
+  for (const { shares, data } of holdingsWithData) {
     if (data.length > 0) {
       // Get the last (most recent) price
       const lastPrice = data[data.length - 1].close;

@@ -5,19 +5,17 @@ import {
   upsertDailyPrice,
   upsertPriceCache,
   upsertPortfolioSnapshot,
-  recordSnapshotError,
   getCachedFundamentals,
   upsertFundamentalsCache,
   type DbHolding,
-  type DbPriceCache,
   type DbFundamentalsCache,
   type SnapshotHolding,
   type HistoryDataPoint,
   type BenchmarkDataPoint,
   type DbPortfolioSnapshot,
 } from './db.js';
-import { getMultipleQuotes, getHistoricalData, type Quote } from './yahoo.js';
-import { getMarketStatus, getStartOfTradingDay } from './cache.js';
+import { getMultipleQuotes, getHistoricalData } from './yahoo.js';
+import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -370,6 +368,43 @@ async function compute1DHistory(
   return history;
 }
 
+function applyIntradayPriceOverrides(
+  prices: Map<string, PriceData>,
+  intradayPrices: Map<string, Array<{ date: string; close: number }>>
+): void {
+  for (const [ticker, data] of intradayPrices.entries()) {
+    if (data.length === 0) continue;
+
+    const latestClose = data[data.length - 1].close;
+    const existing = prices.get(ticker);
+    if (!existing) continue;
+
+    const changePercent = existing.previousClose > 0
+      ? ((latestClose - existing.previousClose) / existing.previousClose) * 100
+      : 0;
+
+    prices.set(ticker, {
+      currentPrice: latestClose,
+      previousClose: existing.previousClose,
+      changePercent,
+    });
+  }
+}
+
+function buildPriceCacheUpdates(prices: Map<string, PriceData>): Array<{
+  ticker: string;
+  current_price: number;
+  previous_close: number;
+  change_percent: number;
+}> {
+  return Array.from(prices.entries()).map(([ticker, price]) => ({
+    ticker,
+    current_price: price.currentPrice,
+    previous_close: price.previousClose,
+    change_percent: price.changePercent,
+  }));
+}
+
 // Compute SPY benchmark history
 function computeBenchmarkHistory(
   spyPrices: Map<string, number>
@@ -415,14 +450,8 @@ export async function refreshAllSnapshots(): Promise<void> {
   // Fetch current quotes from Yahoo Finance
   const quotes = await getMultipleQuotes(tickerArray);
 
-  // Build price map and update price_cache
+  // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
-  const priceCacheUpdates: Array<{
-    ticker: string;
-    current_price: number;
-    previous_close: number;
-    change_percent: number;
-  }> = [];
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -430,24 +459,7 @@ export async function refreshAllSnapshots(): Promise<void> {
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
-    priceCacheUpdates.push({
-      ticker,
-      current_price: quote.currentPrice,
-      previous_close: quote.previousClose,
-      change_percent: quote.changePercent,
-    });
   }
-
-  // Update price cache (DB and Redis)
-  await upsertPriceCache(priceCacheUpdates);
-  await setPricesInRedis(priceCacheUpdates.map(p => ({
-    ticker: p.ticker,
-    current_price: p.current_price,
-    previous_close: p.previous_close,
-    change_percent: p.change_percent,
-    updated_at: new Date().toISOString(),
-  })));
-  console.log(`Updated price_cache for ${priceCacheUpdates.length} tickers`);
 
   // Fetch fundamentals data (revenue, earnings, forward EPS, 52wk high)
   const nonStaticTickers = Array.from(allTickers).filter(t => t !== BENCHMARK_TICKER);
@@ -528,13 +540,14 @@ export async function refreshAllSnapshots(): Promise<void> {
     }
   }
 
-  // Fetch 1D intraday data (always fetch to ensure chart works after hours)
+  // Fetch 1D intraday data for the current/most recent trading session
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
   console.log('Fetching 1D intraday data...');
-  const startOfDay = getStartOfTradingDay();
+  const sessionRange = getCurrentTradingSessionRange(today);
+  const intradayEnd = isLiveMarketSession(today) ? today : sessionRange.end;
 
   const intradayPromises = tickerArray.map(async (ticker) => {
-    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+    const data = await getHistoricalData(ticker, sessionRange.start, intradayEnd, '1m', true);
     return { ticker, data };
   });
 
@@ -542,6 +555,21 @@ export async function refreshAllSnapshots(): Promise<void> {
   for (const { ticker, data } of intradayResults) {
     intradayPrices.set(ticker, data);
   }
+
+  // Use latest intraday close as current price where available.
+  applyIntradayPriceOverrides(priceMap, intradayPrices);
+
+  // Update price cache (DB and Redis) with latest effective prices.
+  const priceCacheUpdates = buildPriceCacheUpdates(priceMap);
+  await upsertPriceCache(priceCacheUpdates);
+  await setPricesInRedis(priceCacheUpdates.map(p => ({
+    ticker: p.ticker,
+    current_price: p.current_price,
+    previous_close: p.previous_close,
+    change_percent: p.change_percent,
+    updated_at: new Date().toISOString(),
+  })));
+  console.log(`Updated price_cache for ${priceCacheUpdates.length} tickers`);
 
   // Compute SPY benchmark
   const spyHistoricalPrices = historicalPrices.get(BENCHMARK_TICKER) || new Map();
@@ -598,14 +626,8 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   // Fetch current quotes
   const quotes = await getMultipleQuotes(tickers);
 
-  // Build price map
+  // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
-  const priceCacheUpdates: Array<{
-    ticker: string;
-    current_price: number;
-    previous_close: number;
-    change_percent: number;
-  }> = [];
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -613,23 +635,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
-    priceCacheUpdates.push({
-      ticker,
-      current_price: quote.currentPrice,
-      previous_close: quote.previousClose,
-      change_percent: quote.changePercent,
-    });
   }
-
-  // Update price cache (DB and Redis)
-  await upsertPriceCache(priceCacheUpdates);
-  await setPricesInRedis(priceCacheUpdates.map(p => ({
-    ticker: p.ticker,
-    current_price: p.current_price,
-    previous_close: p.previous_close,
-    change_percent: p.change_percent,
-    updated_at: new Date().toISOString(),
-  })));
 
   // Fetch fundamentals data
   const nonStaticTickers = tickers.filter(t => t !== BENCHMARK_TICKER);
@@ -702,12 +708,13 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     }
   }
 
-  // Fetch 1D intraday data (always fetch to ensure chart works after hours)
+  // Fetch 1D intraday data for the current/most recent trading session.
   const intradayPrices = new Map<string, Array<{ date: string; close: number }>>();
-  const startOfDay = getStartOfTradingDay();
+  const sessionRange = getCurrentTradingSessionRange(today);
+  const intradayEnd = isLiveMarketSession(today) ? today : sessionRange.end;
 
   const intradayPromises = tickers.map(async (ticker) => {
-    const data = await getHistoricalData(ticker, startOfDay, today, '1m');
+    const data = await getHistoricalData(ticker, sessionRange.start, intradayEnd, '1m', true);
     return { ticker, data };
   });
 
@@ -715,6 +722,20 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   for (const { ticker, data } of intradayResults) {
     intradayPrices.set(ticker, data);
   }
+
+  // Use latest intraday close as current price where available.
+  applyIntradayPriceOverrides(priceMap, intradayPrices);
+
+  // Update price cache (DB and Redis) with latest effective prices.
+  const priceCacheUpdates = buildPriceCacheUpdates(priceMap);
+  await upsertPriceCache(priceCacheUpdates);
+  await setPricesInRedis(priceCacheUpdates.map(p => ({
+    ticker: p.ticker,
+    current_price: p.current_price,
+    previous_close: p.previous_close,
+    change_percent: p.change_percent,
+    updated_at: new Date().toISOString(),
+  })));
 
   // Compute benchmark
   const spyPrices = historicalPrices.get(BENCHMARK_TICKER) || new Map();

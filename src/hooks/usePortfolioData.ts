@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
-import { isMarketOpen } from '../lib/market-hours';
+import { isLiveMarketSession } from '../lib/market-hours';
 
 export type ChartView = '1D' | '30D';
 
@@ -149,8 +149,8 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
     enabled: !!portfolioId,
     staleTime: 60 * 1000, // Fresh for 1 minute
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    // Smart auto-refresh: 1 min when market open, 30 min when closed
-    refetchInterval: () => isMarketOpen() ? 60 * 1000 : 30 * 60 * 1000,
+    // Smart auto-refresh: 1 min during live sessions, 30 min when closed
+    refetchInterval: () => isLiveMarketSession() ? 60 * 1000 : 30 * 60 * 1000,
     refetchIntervalInBackground: true,
   });
 
@@ -172,14 +172,14 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
   const intradayQuery = useQuery({
     queryKey: [...portfolioKeys.intraday(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login'],
     queryFn: () => fetchIntradayApi(portfolioId, token, loggedInAs),
-    // Fetch when viewing 1D OR when market is open (for accurate total value)
-    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isMarketOpen()),
+    // Fetch when viewing 1D OR when market is in a live session (for accurate total value)
+    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isLiveMarketSession()),
     staleTime: 0, // Always stale - fetch fresh
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    // Auto-refresh every 1 minute when market is open
-    refetchInterval: () => isMarketOpen() ? 60 * 1000 : false,
+    // Auto-refresh every 1 minute during live market sessions
+    refetchInterval: () => isLiveMarketSession() ? 60 * 1000 : false,
   });
 
   // Check if response is a private portfolio requiring auth
@@ -213,11 +213,13 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
     if ('requiresAuth' in portfolioQuery.data) return null;
     const p = portfolioQuery.data;
 
-    // When market is open and we have intraday data, use it as ground truth
+    // During live sessions, use intraday as ground truth for consistency.
     // This ensures consistent total when switching between 1D/30D views
     const intradayData = intradayQuery.data?.data || [];
     let displayTotalValue = p.totalValue;
-    if (p.marketStatus === 'open' && intradayData.length > 0) {
+    const hasLiveMarketStatus =
+      p.marketStatus === 'open' || p.marketStatus === 'pre-market' || p.marketStatus === 'after-hours';
+    if (hasLiveMarketStatus && intradayData.length > 0) {
       displayTotalValue = intradayData[intradayData.length - 1].value;
     }
 

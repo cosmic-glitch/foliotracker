@@ -1,88 +1,89 @@
-// US Eastern timezone offset (EST: -5, EDT: -4)
-function getETOffset(): number {
-  const now = new Date();
-  const jan = new Date(now.getFullYear(), 0, 1);
-  const jul = new Date(now.getFullYear(), 6, 1);
-  const stdOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-  const isDST = now.getTimezoneOffset() < stdOffset;
-  // Return offset from UTC in hours
-  return isDST ? -4 : -5;
+const ET_TIMEZONE = 'America/New_York';
+const PRE_MARKET_OPEN_MINUTES = 4 * 60;
+const MARKET_OPEN_MINUTES = 9 * 60 + 30;
+const MARKET_CLOSE_MINUTES = 16 * 60;
+const AFTER_HOURS_CLOSE_MINUTES = 20 * 60;
+
+const ET_PARTS_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: ET_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  weekday: 'short',
+  hour12: false,
+});
+
+const ET_OFFSET_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: ET_TIMEZONE,
+  timeZoneName: 'shortOffset',
+});
+
+interface ETParts {
+  weekday: number;
+  minutesFromMidnight: number;
 }
 
-function getETHours(): number {
-  const now = new Date();
-  const utcHours = now.getUTCHours();
-  const etOffset = getETOffset();
-  let etHours = utcHours + etOffset;
-  if (etHours < 0) etHours += 24;
-  if (etHours >= 24) etHours -= 24;
-  return etHours;
-}
-
-function getETDay(): number {
-  const now = new Date();
-  const utcDay = now.getUTCDay();
-  const utcHours = now.getUTCHours();
-  const etOffset = getETOffset();
-  const etHours = utcHours + etOffset;
-
-  if (etHours < 0) {
-    // Previous day in ET
-    return utcDay === 0 ? 6 : utcDay - 1;
+function parseWeekday(value: string): number {
+  switch (value) {
+    case 'Sun': return 0;
+    case 'Mon': return 1;
+    case 'Tue': return 2;
+    case 'Wed': return 3;
+    case 'Thu': return 4;
+    case 'Fri': return 5;
+    case 'Sat': return 6;
+    default: return -1;
   }
-  if (etHours >= 24) {
-    // Next day in ET
-    return (utcDay + 1) % 7;
-  }
-  return utcDay;
 }
 
-export function isMarketOpen(): boolean {
-  const day = getETDay();
-  const hours = getETHours();
-  const minutes = new Date().getUTCMinutes();
-  const totalMinutes = hours * 60 + minutes;
+function getETParts(now: Date): ETParts {
+  const parts = ET_PARTS_FORMATTER.formatToParts(now);
+  const map = new Map(parts.map((part) => [part.type, part.value]));
+  const hour = Number(map.get('hour') ?? '0');
+  const minute = Number(map.get('minute') ?? '0');
+  const weekday = parseWeekday(map.get('weekday') ?? '');
 
-  // Weekend
-  if (day === 0 || day === 6) return false;
-
-  // Market hours: 9:30 AM - 4:00 PM ET
-  const marketOpen = 9 * 60 + 30; // 9:30 AM
-  const marketClose = 16 * 60; // 4:00 PM
-
-  return totalMinutes >= marketOpen && totalMinutes < marketClose;
+  return {
+    weekday,
+    minutesFromMidnight: hour * 60 + minute,
+  };
 }
 
-export function isPreMarket(): boolean {
-  const day = getETDay();
-  const hours = getETHours();
-  const minutes = new Date().getUTCMinutes();
-  const totalMinutes = hours * 60 + minutes;
+export function getETOffset(now: Date = new Date()): number {
+  const offsetPart = ET_OFFSET_FORMATTER
+    .formatToParts(now)
+    .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT-5';
+  const match = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) return -5;
 
-  // Weekend
-  if (day === 0 || day === 6) return false;
-
-  // Pre-market: 4:00 AM - 9:30 AM ET
-  const preMarketOpen = 4 * 60; // 4:00 AM
-  const marketOpen = 9 * 60 + 30; // 9:30 AM
-
-  return totalMinutes >= preMarketOpen && totalMinutes < marketOpen;
+  const sign = match[1] === '-' ? -1 : 1;
+  const hours = Number(match[2]);
+  const minutes = Number(match[3] ?? '0');
+  return sign * (hours + minutes / 60);
 }
 
-export function isAfterHours(): boolean {
-  const day = getETDay();
-  const hours = getETHours();
-  const minutes = new Date().getUTCMinutes();
-  const totalMinutes = hours * 60 + minutes;
+export function isMarketOpen(now: Date = new Date()): boolean {
+  const et = getETParts(now);
+  if (et.weekday < 1 || et.weekday > 5) return false;
+  return et.minutesFromMidnight >= MARKET_OPEN_MINUTES && et.minutesFromMidnight < MARKET_CLOSE_MINUTES;
+}
 
-  // Weekend
-  if (day === 0 || day === 6) return false;
+export function isPreMarket(now: Date = new Date()): boolean {
+  const et = getETParts(now);
+  if (et.weekday < 1 || et.weekday > 5) return false;
+  return et.minutesFromMidnight >= PRE_MARKET_OPEN_MINUTES && et.minutesFromMidnight < MARKET_OPEN_MINUTES;
+}
 
-  // After hours: 4:00 PM - 8:00 PM ET
-  const marketClose = 16 * 60; // 4:00 PM
-  const afterHoursClose = 20 * 60; // 8:00 PM
+export function isAfterHours(now: Date = new Date()): boolean {
+  const et = getETParts(now);
+  if (et.weekday < 1 || et.weekday > 5) return false;
+  return et.minutesFromMidnight >= MARKET_CLOSE_MINUTES && et.minutesFromMidnight < AFTER_HOURS_CLOSE_MINUTES;
+}
 
-  return totalMinutes >= marketClose && totalMinutes < afterHoursClose;
+export function isLiveMarketSession(now: Date = new Date()): boolean {
+  return isPreMarket(now) || isMarketOpen(now) || isAfterHours(now);
 }
 
 export function getCacheTTL(): number {
@@ -99,9 +100,9 @@ export function getCacheTTL(): number {
   return 60 * 60 * 1000; // 1 hour (will be refreshed at market open)
 }
 
-export function getMarketStatus(): 'open' | 'pre-market' | 'after-hours' | 'closed' {
-  if (isMarketOpen()) return 'open';
-  if (isPreMarket()) return 'pre-market';
-  if (isAfterHours()) return 'after-hours';
+export function getMarketStatus(now: Date = new Date()): 'open' | 'pre-market' | 'after-hours' | 'closed' {
+  if (isMarketOpen(now)) return 'open';
+  if (isPreMarket(now)) return 'pre-market';
+  if (isAfterHours(now)) return 'after-hours';
   return 'closed';
 }

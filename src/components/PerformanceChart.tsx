@@ -237,22 +237,22 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     <ReferenceArea
                       x1={sessionBoundaries.preStart}
                       x2={sessionBoundaries.regularStart}
-                      fill="#f59e0b"
-                      fillOpacity={0.08}
+                      fill="#14b8a6"
+                      fillOpacity={0.14}
                       ifOverflow="visible"
                     />
                     <ReferenceArea
                       x1={sessionBoundaries.regularStart}
                       x2={sessionBoundaries.regularEnd}
                       fill="#3b82f6"
-                      fillOpacity={0.06}
+                      fillOpacity={0.07}
                       ifOverflow="visible"
                     />
                     <ReferenceArea
                       x1={sessionBoundaries.regularEnd}
                       x2={sessionBoundaries.postEnd}
-                      fill="#f97316"
-                      fillOpacity={0.08}
+                      fill="#e11d48"
+                      fillOpacity={0.14}
                       ifOverflow="visible"
                     />
                   </>
@@ -304,7 +304,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
           {chartView === '1D' && sessionBoundaries && (
             <div className="flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
               <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                <span className="w-2 h-2 rounded-full bg-teal-400/90" />
                 Pre
               </span>
               <span className="inline-flex items-center gap-1">
@@ -312,7 +312,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                 Regular
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-orange-500/80" />
+                <span className="w-2 h-2 rounded-full bg-rose-500/90" />
                 AH
               </span>
             </div>

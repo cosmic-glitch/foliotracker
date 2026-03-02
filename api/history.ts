@@ -14,6 +14,7 @@ interface BenchmarkHistoryPoint {
 
 interface HistoryResponse {
   data: HistoricalDataPoint[];
+  regularData?: HistoricalDataPoint[];
   benchmark: BenchmarkHistoryPoint[];
   lastUpdated: string;
   isStale: boolean;
@@ -139,9 +140,12 @@ export default async function handler(
     let data: HistoricalDataPoint[] = [];
     let benchmark: BenchmarkHistoryPoint[] = [];
 
+    let regularData: HistoricalDataPoint[] | undefined;
+
     if (interval === '1m') {
       // Intraday data
       data = snapshot.history_1d_json || [];
+      regularData = snapshot.regular_history_1d_json || [];
       // No benchmark for intraday
       benchmark = [];
     } else {
@@ -156,6 +160,7 @@ export default async function handler(
 
     const response: HistoryResponse = {
       data,
+      ...(regularData && { regularData }),
       benchmark,
       lastUpdated: snapshot.updated_at,
       isStale,

@@ -18,6 +18,7 @@ interface PerformanceChartProps {
   chartView: ChartView;
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
+  showExtendedHours?: boolean;
 }
 
 interface ChartDataPoint {
@@ -48,7 +49,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
-export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true }: PerformanceChartProps) {
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
@@ -238,7 +239,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : null;
 
   const xDomain = chartView === '1D' && sessionBoundaries
-    ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
+    ? (showExtendedHours
+        ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
+        : [sessionBoundaries.regularStart, sessionBoundaries.regularEnd])
     : ['dataMin', 'dataMax'];
 
   return (
@@ -251,7 +254,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                 data={chartData}
                 margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
               >
-                {chartView === '1D' && sessionBoundaries && (
+                {chartView === '1D' && sessionBoundaries && showExtendedHours && (
                   <>
                     <ReferenceArea
                       x1={sessionBoundaries.preStart}
@@ -323,7 +326,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
           <div className="hidden md:block absolute top-2 right-0 z-10">
             {renderToggle()}
           </div>
-          {chartView === '1D' && sessionBoundaries && (
+          {chartView === '1D' && sessionBoundaries && showExtendedHours && (
             <div className="hidden md:flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-teal-400/90" />

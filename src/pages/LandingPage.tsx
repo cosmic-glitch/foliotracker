@@ -8,6 +8,7 @@ import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
 
@@ -18,6 +19,9 @@ interface Portfolio {
   totalValue: number | null;
   dayChange: number | null;
   dayChangePercent: number | null;
+  regularTotalValue: number | null;
+  regularDayChange: number | null;
+  regularDayChangePercent: number | null;
   is_private: boolean;
   visibility: 'public' | 'private' | 'selective';
   lastUpdated?: string;
@@ -53,6 +57,7 @@ function formatCompactValue(value: number): string {
 export function LandingPage() {
   const navigate = useNavigate();
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
+  const { showExtendedHours } = useExtendedHours();
   const [loginTarget, setLoginTarget] = useState<Portfolio | null>(null);
   const [showPermissions, setShowPermissions] = useState(false);
 
@@ -169,7 +174,16 @@ export function LandingPage() {
                 <div className="divide-y divide-border">
                   {portfolios.map((portfolio) => {
                     const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
-                    const isPositive = (portfolio.dayChange ?? 0) >= 0;
+                    const displayValue = showExtendedHours
+                      ? (portfolio.totalValue ?? 0)
+                      : (portfolio.regularTotalValue ?? portfolio.totalValue ?? 0);
+                    const displayChange = showExtendedHours
+                      ? (portfolio.dayChange ?? 0)
+                      : (portfolio.regularDayChange ?? portfolio.dayChange ?? 0);
+                    const displayChangePercent = showExtendedHours
+                      ? (portfolio.dayChangePercent ?? 0)
+                      : (portfolio.regularDayChangePercent ?? portfolio.dayChangePercent ?? 0);
+                    const isPositive = displayChange >= 0;
                     const changeColor = isPositive ? 'text-positive' : 'text-negative';
                     const sign = isPositive ? '+' : '';
 
@@ -217,10 +231,10 @@ export function LandingPage() {
                           ) : (
                             <div>
                               <span className="text-lg font-semibold text-text-primary">
-                                ${(portfolio.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                ${displayValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                               </span>
                               <p className={`text-sm ${changeColor}`}>
-                                {sign}{formatCompactValue(Math.abs(portfolio.dayChange ?? 0))} ({sign}{(portfolio.dayChangePercent ?? 0).toFixed(2)}%)
+                                {sign}{formatCompactValue(Math.abs(displayChange))} ({sign}{displayChangePercent.toFixed(2)}%)
                               </p>
                             </div>
                           )}

@@ -43,6 +43,7 @@ function App() {
     requiresAuth,
     chartView,
     setChartView,
+    showExtendedHours,
     refresh,
   } = usePortfolioData(portfolioId || '', storedToken, loggedInAs);
 
@@ -148,6 +149,7 @@ function App() {
                 chartView={chartView}
                 onViewChange={setChartView}
                 currentValue={data.totalValue}
+                showExtendedHours={showExtendedHours}
               />
             </div>
             {/* Tab Navigation */}

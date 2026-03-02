@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isLiveMarketSession } from '../lib/market-hours';
+import { useExtendedHours } from '../context/ExtendedHoursContext';
 
 export type ChartView = '1D' | '30D';
 
@@ -9,6 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 interface ApiHistoryResponse {
   data: HistoricalDataPoint[];
+  regularData?: HistoricalDataPoint[];
   benchmark: BenchmarkHistoryPoint[];
   lastUpdated: string;
 }
@@ -43,6 +45,7 @@ interface ApiPortfolioResponse {
     operatingMargin?: number | null;
     revenueGrowth3Y?: number | null;
     epsGrowth3Y?: number | null;
+    regularMarketPrice?: number;
   }>;
   lastUpdated: string;
   marketStatus: MarketStatus;
@@ -140,6 +143,7 @@ const MAX_DAYS = 30; // Fetch 30 days of history
 export function usePortfolioData(portfolioId: string, token?: string | null, loggedInAs?: string | null) {
   const queryClient = useQueryClient();
   const [chartView, setChartView] = useState<ChartView>('1D');
+  const { showExtendedHours } = useExtendedHours();
 
   // Portfolio query - needs frequent updates for live prices
   // Include token and loggedInAs in queryKey so it refetches when they change
@@ -200,11 +204,14 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
   // Get the current chart data based on view
   const chartData = useMemo(() => {
     if (chartView === '1D') {
+      if (!showExtendedHours && intradayQuery.data?.regularData) {
+        return intradayQuery.data.regularData;
+      }
       return intradayQuery.data?.data || [];
     }
     // 30D uses history data
     return historyQuery.data?.data || [];
-  }, [chartView, intradayQuery.data, historyQuery.data]);
+  }, [chartView, intradayQuery.data, historyQuery.data, showExtendedHours]);
 
   // Combine portfolio and chart data
   const data: PortfolioData | null = useMemo(() => {
@@ -217,9 +224,67 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
     // This ensures consistent total when switching between 1D/30D views
     const intradayData = intradayQuery.data?.data || [];
     let displayTotalValue = p.totalValue;
+    let displayDayChange = p.totalDayChange;
+    let displayDayChangePercent = p.totalDayChangePercent;
     const hasLiveMarketStatus =
       p.marketStatus === 'open' || p.marketStatus === 'pre-market' || p.marketStatus === 'after-hours';
-    if (hasLiveMarketStatus && intradayData.length > 0) {
+
+    // Build holdings with potential regular-hours overrides
+    let holdings = p.holdings.map(h => ({
+      ...h,
+      revenue: h.revenue ?? null,
+      earnings: h.earnings ?? null,
+      forwardPE: h.forwardPE ?? null,
+      pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
+      operatingMargin: h.operatingMargin ?? null,
+      revenueGrowth3Y: h.revenueGrowth3Y ?? null,
+      epsGrowth3Y: h.epsGrowth3Y ?? null,
+      regularMarketPrice: h.regularMarketPrice ?? h.currentPrice,
+    }));
+
+    if (!showExtendedHours) {
+      // Use regular market prices for totals and holdings
+      let regularTotal = 0;
+      let regularPreviousTotal = 0;
+
+      holdings = holdings.map(h => {
+        const regPrice = h.regularMarketPrice;
+        if (h.isStatic) {
+          regularTotal += h.value;
+          regularPreviousTotal += h.value;
+          return h;
+        }
+        const value = h.shares * regPrice;
+        const previousValue = h.shares * h.previousClose;
+        const dayChange = value - previousValue;
+        const dayChangePercent = previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
+        regularTotal += value;
+        regularPreviousTotal += previousValue;
+        return {
+          ...h,
+          currentPrice: regPrice,
+          value,
+          dayChange,
+          dayChangePercent,
+          allocation: 0, // will be recomputed below
+          profitLoss: h.costBasis !== null ? value - h.costBasis : null,
+          profitLossPercent: h.costBasis !== null && h.costBasis > 0
+            ? ((value - h.costBasis) / h.costBasis) * 100
+            : null,
+        };
+      });
+
+      // Recompute allocations
+      for (const h of holdings) {
+        h.allocation = regularTotal > 0 ? (h.value / regularTotal) * 100 : 0;
+      }
+
+      displayTotalValue = regularTotal;
+      displayDayChange = regularTotal - regularPreviousTotal;
+      displayDayChangePercent = regularPreviousTotal > 0
+        ? (displayDayChange / regularPreviousTotal) * 100
+        : 0;
+    } else if (hasLiveMarketStatus && intradayData.length > 0) {
       displayTotalValue = intradayData[intradayData.length - 1].value;
     }
 
@@ -227,20 +292,11 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
       portfolioId: p.portfolioId,
       displayName: p.displayName,
       totalValue: displayTotalValue,
-      totalDayChange: p.totalDayChange,
-      totalDayChangePercent: p.totalDayChangePercent,
+      totalDayChange: displayDayChange,
+      totalDayChangePercent: displayDayChangePercent,
       totalGain: p.totalGain,
       totalGainPercent: p.totalGainPercent,
-      holdings: p.holdings.map(h => ({
-        ...h,
-        revenue: h.revenue ?? null,
-        earnings: h.earnings ?? null,
-        forwardPE: h.forwardPE ?? null,
-        pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
-        operatingMargin: h.operatingMargin ?? null,
-        revenueGrowth3Y: h.revenueGrowth3Y ?? null,
-        epsGrowth3Y: h.epsGrowth3Y ?? null,
-      })),
+      holdings,
       historicalData: chartData,
       benchmarkHistory: historyQuery.data?.benchmark || [],
       lastUpdated: new Date(p.lastUpdated),
@@ -255,7 +311,7 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
       deepResearch: p.deepResearch,
       deepResearchAt: p.deepResearchAt,
     };
-  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data]);
+  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
 
   // Refresh only portfolio prices (not history - it rarely changes)
   const refresh = useCallback(() => {
@@ -282,6 +338,7 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
     privateDisplayName,
     chartView,
     setChartView,
+    showExtendedHours,
     refresh,
     refreshHistory,
   };

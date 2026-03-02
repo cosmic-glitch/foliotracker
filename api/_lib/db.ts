@@ -549,6 +549,7 @@ export interface SnapshotHolding {
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
+  regularMarketPrice: number;
 }
 
 export interface HistoryDataPoint {
@@ -571,6 +572,7 @@ export interface DbPortfolioSnapshot {
   holdings_json: SnapshotHolding[];
   history_30d_json: HistoryDataPoint[] | null;
   history_1d_json: HistoryDataPoint[] | null;
+  regular_history_1d_json: HistoryDataPoint[] | null;
   benchmark_30d_json: BenchmarkDataPoint[] | null;
   market_status: string;
   updated_at: string;

@@ -13,9 +13,11 @@ import {
   type HistoryDataPoint,
   type BenchmarkDataPoint,
   type DbPortfolioSnapshot,
+  getAllPortfolioSnapshots,
+  getPortfolioSnapshot,
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData } from './yahoo.js';
-import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession } from './cache.js';
+import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, createETDate } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -101,7 +103,8 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
 function computeHoldings(
   dbHoldings: DbHolding[],
   prices: Map<string, PriceData>,
-  fundamentals: Map<string, DbFundamentalsCache> = new Map()
+  fundamentals: Map<string, DbFundamentalsCache> = new Map(),
+  regularPrices?: Map<string, PriceData>
 ): { holdings: SnapshotHolding[]; totalValue: number; totalDayChange: number; totalGain: number | null; totalGainPercent: number | null } {
   const holdings: SnapshotHolding[] = [];
   let totalValue = 0;
@@ -140,6 +143,7 @@ function computeHoldings(
         operatingMargin: null,
         revenueGrowth3Y: null,
         epsGrowth3Y: null,
+        regularMarketPrice: value,
       });
       totalValue += value;
 
@@ -173,6 +177,7 @@ function computeHoldings(
         ? ((fund.week_52_high - price.currentPrice) / price.currentPrice) * 100
         : null;
 
+      const regPrice = regularPrices?.get(holding.ticker);
       holdings.push({
         ticker: holding.ticker,
         name: holding.name,
@@ -195,6 +200,7 @@ function computeHoldings(
         operatingMargin: fund?.operating_margin ?? null,
         revenueGrowth3Y: fund?.revenue_growth_3y ?? null,
         epsGrowth3Y: fund?.eps_growth_3y ?? null,
+        regularMarketPrice: regPrice?.currentPrice ?? price.currentPrice,
       });
 
       totalValue += value;
@@ -556,6 +562,12 @@ export async function refreshAllSnapshots(): Promise<void> {
     intradayPrices.set(ticker, data);
   }
 
+  // Save regular market prices BEFORE intraday overrides
+  const regularPriceMap = new Map<string, PriceData>();
+  for (const [ticker, price] of priceMap.entries()) {
+    regularPriceMap.set(ticker, { ...price });
+  }
+
   // Use latest intraday close as current price where available.
   applyIntradayPriceOverrides(priceMap, intradayPrices);
 
@@ -578,17 +590,38 @@ export async function refreshAllSnapshots(): Promise<void> {
   // Get market status
   const marketStatus = getMarketStatus();
 
+  // Batch-read existing snapshots for regular_history_1d_json fallback
+  const existingSnapshots = await getAllPortfolioSnapshots();
+  const existingSnapshotMap = new Map(existingSnapshots.map(s => [s.portfolio_id, s]));
+
+  // Compute regular session boundaries for filtering 1D data
+  const tradingDate = sessionRange.tradingDate;
+  const regularStart = createETDate(tradingDate, 9, 30).getTime();
+  const regularEnd = createETDate(tradingDate, 16, 0).getTime();
+
   // Compute snapshots for each portfolio
   console.log(`Computing snapshots for ${portfolios.length} portfolios...`);
   for (const portfolio of portfolios) {
     const holdings = allHoldingsMap.get(portfolio.id) || [];
 
-    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap);
+    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap);
     const previousTotalValue = totalValue - totalDayChange;
     const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 
     const history30d = await compute30DHistory(holdings, historicalPrices);
     const history1d = await compute1DHistory(holdings, intradayPrices, priceMap);
+
+    // Compute regular-hours-only 1D history
+    let regularHistory1d = history1d.filter(point => {
+      const ts = new Date(point.date).getTime();
+      return ts >= regularStart && ts <= regularEnd;
+    });
+
+    // Fallback: if no regular session data yet (e.g. pre-market), carry forward previous
+    if (regularHistory1d.length === 0) {
+      const existing = existingSnapshotMap.get(portfolio.id);
+      regularHistory1d = existing?.regular_history_1d_json ?? [];
+    }
 
     const snapshot: Omit<DbPortfolioSnapshot, 'updated_at'> = {
       portfolio_id: portfolio.id,
@@ -600,6 +633,7 @@ export async function refreshAllSnapshots(): Promise<void> {
       holdings_json: snapshotHoldings,
       history_30d_json: history30d,
       history_1d_json: history1d,
+      regular_history_1d_json: regularHistory1d,
       benchmark_30d_json: benchmarkHistory,
       market_status: marketStatus,
       last_error: null,
@@ -723,6 +757,12 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     intradayPrices.set(ticker, data);
   }
 
+  // Save regular market prices BEFORE intraday overrides
+  const regularPriceMap = new Map<string, PriceData>();
+  for (const [ticker, price] of priceMap.entries()) {
+    regularPriceMap.set(ticker, { ...price });
+  }
+
   // Use latest intraday close as current price where available.
   applyIntradayPriceOverrides(priceMap, intradayPrices);
 
@@ -742,12 +782,28 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const benchmarkHistory = computeBenchmarkHistory(spyPrices);
 
   // Compute snapshot
-  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap);
+  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap);
   const previousTotalValue = totalValue - totalDayChange;
   const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 
   const history30d = await compute30DHistory(holdings, historicalPrices);
   const history1d = await compute1DHistory(holdings, intradayPrices, priceMap);
+
+  // Compute regular-hours-only 1D history
+  const singleTradingDate = sessionRange.tradingDate;
+  const singleRegularStart = createETDate(singleTradingDate, 9, 30).getTime();
+  const singleRegularEnd = createETDate(singleTradingDate, 16, 0).getTime();
+
+  let regularHistory1d = history1d.filter(point => {
+    const ts = new Date(point.date).getTime();
+    return ts >= singleRegularStart && ts <= singleRegularEnd;
+  });
+
+  // Fallback: if no regular session data yet, carry forward from existing snapshot
+  if (regularHistory1d.length === 0) {
+    const existing = await getPortfolioSnapshot(portfolioId);
+    regularHistory1d = existing?.regular_history_1d_json ?? [];
+  }
 
   const snapshot: Omit<DbPortfolioSnapshot, 'updated_at'> = {
     portfolio_id: portfolioId.toLowerCase(),
@@ -759,6 +815,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     holdings_json: snapshotHoldings,
     history_30d_json: history30d,
     history_1d_json: history1d,
+    regular_history_1d_json: regularHistory1d,
     benchmark_30d_json: benchmarkHistory,
     market_status: getMarketStatus(),
     last_error: null,

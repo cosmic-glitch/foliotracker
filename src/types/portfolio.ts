@@ -20,6 +20,7 @@ export interface Holding {
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
+  regularMarketPrice: number;
 }
 
 export interface HistoricalDataPoint {

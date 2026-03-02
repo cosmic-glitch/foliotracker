@@ -107,7 +107,7 @@ function getETOffsetIsoForDate(dateKey: string): string {
   return parseOffsetToIso(offsetPart);
 }
 
-function createETDate(dateKey: string, hour: number, minute: number): Date {
+export function createETDate(dateKey: string, hour: number, minute: number): Date {
   const offsetIso = getETOffsetIsoForDate(dateKey);
   const hh = String(hour).padStart(2, '0');
   const mm = String(minute).padStart(2, '0');

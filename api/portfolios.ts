@@ -431,17 +431,46 @@ export default async function handler(
               totalValue: null,
               dayChange: null,
               dayChangePercent: null,
+              regularTotalValue: null,
+              regularDayChange: null,
+              regularDayChangePercent: null,
             };
           }
 
           // Get pre-computed snapshot
           const snapshot = snapshotMap.get(portfolio.id);
           if (snapshot) {
+            // Compute regular-hours totals from holdings' regularMarketPrice
+            let regularTotalValue = 0;
+            for (const h of snapshot.holdings_json) {
+              if (h.isStatic) {
+                regularTotalValue += h.value;
+              } else {
+                regularTotalValue += h.shares * h.regularMarketPrice;
+              }
+            }
+            // Compute regular day change from previousClose
+            let regularPreviousTotal = 0;
+            for (const h of snapshot.holdings_json) {
+              if (h.isStatic) {
+                regularPreviousTotal += h.value;
+              } else {
+                regularPreviousTotal += h.shares * h.previousClose;
+              }
+            }
+            const regularDayChange = regularTotalValue - regularPreviousTotal;
+            const regularDayChangePercent = regularPreviousTotal > 0
+              ? (regularDayChange / regularPreviousTotal) * 100
+              : 0;
+
             return {
               ...portfolio,
               totalValue: snapshot.total_value,
               dayChange: snapshot.day_change,
               dayChangePercent: snapshot.day_change_percent,
+              regularTotalValue,
+              regularDayChange,
+              regularDayChangePercent,
               lastUpdated: snapshot.updated_at,
             };
           }
@@ -452,6 +481,9 @@ export default async function handler(
             totalValue: 0,
             dayChange: 0,
             dayChangePercent: 0,
+            regularTotalValue: 0,
+            regularDayChange: 0,
+            regularDayChangePercent: 0,
           };
         })
       );

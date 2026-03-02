@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useExtendedHours } from '../context/ExtendedHoursContext';
 
 interface UserMenuProps {
   loggedInAs: string;
@@ -14,6 +15,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEdit
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
+  const { showExtendedHours, toggleExtendedHours } = useExtendedHours();
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +89,20 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEdit
                 Dark Mode
               </>
             )}
+          </button>
+          <button
+            onClick={toggleExtendedHours}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            <Clock className="w-4 h-4 text-text-secondary" />
+            Extended Hours
+            <span className={`ml-auto w-4 h-4 rounded border flex items-center justify-center text-xs ${
+              showExtendedHours
+                ? 'bg-accent border-accent text-white'
+                : 'border-border'
+            }`}>
+              {showExtendedHours && '✓'}
+            </span>
           </button>
           <div className="mx-3 my-1 border-t border-border" />
           <button

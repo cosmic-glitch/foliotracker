@@ -116,8 +116,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       : <ChevronDown className="w-3.5 h-3.5 text-accent" />;
   };
 
-  const getHeaderButtonClass = (align: 'left' | 'right') =>
-    `group inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors ${align === 'right' ? 'ml-auto' : ''}`;
+  const getHeaderButtonClass = () =>
+    'group inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors';
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -127,63 +127,63 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           <thead>
             <tr className="border-b border-border">
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                <button type="button" onClick={() => handleSort('ticker')} className={getHeaderButtonClass('left')}>
+                <button type="button" onClick={() => handleSort('ticker')} className={getHeaderButtonClass()}>
                   <span>Asset</span>
                   {renderSortIcon('ticker')}
                 </button>
               </th>
-              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                <button type="button" onClick={() => handleSort('currentPrice')} className={getHeaderButtonClass('right')}>
+              <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                <button type="button" onClick={() => handleSort('currentPrice')} className={getHeaderButtonClass()}>
                   <span>Unit Price</span>
                   {renderSortIcon('currentPrice')}
                 </button>
               </th>
-              <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                <button type="button" onClick={() => handleSort('value')} className={getHeaderButtonClass('right')}>
+              <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                <button type="button" onClick={() => handleSort('value')} className={getHeaderButtonClass()}>
                   <span>Holding Size</span>
                   {renderSortIcon('value')}
                 </button>
               </th>
               {hasAnyFundamentals && (
                 <>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass()}>
                       <span>Rev.</span>
                       {renderSortIcon('revenue')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('earnings')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('earnings')} className={getHeaderButtonClass()}>
                       <span>Earn.</span>
                       {renderSortIcon('earnings')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()}>
                       <span>Fwd P/E</span>
                       {renderSortIcon('forwardPE')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass()}>
                       <span>Op. Mar.</span>
                       {renderSortIcon('operatingMargin')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass()}>
                       <span>Rev. Gr. 3Y</span>
                       {renderSortIcon('revenueGrowth3Y')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass()}>
                       <span>EPS Gr. 3Y</span>
                       {renderSortIcon('epsGrowth3Y')}
                     </button>
                   </th>
-                  <th className="text-right text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass('right')}>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass()}>
                       <span>% to 52w Hi</span>
                       {renderSortIcon('pctTo52WeekHigh')}
                     </button>
@@ -200,7 +200,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <p className="font-semibold text-text-primary">{holding.ticker}</p>
                     </div>
                   </td>
-                  <td className="text-right px-4 py-2 whitespace-nowrap">
+                  <td className="text-left px-4 py-2 whitespace-nowrap">
                     {!holding.isStatic ? (
                       <>
                         <span className="font-medium text-text-primary">{formatPrice(holding.currentPrice)}</span>
@@ -212,7 +212,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <span />
                     )}
                   </td>
-                  <td className="text-right px-4 py-2 whitespace-nowrap">
+                  <td className="text-left px-4 py-2 whitespace-nowrap">
                     <span className="font-semibold text-text-primary">
                       {formatCurrency(holding.value, true)}
                     </span>
@@ -224,13 +224,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </td>
                   {hasAnyFundamentals && (
                     <>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
-                      <td className="text-right px-4 py-2 text-sm text-text-primary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
                     </>
                   )}
                 </tr>

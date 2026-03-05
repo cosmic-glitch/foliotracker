@@ -126,7 +126,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+              <th className="w-48 min-w-[12rem] text-left text-text-secondary text-sm font-medium px-4 py-2 whitespace-nowrap">
                 <button type="button" onClick={() => handleSort('ticker')} className={getHeaderButtonClass()}>
                   <span>Asset</span>
                   {renderSortIcon('ticker')}
@@ -148,13 +148,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass()}>
-                      <span>Rev.</span>
+                      <span>Revenue</span>
                       {renderSortIcon('revenue')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('earnings')} className={getHeaderButtonClass()}>
-                      <span>Earn.</span>
+                      <span>Earnings</span>
                       {renderSortIcon('earnings')}
                     </button>
                   </th>
@@ -166,7 +166,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass()}>
-                      <span>Op. Mar.</span>
+                      <span>Operating Margin</span>
                       {renderSortIcon('operatingMargin')}
                     </button>
                   </th>
@@ -195,7 +195,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           <tbody>
             {sortedDesktopHoldings.map((holding) => (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-                  <td className="px-4 py-2">
+                  <td className="w-48 min-w-[12rem] px-4 py-2 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       <p className="font-semibold text-text-primary">{holding.ticker}</p>
                     </div>

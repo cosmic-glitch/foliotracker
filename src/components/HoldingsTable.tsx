@@ -126,7 +126,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              <th className="w-48 min-w-[12rem] text-left text-text-secondary text-sm font-medium px-4 py-2 whitespace-nowrap">
+              <th className="w-[11ch] min-w-[11ch] max-w-[11ch] text-left text-text-secondary text-sm font-medium px-4 py-2 whitespace-nowrap">
                 <button type="button" onClick={() => handleSort('ticker')} className={getHeaderButtonClass()}>
                   <span>Asset</span>
                   {renderSortIcon('ticker')}
@@ -195,9 +195,9 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           <tbody>
             {sortedDesktopHoldings.map((holding) => (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-                  <td className="w-48 min-w-[12rem] px-4 py-2 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-semibold text-text-primary">{holding.ticker}</p>
+                  <td className="w-[11ch] min-w-[11ch] max-w-[11ch] px-4 py-2 whitespace-nowrap">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <p className="truncate font-semibold text-text-primary">{holding.ticker}</p>
                     </div>
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">

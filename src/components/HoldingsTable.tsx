@@ -166,7 +166,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass()}>
-                      <span>Operating Margin</span>
+                      <span>Op Margin</span>
                       {renderSortIcon('operatingMargin')}
                     </button>
                   </th>
@@ -308,7 +308,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               )}
               {popoverHolding.operatingMargin != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Operating Margin</span>
+                  <span className="text-text-secondary">Op Margin</span>
                   <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverHolding.operatingMargin)}</span>
                 </div>
               )}

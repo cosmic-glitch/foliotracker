@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -64,6 +64,40 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     mediaQuery.addEventListener('change', onChange);
     return () => mediaQuery.removeEventListener('change', onChange);
   }, []);
+
+  // Swipe gesture for mobile chart view toggle
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      onViewChange(deltaX < 0 ? '30D' : '1D');
+    }
+    touchStartRef.current = null;
+  };
+
+  const renderDots = () => (
+    <div className="flex md:hidden justify-center gap-1.5 pb-1">
+      {(['1D', '30D'] as const).map((view) => (
+        <button
+          key={view}
+          onClick={() => onViewChange(view)}
+          className={`w-1.5 h-1.5 rounded-full transition-all ${
+            chartView === view
+              ? 'bg-accent scale-125'
+              : 'bg-text-secondary/30'
+          }`}
+          aria-label={`Switch to ${view} view`}
+        />
+      ))}
+    </div>
+  );
 
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
@@ -155,7 +189,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
@@ -167,13 +201,14 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
             </div>
           </div>
         </div>
+        {renderDots()}
       </div>
     );
   }
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
+      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
@@ -182,6 +217,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
             </div>
           </div>
         </div>
+        {renderDots()}
       </div>
     );
   }
@@ -245,7 +281,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border">
+    <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="flex items-start h-48 md:h-72">
         <div className="relative flex-1 h-full min-w-0 flex flex-col">
           <div className="flex-1 min-h-0">
@@ -344,6 +380,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
           )}
         </div>
       </div>
+      {renderDots()}
     </div>
   );
 }

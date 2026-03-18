@@ -130,7 +130,7 @@ function buildSmallWidget(data) {
     row.spacing = 4;
 
     const ticker = row.addText(h.ticker);
-    ticker.font = Font.monospaceSystemFont(10);
+    ticker.font = Font.regularMonospacedSystemFont(10);
     ticker.textColor = COLORS.text;
     ticker.lineLimit = 1;
 
@@ -141,7 +141,7 @@ function buildSmallWidget(data) {
       : (h.dayChangePercent || 0);
     const hColor = pct >= 0 ? COLORS.positive : COLORS.negative;
     const pctText = row.addText(formatPercent(pct));
-    pctText.font = Font.monospaceSystemFont(10);
+    pctText.font = Font.regularMonospacedSystemFont(10);
     pctText.textColor = hColor;
     pctText.lineLimit = 1;
 
@@ -218,7 +218,7 @@ function buildMediumWidget(data) {
     row.spacing = 4;
 
     const ticker = row.addText(h.ticker);
-    ticker.font = Font.monospaceSystemFont(11);
+    ticker.font = Font.regularMonospacedSystemFont(11);
     ticker.textColor = COLORS.text;
     ticker.lineLimit = 1;
 
@@ -229,7 +229,7 @@ function buildMediumWidget(data) {
       : (h.dayChangePercent || 0);
     const hChangeColor = pct >= 0 ? COLORS.positive : COLORS.negative;
     const pctText = row.addText(formatPercent(pct));
-    pctText.font = Font.monospaceSystemFont(11);
+    pctText.font = Font.regularMonospacedSystemFont(11);
     pctText.textColor = hChangeColor;
     pctText.lineLimit = 1;
 

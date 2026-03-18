@@ -69,6 +69,25 @@ function formatTime(isoString) {
   return `${hours % 12 || 12}:${minutes} ${ampm}`;
 }
 
+function computeRegularMarketTotals(data) {
+  let totalValue = 0;
+  let previousTotal = 0;
+  for (const h of data.holdings || []) {
+    if (h.isStatic) {
+      totalValue += h.value || 0;
+      previousTotal += h.value || 0;
+    } else {
+      const price = h.regularMarketPrice || h.currentPrice || 0;
+      const prev = h.previousClose || price;
+      totalValue += price * h.shares;
+      previousTotal += prev * h.shares;
+    }
+  }
+  const totalDayChange = totalValue - previousTotal;
+  const totalDayChangePercent = previousTotal > 0 ? (totalDayChange / previousTotal) * 100 : 0;
+  return { totalValue, totalDayChange, totalDayChangePercent };
+}
+
 // ── Small Widget ───────────────────────────────────────────────
 function buildSmallWidget(data) {
   const w = new ListWidget();
@@ -76,18 +95,12 @@ function buildSmallWidget(data) {
   w.setPadding(12, 14, 12, 14);
   w.url = `${BASE_URL}/${PORTFOLIO_ID}`;
 
-  const isPositive = data.totalDayChange >= 0;
+  const mkt = computeRegularMarketTotals(data);
+  const isPositive = mkt.totalDayChange >= 0;
   const changeColor = isPositive ? COLORS.positive : COLORS.negative;
 
-  // Portfolio name
-  const name = w.addText(data.displayName || PORTFOLIO_ID.toUpperCase());
-  name.font = Font.semiboldSystemFont(11);
-  name.textColor = COLORS.textSecondary;
-
-  w.addSpacer(6);
-
   // Total value
-  const value = w.addText(formatCurrency(data.totalValue));
+  const value = w.addText(formatCurrency(mkt.totalValue));
   value.font = Font.boldSystemFont(22);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
@@ -95,10 +108,47 @@ function buildSmallWidget(data) {
   w.addSpacer(4);
 
   // Day change line
-  const changeLine = `${formatChange(data.totalDayChange)}  ${formatPercent(data.totalDayChangePercent)}`;
+  const changeLine = `${formatChange(mkt.totalDayChange)}  ${formatPercent(mkt.totalDayChangePercent)}`;
   const change = w.addText(changeLine);
   change.font = Font.mediumSystemFont(13);
   change.textColor = changeColor;
+
+  w.addSpacer(6);
+
+  // Top 3 holdings
+  const topHoldings = (data.holdings || [])
+    .filter((h) => !h.isStatic)
+    .sort((a, b) => {
+      const aVal = (a.regularMarketPrice || a.currentPrice || 0) * a.shares;
+      const bVal = (b.regularMarketPrice || b.currentPrice || 0) * b.shares;
+      return bVal - aVal;
+    })
+    .slice(0, 3);
+
+  for (const h of topHoldings) {
+    const row = w.addStack();
+    row.layoutHorizontally();
+    row.centerAlignContent();
+    row.spacing = 4;
+
+    const ticker = row.addText(h.ticker);
+    ticker.font = Font.monospacedSystemFont(10, 0.3);
+    ticker.textColor = COLORS.text;
+    ticker.lineLimit = 1;
+
+    row.addSpacer();
+
+    const pct = h.previousClose > 0
+      ? ((h.regularMarketPrice - h.previousClose) / h.previousClose) * 100
+      : (h.dayChangePercent || 0);
+    const hColor = pct >= 0 ? COLORS.positive : COLORS.negative;
+    const pctText = row.addText(formatPercent(pct));
+    pctText.font = Font.monospacedSystemFont(10, 0.3);
+    pctText.textColor = hColor;
+    pctText.lineLimit = 1;
+
+    w.addSpacer(1);
+  }
 
   w.addSpacer();
 
@@ -118,17 +168,14 @@ function buildMediumWidget(data) {
   w.setPadding(12, 16, 12, 16);
   w.url = `${BASE_URL}/${PORTFOLIO_ID}`;
 
-  const isPositive = data.totalDayChange >= 0;
+  const mkt = computeRegularMarketTotals(data);
+  const isPositive = mkt.totalDayChange >= 0;
   const changeColor = isPositive ? COLORS.positive : COLORS.negative;
 
-  // ── Top row: name + market status ──
+  // ── Top row: market status ──
   const topRow = w.addStack();
   topRow.layoutHorizontally();
   topRow.centerAlignContent();
-
-  const name = topRow.addText(data.displayName || PORTFOLIO_ID.toUpperCase());
-  name.font = Font.semiboldSystemFont(12);
-  name.textColor = COLORS.textSecondary;
 
   topRow.addSpacer();
 
@@ -143,14 +190,14 @@ function buildMediumWidget(data) {
   valueRow.layoutHorizontally();
   valueRow.bottomAlignContent();
 
-  const value = valueRow.addText(formatCurrency(data.totalValue));
+  const value = valueRow.addText(formatCurrency(mkt.totalValue));
   value.font = Font.boldSystemFont(24);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
 
   valueRow.addSpacer(8);
 
-  const changeLine = `${formatChange(data.totalDayChange)}  (${formatPercent(data.totalDayChangePercent)})`;
+  const changeLine = `${formatChange(mkt.totalDayChange)}  (${formatPercent(mkt.totalDayChangePercent)})`;
   const change = valueRow.addText(changeLine);
   change.font = Font.mediumSystemFont(12);
   change.textColor = changeColor;
@@ -163,7 +210,11 @@ function buildMediumWidget(data) {
   // ── Top holdings ──
   const holdings = (data.holdings || [])
     .filter((h) => !h.isStatic)
-    .sort((a, b) => b.value - a.value)
+    .sort((a, b) => {
+      const aVal = (a.regularMarketPrice || a.currentPrice || 0) * a.shares;
+      const bVal = (b.regularMarketPrice || b.currentPrice || 0) * b.shares;
+      return bVal - aVal;
+    })
     .slice(0, 4);
 
   for (const h of holdings) {
@@ -179,8 +230,11 @@ function buildMediumWidget(data) {
 
     row.addSpacer();
 
-    const hChangeColor = h.dayChangePercent >= 0 ? COLORS.positive : COLORS.negative;
-    const pctText = row.addText(formatPercent(h.dayChangePercent));
+    const pct = h.previousClose > 0
+      ? ((h.regularMarketPrice - h.previousClose) / h.previousClose) * 100
+      : (h.dayChangePercent || 0);
+    const hChangeColor = pct >= 0 ? COLORS.positive : COLORS.negative;
+    const pctText = row.addText(formatPercent(pct));
     pctText.font = Font.monospacedSystemFont(11, 0.3);
     pctText.textColor = hChangeColor;
     pctText.lineLimit = 1;

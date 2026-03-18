@@ -345,7 +345,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     }
                     return `$${value.toFixed(0)}`;
                   }}
-                  width={isMobile ? 46 : 58}
+                  width={isMobile ? 54 : 58}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line

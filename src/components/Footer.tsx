@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { RefreshCw, Smartphone } from 'lucide-react';
+import { RefreshCw, Smartphone, LayoutGrid } from 'lucide-react';
 import { formatDate } from '../utils/formatters';
 import { InstallModal } from './InstallModal';
+import { WidgetModal } from './WidgetModal';
 
 interface FooterProps {
   lastUpdated: Date;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  portfolioId?: string;
+  token?: string | null;
 }
 
-export function Footer({ lastUpdated, onRefresh, isRefreshing }: FooterProps) {
+export function Footer({ lastUpdated, onRefresh, isRefreshing, portfolioId, token }: FooterProps) {
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showWidgetModal, setShowWidgetModal] = useState(false);
 
   return (
     <>
@@ -29,6 +33,16 @@ export function Footer({ lastUpdated, onRefresh, isRefreshing }: FooterProps) {
                 <span className="hidden sm:inline">Setup as an app on your phone</span>
                 <span className="sm:hidden">Setup as app</span>
               </button>
+              {portfolioId && token && (
+                <button
+                  onClick={() => setShowWidgetModal(true)}
+                  className="flex items-center gap-1.5 text-text-secondary hover:text-accent transition-colors text-sm"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Setup home screen widget</span>
+                  <span className="sm:hidden">Widget</span>
+                </button>
+              )}
             </div>
             {onRefresh && (
               <button
@@ -46,6 +60,14 @@ export function Footer({ lastUpdated, onRefresh, isRefreshing }: FooterProps) {
 
       {showInstallModal && (
         <InstallModal onClose={() => setShowInstallModal(false)} />
+      )}
+
+      {showWidgetModal && portfolioId && (
+        <WidgetModal
+          onClose={() => setShowWidgetModal(false)}
+          portfolioId={portfolioId}
+          token={token}
+        />
       )}
     </>
   );

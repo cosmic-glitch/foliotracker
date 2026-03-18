@@ -231,6 +231,8 @@ function App() {
           lastUpdated={data.lastUpdated}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
+          portfolioId={portfolioId}
+          token={storedToken}
         />
       )}
 

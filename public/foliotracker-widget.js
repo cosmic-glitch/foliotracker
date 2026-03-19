@@ -92,7 +92,7 @@ function computeRegularMarketTotals(data) {
 function buildSmallWidget(data) {
   const w = new ListWidget();
   w.backgroundColor = COLORS.bg;
-  w.setPadding(10, 14, 8, 14);
+  w.setPadding(16, 14, 8, 14);
   w.url = `${BASE_URL}/${PORTFOLIO_ID}`;
 
   const mkt = computeRegularMarketTotals(data);
@@ -161,12 +161,6 @@ function buildSmallWidget(data) {
   }
 
   w.addSpacer();
-
-  // Last updated
-  const updated = w.addText(formatTime(data.lastUpdated));
-  updated.font = Font.regularSystemFont(8);
-  updated.textColor = COLORS.textSecondary;
-  updated.textOpacity = 0.6;
 
   return w;
 }

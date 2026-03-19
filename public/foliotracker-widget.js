@@ -17,13 +17,13 @@ const BASE_URL = "https://foliotracker.vercel.app";
 // ───────────────────────────────────────────────────────────────
 
 const COLORS = {
-  bg: new Color("#0f172a"),
-  cardBg: new Color("#1e293b"),
-  text: new Color("#f8fafc"),
-  textSecondary: new Color("#94a3b8"),
-  positive: new Color("#22c55e"),
-  negative: new Color("#ef4444"),
-  accent: new Color("#3b82f6"),
+  bg: new Color("#ffffff"),
+  cardBg: new Color("#f1f5f9"),
+  text: new Color("#0f172a"),
+  textSecondary: new Color("#64748b"),
+  positive: new Color("#16a34a"),
+  negative: new Color("#dc2626"),
+  accent: new Color("#2563eb"),
 };
 
 async function fetchPortfolio() {

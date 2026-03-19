@@ -100,17 +100,23 @@ function buildSmallWidget(data) {
   const isPositive = mkt.totalDayChange >= 0;
   const changeColor = isPositive ? COLORS.positive : COLORS.negative;
 
-  const value = w.addText(formatCurrency(mkt.totalValue));
-  value.font = Font.boldSystemFont(20);
+  // Header row: value left, day change % right
+  const headerRow = w.addStack();
+  headerRow.layoutHorizontally();
+  headerRow.centerAlignContent();
+
+  const value = headerRow.addText(formatCurrency(mkt.totalValue));
+  value.font = Font.boldSystemFont(16);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
+  value.lineLimit = 1;
 
-  w.addSpacer(2);
+  headerRow.addSpacer();
 
-  const changeLine = \`\${formatChange(mkt.totalDayChange)}  \${formatPercent(mkt.totalDayChangePercent)}\`;
-  const change = w.addText(changeLine);
-  change.font = Font.mediumSystemFont(12);
+  const change = headerRow.addText(formatPercent(mkt.totalDayChangePercent));
+  change.font = Font.mediumSystemFont(14);
   change.textColor = changeColor;
+  change.lineLimit = 1;
 
   w.addSpacer(4);
 
@@ -121,7 +127,7 @@ function buildSmallWidget(data) {
       const bVal = (b.regularMarketPrice || b.currentPrice || 0) * b.shares;
       return bVal - aVal;
     })
-    .slice(0, 6);
+;
 
   for (const h of topHoldings) {
     const row = w.addStack();
@@ -130,7 +136,7 @@ function buildSmallWidget(data) {
     row.spacing = 4;
 
     const ticker = row.addText(h.ticker);
-    ticker.font = Font.regularMonospacedSystemFont(9);
+    ticker.font = Font.regularMonospacedSystemFont(10);
     ticker.textColor = COLORS.text;
     ticker.lineLimit = 1;
 
@@ -138,7 +144,7 @@ function buildSmallWidget(data) {
 
     const price = h.regularMarketPrice || h.currentPrice || 0;
     const priceText = row.addText(\`$\${price.toFixed(2)}\`);
-    priceText.font = Font.regularMonospacedSystemFont(9);
+    priceText.font = Font.regularMonospacedSystemFont(10);
     priceText.textColor = COLORS.text;
     priceText.lineLimit = 1;
 
@@ -149,7 +155,7 @@ function buildSmallWidget(data) {
       : (h.dayChangePercent || 0);
     const hColor = pct >= 0 ? COLORS.positive : COLORS.negative;
     const pctText = row.addText(formatPercent(pct));
-    pctText.font = Font.regularMonospacedSystemFont(9);
+    pctText.font = Font.regularMonospacedSystemFont(10);
     pctText.textColor = hColor;
     pctText.lineLimit = 1;
   }

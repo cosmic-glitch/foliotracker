@@ -252,6 +252,8 @@ function buildMediumWidget(data) {
         pctText.lineLimit = 1;
       }
 
+      cell.addSpacer();
+
       if (col === 0) row.addSpacer();
     }
 

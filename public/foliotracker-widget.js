@@ -199,7 +199,7 @@ function buildMediumWidget(data) {
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
 
-  valueRow.addSpacer();
+  valueRow.addSpacer(8);
 
   const changeStack = valueRow.addStack();
   changeStack.layoutVertically();
@@ -207,12 +207,12 @@ function buildMediumWidget(data) {
   const changeDollar = changeStack.addText(formatChange(mkt.totalDayChange));
   changeDollar.font = Font.mediumSystemFont(12);
   changeDollar.textColor = changeColor;
-  changeDollar.rightAlignText();
 
   const changePct = changeStack.addText(formatPercent(mkt.totalDayChangePercent));
   changePct.font = Font.mediumSystemFont(12);
   changePct.textColor = changeColor;
-  changePct.rightAlignText();
+
+  valueRow.addSpacer();
 
   w.addSpacer(8);
 
@@ -239,7 +239,7 @@ function buildMediumWidget(data) {
 
       if (h) {
         const ticker = cell.addText(h.ticker);
-        ticker.font = Font.regularMonospacedSystemFont(10);
+        ticker.font = Font.regularMonospacedSystemFont(11);
         ticker.textColor = COLORS.text;
         ticker.lineLimit = 1;
 
@@ -250,7 +250,7 @@ function buildMediumWidget(data) {
           : (h.dayChangePercent || 0);
         const hChangeColor = pct >= 0 ? COLORS.positive : COLORS.negative;
         const pctText = cell.addText(formatPercent(pct));
-        pctText.font = Font.regularMonospacedSystemFont(10);
+        pctText.font = Font.regularMonospacedSystemFont(11);
         pctText.textColor = hChangeColor;
         pctText.lineLimit = 1;
       }

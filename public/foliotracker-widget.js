@@ -189,70 +189,79 @@ function buildMediumWidget(data) {
 
   w.addSpacer(4);
 
-  // ── Value row ──
+  // ── Value row: total left, stacked change right ──
   const valueRow = w.addStack();
   valueRow.layoutHorizontally();
-  valueRow.bottomAlignContent();
+  valueRow.centerAlignContent();
 
   const value = valueRow.addText(formatCurrency(mkt.totalValue));
   value.font = Font.boldSystemFont(24);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
 
-  valueRow.addSpacer(8);
-
-  const changeLine = `${formatChange(mkt.totalDayChange)}  (${formatPercent(mkt.totalDayChangePercent)})`;
-  const change = valueRow.addText(changeLine);
-  change.font = Font.mediumSystemFont(12);
-  change.textColor = changeColor;
-  change.minimumScaleFactor = 0.7;
-
   valueRow.addSpacer();
+
+  const changeStack = valueRow.addStack();
+  changeStack.layoutVertically();
+
+  const changeDollar = changeStack.addText(formatChange(mkt.totalDayChange));
+  changeDollar.font = Font.mediumSystemFont(12);
+  changeDollar.textColor = changeColor;
+  changeDollar.rightAlignText();
+
+  const changePct = changeStack.addText(formatPercent(mkt.totalDayChangePercent));
+  changePct.font = Font.mediumSystemFont(12);
+  changePct.textColor = changeColor;
+  changePct.rightAlignText();
 
   w.addSpacer(8);
 
-  // ── Top holdings ──
+  // ── Two-column holdings grid ──
   const holdings = (data.holdings || [])
     .filter((h) => !h.isStatic)
     .sort((a, b) => {
       const aVal = (a.regularMarketPrice || a.currentPrice || 0) * a.shares;
       const bVal = (b.regularMarketPrice || b.currentPrice || 0) * b.shares;
       return bVal - aVal;
-    })
-    .slice(0, 4);
+    });
 
-  for (const h of holdings) {
+  for (let i = 0; i < holdings.length; i += 2) {
     const row = w.addStack();
     row.layoutHorizontally();
     row.centerAlignContent();
-    row.spacing = 4;
 
-    const ticker = row.addText(h.ticker);
-    ticker.font = Font.regularMonospacedSystemFont(11);
-    ticker.textColor = COLORS.text;
-    ticker.lineLimit = 1;
+    for (let col = 0; col < 2; col++) {
+      const h = holdings[i + col];
+      const cell = row.addStack();
+      cell.layoutHorizontally();
+      cell.centerAlignContent();
+      cell.size = new Size(148, 0);
 
-    row.addSpacer();
+      if (h) {
+        const ticker = cell.addText(h.ticker);
+        ticker.font = Font.regularMonospacedSystemFont(10);
+        ticker.textColor = COLORS.text;
+        ticker.lineLimit = 1;
 
-    const pct = h.previousClose > 0
-      ? ((h.regularMarketPrice - h.previousClose) / h.previousClose) * 100
-      : (h.dayChangePercent || 0);
-    const hChangeColor = pct >= 0 ? COLORS.positive : COLORS.negative;
-    const pctText = row.addText(formatPercent(pct));
-    pctText.font = Font.regularMonospacedSystemFont(11);
-    pctText.textColor = hChangeColor;
-    pctText.lineLimit = 1;
+        cell.addSpacer(4);
+
+        const pct = h.previousClose > 0
+          ? ((h.regularMarketPrice - h.previousClose) / h.previousClose) * 100
+          : (h.dayChangePercent || 0);
+        const hChangeColor = pct >= 0 ? COLORS.positive : COLORS.negative;
+        const pctText = cell.addText(formatPercent(pct));
+        pctText.font = Font.regularMonospacedSystemFont(10);
+        pctText.textColor = hChangeColor;
+        pctText.lineLimit = 1;
+      }
+
+      if (col === 0) row.addSpacer();
+    }
 
     w.addSpacer(2);
   }
 
   w.addSpacer();
-
-  // Last updated
-  const updated = w.addText(`Updated ${formatTime(data.lastUpdated)}`);
-  updated.font = Font.regularSystemFont(9);
-  updated.textColor = COLORS.textSecondary;
-  updated.textOpacity = 0.6;
 
   return w;
 }

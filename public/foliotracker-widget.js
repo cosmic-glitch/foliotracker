@@ -191,12 +191,14 @@ function buildMediumWidget(data) {
   const changeDollar = valueRow.addText(formatChange(mkt.totalDayChange));
   changeDollar.font = Font.mediumSystemFont(12);
   changeDollar.textColor = changeColor;
+  changeDollar.baselineOffset = -4;
 
   valueRow.addSpacer(4);
 
   const changePct = valueRow.addText(formatPercent(mkt.totalDayChangePercent));
   changePct.font = Font.mediumSystemFont(12);
   changePct.textColor = changeColor;
+  changePct.baselineOffset = -4;
 
   valueRow.addSpacer();
 

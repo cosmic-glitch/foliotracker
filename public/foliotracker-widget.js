@@ -195,7 +195,7 @@ function buildMediumWidget(data) {
   valueRow.centerAlignContent();
 
   const value = valueRow.addText(formatCurrency(mkt.totalValue));
-  value.font = Font.boldSystemFont(24);
+  value.font = Font.boldSystemFont(28);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
 
@@ -238,7 +238,7 @@ function buildMediumWidget(data) {
       cell.size = new Size(148, 0);
 
       if (h) {
-        const ticker = cell.addText(h.ticker);
+        const ticker = cell.addText(h.ticker.padEnd(6));
         ticker.font = Font.regularMonospacedSystemFont(11);
         ticker.textColor = COLORS.text;
         ticker.lineLimit = 1;

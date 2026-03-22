@@ -176,39 +176,25 @@ function buildMediumWidget(data) {
   const isPositive = mkt.totalDayChange >= 0;
   const changeColor = isPositive ? COLORS.positive : COLORS.negative;
 
-  // ── Top row: market status ──
-  const topRow = w.addStack();
-  topRow.layoutHorizontally();
-  topRow.centerAlignContent();
-
-  topRow.addSpacer();
-
-  const status = topRow.addText(data.marketStatus === "open" ? "LIVE" : data.marketStatus?.toUpperCase() || "");
-  status.font = Font.boldSystemFont(9);
-  status.textColor = data.marketStatus === "open" ? COLORS.positive : COLORS.textSecondary;
-
-  w.addSpacer(4);
-
-  // ── Value row: total left, stacked change right ──
+  // ── Value row: total left, change values right, bottom-aligned ──
   const valueRow = w.addStack();
   valueRow.layoutHorizontally();
-  valueRow.centerAlignContent();
+  valueRow.bottomAlignContent();
 
   const value = valueRow.addText(formatCurrency(mkt.totalValue));
   value.font = Font.boldSystemFont(32);
   value.textColor = COLORS.text;
   value.minimumScaleFactor = 0.7;
 
-  valueRow.addSpacer(8);
+  valueRow.addSpacer(6);
 
-  const changeStack = valueRow.addStack();
-  changeStack.layoutVertically();
-
-  const changeDollar = changeStack.addText(formatChange(mkt.totalDayChange));
+  const changeDollar = valueRow.addText(formatChange(mkt.totalDayChange));
   changeDollar.font = Font.mediumSystemFont(12);
   changeDollar.textColor = changeColor;
 
-  const changePct = changeStack.addText(formatPercent(mkt.totalDayChangePercent));
+  valueRow.addSpacer(4);
+
+  const changePct = valueRow.addText(formatPercent(mkt.totalDayChangePercent));
   changePct.font = Font.mediumSystemFont(12);
   changePct.textColor = changeColor;
 
@@ -265,6 +251,16 @@ function buildMediumWidget(data) {
   }
 
   w.addSpacer();
+
+  // ── Bottom row: market status right-aligned ──
+  const bottomRow = w.addStack();
+  bottomRow.layoutHorizontally();
+  bottomRow.addSpacer();
+
+  const statusLabel = data.marketStatus === "open" ? "Mkt Open" : "Mkt " + (data.marketStatus ? data.marketStatus.charAt(0).toUpperCase() + data.marketStatus.slice(1) : "");
+  const status = bottomRow.addText(statusLabel);
+  status.font = Font.boldSystemFont(9);
+  status.textColor = data.marketStatus === "open" ? COLORS.positive : COLORS.textSecondary;
 
   return w;
 }

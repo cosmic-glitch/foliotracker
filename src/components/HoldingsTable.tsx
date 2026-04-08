@@ -11,7 +11,9 @@ interface HoldingsTableProps {
 type SortColumn =
   | 'ticker'
   | 'currentPrice'
+  | 'dayChangePercent'
   | 'value'
+  | 'dayChange'
   | 'revenue'
   | 'earnings'
   | 'forwardPE'
@@ -32,8 +34,12 @@ function getSortValue(holding: Holding, column: SortColumn): string | number | n
       return holding.ticker;
     case 'currentPrice':
       return holding.isStatic ? null : holding.currentPrice;
+    case 'dayChangePercent':
+      return holding.isStatic ? null : holding.dayChangePercent;
     case 'value':
       return holding.value;
+    case 'dayChange':
+      return holding.isStatic ? null : holding.dayChange;
     case 'revenue':
       return holding.revenue;
     case 'earnings':
@@ -139,9 +145,21 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 </button>
               </th>
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                <button type="button" onClick={() => handleSort('dayChangePercent')} className={getHeaderButtonClass()}>
+                  <span>Chg %</span>
+                  {renderSortIcon('dayChangePercent')}
+                </button>
+              </th>
+              <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                 <button type="button" onClick={() => handleSort('value')} className={getHeaderButtonClass()}>
                   <span>Holding Size</span>
                   {renderSortIcon('value')}
+                </button>
+              </th>
+              <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                <button type="button" onClick={() => handleSort('dayChange')} className={getHeaderButtonClass()}>
+                  <span>Chg $</span>
+                  {renderSortIcon('dayChange')}
                 </button>
               </th>
               {hasAnyFundamentals && (
@@ -202,23 +220,25 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
                     {!holding.isStatic ? (
-                      <>
-                        <span className="font-medium text-text-primary">{formatPrice(holding.currentPrice)}</span>
-                        {holding.dayChangePercent !== 0 && (
-                          <span className={`text-sm ml-1 ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>({formatPercent(holding.dayChangePercent)})</span>
-                        )}
-                      </>
+                      <span className="font-medium text-text-primary">{formatPrice(holding.currentPrice)}</span>
                     ) : (
                       <span />
+                    )}
+                  </td>
+                  <td className="text-left px-4 py-2 whitespace-nowrap">
+                    {!holding.isStatic && holding.dayChangePercent !== 0 && (
+                      <span className={`text-sm ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(holding.dayChangePercent)}</span>
                     )}
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
                     <span className="font-semibold text-text-primary">
                       {formatCurrency(holding.value, true)}
                     </span>
+                  </td>
+                  <td className="text-left px-4 py-2 whitespace-nowrap">
                     {!holding.isStatic && holding.dayChange !== 0 && (
-                      <span className={`text-sm ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
-                        ({formatChange(holding.dayChange, true)})
+                      <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        {formatChange(holding.dayChange, true)}
                       </span>
                     )}
                   </td>

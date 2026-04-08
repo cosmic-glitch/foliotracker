@@ -58,6 +58,7 @@ interface ApiPortfolioResponse {
   mungerCommentAt: string | null;
   deepResearch: string | null;
   deepResearchAt: string | null;
+  staleTickers?: string[];
 }
 
 interface PrivatePortfolioResponse {
@@ -310,6 +311,7 @@ export function usePortfolioData(portfolioId: string, token?: string | null, log
       mungerCommentAt: p.mungerCommentAt,
       deepResearch: p.deepResearch,
       deepResearchAt: p.deepResearchAt,
+      staleTickers: p.staleTickers ?? [],
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
 

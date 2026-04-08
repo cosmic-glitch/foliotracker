@@ -7,6 +7,7 @@ import {
   upsertPortfolioSnapshot,
   getCachedFundamentals,
   upsertFundamentalsCache,
+  getCachedPrices,
   type DbHolding,
   type DbFundamentalsCache,
   type SnapshotHolding,
@@ -467,6 +468,26 @@ export async function refreshAllSnapshots(): Promise<void> {
     });
   }
 
+  // Fall back to cached prices for any tickers that Yahoo failed to return
+  const staleTickers = new Set<string>();
+  const missingTickers = tickerArray.filter(t => !priceMap.has(t));
+  if (missingTickers.length > 0) {
+    console.warn(`Yahoo failed for ${missingTickers.length} tickers, falling back to price_cache: ${missingTickers.join(', ')}`);
+    const cachedPrices = await getCachedPrices(missingTickers);
+    for (const [ticker, cached] of cachedPrices.entries()) {
+      priceMap.set(ticker, {
+        currentPrice: cached.current_price,
+        previousClose: cached.previous_close,
+        changePercent: cached.change_percent,
+      });
+      staleTickers.add(ticker);
+    }
+    const stillMissing = missingTickers.filter(t => !priceMap.has(t));
+    if (stillMissing.length > 0) {
+      console.error(`No price data at all (Yahoo + cache) for: ${stillMissing.join(', ')}`);
+    }
+  }
+
   // Fetch fundamentals data (revenue, earnings, forward EPS, 52wk high)
   const nonStaticTickers = Array.from(allTickers).filter(t => t !== BENCHMARK_TICKER);
   const fundamentalsMap = await fetchFundamentals(nonStaticTickers);
@@ -623,6 +644,11 @@ export async function refreshAllSnapshots(): Promise<void> {
       regularHistory1d = existing?.regular_history_1d_json ?? [];
     }
 
+    // Determine which of this portfolio's tickers used stale cached prices
+    const portfolioStaleTickers = holdings
+      .filter(h => !h.is_static && staleTickers.has(h.ticker))
+      .map(h => h.ticker);
+
     const snapshot: Omit<DbPortfolioSnapshot, 'updated_at'> = {
       portfolio_id: portfolio.id,
       total_value: totalValue,
@@ -638,6 +664,7 @@ export async function refreshAllSnapshots(): Promise<void> {
       market_status: marketStatus,
       last_error: null,
       last_error_at: null,
+      stale_tickers: portfolioStaleTickers,
     };
 
     await upsertPortfolioSnapshot(snapshot);
@@ -669,6 +696,26 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
+  }
+
+  // Fall back to cached prices for any tickers that Yahoo failed to return
+  const staleTickers = new Set<string>();
+  const missingTickers = tickers.filter(t => !priceMap.has(t));
+  if (missingTickers.length > 0) {
+    console.warn(`Yahoo failed for ${missingTickers.length} tickers, falling back to price_cache: ${missingTickers.join(', ')}`);
+    const cachedPrices = await getCachedPrices(missingTickers);
+    for (const [ticker, cached] of cachedPrices.entries()) {
+      priceMap.set(ticker, {
+        currentPrice: cached.current_price,
+        previousClose: cached.previous_close,
+        changePercent: cached.change_percent,
+      });
+      staleTickers.add(ticker);
+    }
+    const stillMissing = missingTickers.filter(t => !priceMap.has(t));
+    if (stillMissing.length > 0) {
+      console.error(`No price data at all (Yahoo + cache) for: ${stillMissing.join(', ')}`);
+    }
   }
 
   // Fetch fundamentals data
@@ -805,6 +852,11 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     regularHistory1d = existing?.regular_history_1d_json ?? [];
   }
 
+  // Determine which of this portfolio's tickers used stale cached prices
+  const portfolioStaleTickers = holdings
+    .filter(h => !h.is_static && staleTickers.has(h.ticker))
+    .map(h => h.ticker);
+
   const snapshot: Omit<DbPortfolioSnapshot, 'updated_at'> = {
     portfolio_id: portfolioId.toLowerCase(),
     total_value: totalValue,
@@ -820,6 +872,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     market_status: getMarketStatus(),
     last_error: null,
     last_error_at: null,
+    stale_tickers: portfolioStaleTickers,
   };
 
   await upsertPortfolioSnapshot(snapshot);

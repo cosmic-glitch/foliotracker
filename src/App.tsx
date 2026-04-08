@@ -135,6 +135,11 @@ function App() {
           <LoadingSkeleton />
         ) : data ? (
           <>
+            {data.staleTickers.length > 0 && (
+              <div className="mb-2 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
+                Some prices may be outdated — live data unavailable for: {data.staleTickers.join(', ')}
+              </div>
+            )}
             <TotalValue
               totalValue={data.totalValue}
               dayChange={data.totalDayChange}

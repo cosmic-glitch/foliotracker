@@ -190,5 +190,6 @@ export function getMockPortfolioData(): PortfolioData {
     mungerCommentAt: null,
     deepResearch: null,
     deepResearchAt: null,
+    staleTickers: [],
   };
 }

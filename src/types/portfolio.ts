@@ -65,6 +65,7 @@ export interface PortfolioData {
   mungerCommentAt: string | null;
   deepResearch: string | null;
   deepResearchAt: string | null;
+  staleTickers: string[];
 }
 
 export interface HoldingConfig {

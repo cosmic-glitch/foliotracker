@@ -578,6 +578,7 @@ export interface DbPortfolioSnapshot {
   updated_at: string;
   last_error: string | null;
   last_error_at: string | null;
+  stale_tickers: string[];
 }
 
 export async function getPortfolioSnapshot(portfolioId: string): Promise<DbPortfolioSnapshot | null> {
@@ -637,6 +638,7 @@ export async function recordSnapshotError(portfolioId: string, errorMessage: str
         day_change_percent: 0,
         holdings_json: [],
         market_status: 'unknown',
+        stale_tickers: [],
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'portfolio_id', ignoreDuplicates: false }

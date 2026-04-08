@@ -46,6 +46,7 @@ interface PortfolioResponse {
   isPrivate: boolean;
   visibility: Visibility;
   viewers?: string[];
+  staleTickers: string[];
   lastError?: string | null;
   lastErrorAt?: string | null;
   hotTake: string | null;
@@ -414,6 +415,7 @@ export default async function handler(
       isPrivate: portfolio.visibility === 'private',
       visibility: portfolio.visibility,
       viewers,
+      staleTickers: snapshot.stale_tickers ?? [],
       lastError: snapshot.last_error,
       lastErrorAt: snapshot.last_error_at,
       hotTake: aiComments.hot_take,

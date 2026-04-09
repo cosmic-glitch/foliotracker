@@ -19,6 +19,19 @@ import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
 import { loginToPortfolio } from './lib/auth';
+import type { Holding } from './types/portfolio';
+
+// Thought experiment: what would the portfolio be worth if every tradeable
+// holding hit its 52-week high? Static holdings and holdings with missing
+// 52w data contribute their current value unchanged.
+function computePeakPotentialTotal(holdings: Holding[]): number {
+  return holdings.reduce((sum, h) => {
+    if (h.isStatic || h.week52High == null || h.week52High <= 0) {
+      return sum + h.value;
+    }
+    return sum + h.shares * h.week52High;
+  }, 0);
+}
 
 function App() {
   const { portfolioId } = useParams<{ portfolioId: string }>();
@@ -146,6 +159,10 @@ function App() {
               dayChangePercent={data.totalDayChangePercent}
               totalGain={data.totalGain}
               totalGainPercent={data.totalGainPercent}
+              peakPotentialValue={Math.max(
+                computePeakPotentialTotal(data.holdings),
+                data.totalValue,
+              )}
             />
             <div className="mb-1 md:mb-3">
               <PerformanceChart

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, Eye, Globe, UserPlus, Briefcase, Shield } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
 import { PasswordModal } from '../components/PasswordModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -9,8 +9,10 @@ import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
+import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
+import { formatChange } from '../utils/formatters';
 
 interface Portfolio {
   id: string;
@@ -22,6 +24,7 @@ interface Portfolio {
   regularTotalValue: number | null;
   regularDayChange: number | null;
   regularDayChangePercent: number | null;
+  peakPotentialValue: number | null;
   is_private: boolean;
   visibility: 'public' | 'private' | 'selective';
   lastUpdated?: string;
@@ -52,6 +55,126 @@ function formatCompactValue(value: number): string {
     return `$${(value / 1000).toFixed(1)}k`;
   }
   return `$${value.toFixed(0)}`;
+}
+
+interface PortfolioListRowProps {
+  portfolio: Portfolio;
+  displayValue: number;
+  displayChange: number;
+  displayChangePercent: number;
+  peakPotentialValue: number;
+  shouldBlurValues: boolean;
+  loggedInAs: string | null;
+  onLoginClick: (portfolio: Portfolio) => void;
+}
+
+function PortfolioListRow({
+  portfolio,
+  displayValue,
+  displayChange,
+  displayChangePercent,
+  peakPotentialValue,
+  shouldBlurValues,
+  loggedInAs,
+  onLoginClick,
+}: PortfolioListRowProps) {
+  const { animatedValue, isRevealing, peakDelta, triggerReveal, onKeyDown } = usePeakReveal(
+    displayValue,
+    peakPotentialValue,
+  );
+  const isPositive = displayChange >= 0;
+  const changeColor = isPositive ? 'text-positive' : 'text-negative';
+  const sign = isPositive ? '+' : '';
+  const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 sm:py-3 hover:bg-card-hover transition-colors">
+      {/* Left: Username + visibility tag */}
+      <div className="min-w-0 shrink-0">
+        <p className="font-medium text-text-primary">
+          {portfolio.id.toUpperCase()}
+        </p>
+        {portfolio.visibility === 'public' && (
+          <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full mt-0.5">
+            <Globe className="w-3 h-3" />
+            Public
+          </span>
+        )}
+        {portfolio.visibility === 'private' && (
+          <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5">
+            <Lock className="w-3 h-3" />
+            Private
+          </span>
+        )}
+        {portfolio.visibility === 'selective' && (
+          <span className="inline-flex items-center gap-1 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full mt-0.5">
+            <Users className="w-3 h-3" />
+            By Invite
+          </span>
+        )}
+      </div>
+
+      {/* Middle: Value + day change (tap-to-reveal peak on non-blurred rows) */}
+      <div className="flex-1 min-w-0 text-right">
+        {shouldBlurValues ? (
+          <div>
+            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
+              $X,XXX,XXX
+            </span>
+            <p className="text-sm text-positive blur-sm select-none">
+              +$X.Xk (+X.XX%)
+            </p>
+          </div>
+        ) : (
+          <div
+            className={canReveal ? 'cursor-pointer select-none' : ''}
+            onClick={canReveal ? triggerReveal : undefined}
+            role={canReveal ? 'button' : undefined}
+            tabIndex={canReveal ? 0 : undefined}
+            onKeyDown={canReveal ? onKeyDown : undefined}
+          >
+            <span className="text-lg font-semibold text-text-primary">
+              ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+            {!isRevealing ? (
+              <p className={`text-sm ${changeColor}`}>
+                {sign}{formatCompactValue(Math.abs(displayChange))} ({sign}{displayChangePercent.toFixed(2)}%)
+              </p>
+            ) : (
+              <p className="text-sm text-accent flex items-center justify-end gap-1 animate-[fadeIn_0.2s_ease-out]">
+                <Sparkles className="w-3 h-3" />
+                {formatChange(peakDelta, true)} at 52w high
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right: Action buttons */}
+      <div className="flex flex-col items-end gap-0.5 shrink-0">
+        {(portfolio.visibility === 'public' ||
+          loggedInAs === portfolio.id.toLowerCase() ||
+          (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
+          <Link
+            to={`/${portfolio.id}`}
+            className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            View
+          </Link>
+        )}
+        {!loggedInAs && (
+          <button
+            onClick={() => onLoginClick(portfolio)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            Login
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function LandingPage() {
@@ -183,87 +306,23 @@ export function LandingPage() {
                     const displayChangePercent = showExtendedHours
                       ? (portfolio.dayChangePercent ?? 0)
                       : (portfolio.regularDayChangePercent ?? portfolio.dayChangePercent ?? 0);
-                    const isPositive = displayChange >= 0;
-                    const changeColor = isPositive ? 'text-positive' : 'text-negative';
-                    const sign = isPositive ? '+' : '';
+                    const peakPotentialValue = Math.max(
+                      portfolio.peakPotentialValue ?? 0,
+                      displayValue,
+                    );
 
                     return (
-                      <div
+                      <PortfolioListRow
                         key={portfolio.id}
-                        className="flex items-center gap-3 px-4 py-2 sm:py-3 hover:bg-card-hover transition-colors"
-                      >
-                        {/* Left: Username + visibility tag */}
-                        <div className="min-w-0 shrink-0">
-                          <p className="font-medium text-text-primary">
-                            {portfolio.id.toUpperCase()}
-                          </p>
-                          {portfolio.visibility === 'public' && (
-                            <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full mt-0.5">
-                              <Globe className="w-3 h-3" />
-                              Public
-                            </span>
-                          )}
-                          {portfolio.visibility === 'private' && (
-                            <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5">
-                              <Lock className="w-3 h-3" />
-                              Private
-                            </span>
-                          )}
-                          {portfolio.visibility === 'selective' && (
-                            <span className="inline-flex items-center gap-1 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full mt-0.5">
-                              <Users className="w-3 h-3" />
-                              By Invite
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Middle: Value + day change */}
-                        <div className="flex-1 min-w-0 text-right">
-                          {shouldBlurValues ? (
-                            <div>
-                              <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-                                $X,XXX,XXX
-                              </span>
-                              <p className="text-sm text-positive blur-sm select-none">
-                                +$X.Xk (+X.XX%)
-                              </p>
-                            </div>
-                          ) : (
-                            <div>
-                              <span className="text-lg font-semibold text-text-primary">
-                                ${displayValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                              </span>
-                              <p className={`text-sm ${changeColor}`}>
-                                {sign}{formatCompactValue(Math.abs(displayChange))} ({sign}{displayChangePercent.toFixed(2)}%)
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Right: Action buttons */}
-                        <div className="flex flex-col items-end gap-0.5 shrink-0">
-                          {(portfolio.visibility === 'public' ||
-                            loggedInAs === portfolio.id.toLowerCase() ||
-                            (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
-                            <Link
-                              to={`/${portfolio.id}`}
-                              className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              View
-                            </Link>
-                          )}
-                          {!loggedInAs && (
-                            <button
-                              onClick={() => setLoginTarget(portfolio)}
-                              className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-                            >
-                              <LogIn className="w-3.5 h-3.5" />
-                              Login
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                        portfolio={portfolio}
+                        displayValue={displayValue}
+                        displayChange={displayChange}
+                        displayChangePercent={displayChangePercent}
+                        peakPotentialValue={peakPotentialValue}
+                        shouldBlurValues={shouldBlurValues}
+                        loggedInAs={loggedInAs}
+                        onLoginClick={setLoginTarget}
+                      />
                     );
                   })}
                 </div>

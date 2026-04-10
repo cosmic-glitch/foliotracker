@@ -434,6 +434,7 @@ export default async function handler(
               regularTotalValue: null,
               regularDayChange: null,
               regularDayChangePercent: null,
+              peakPotentialValue: null,
             };
           }
 
@@ -441,21 +442,21 @@ export default async function handler(
           const snapshot = snapshotMap.get(portfolio.id);
           if (snapshot) {
             // Compute regular-hours totals from holdings' regularMarketPrice
+            // and peak-potential (what-if-all-hit-52w-high) in a single pass.
             let regularTotalValue = 0;
+            let regularPreviousTotal = 0;
+            let peakPotentialValue = 0;
             for (const h of snapshot.holdings_json) {
               if (h.isStatic) {
                 regularTotalValue += h.value;
+                regularPreviousTotal += h.value;
+                peakPotentialValue += h.value;
               } else {
                 regularTotalValue += h.shares * h.regularMarketPrice;
-              }
-            }
-            // Compute regular day change from previousClose
-            let regularPreviousTotal = 0;
-            for (const h of snapshot.holdings_json) {
-              if (h.isStatic) {
-                regularPreviousTotal += h.value;
-              } else {
                 regularPreviousTotal += h.shares * h.previousClose;
+                peakPotentialValue += (h.week52High != null && h.week52High > 0)
+                  ? h.shares * h.week52High
+                  : h.value;
               }
             }
             const regularDayChange = regularTotalValue - regularPreviousTotal;
@@ -471,6 +472,7 @@ export default async function handler(
               regularTotalValue,
               regularDayChange,
               regularDayChangePercent,
+              peakPotentialValue,
               lastUpdated: snapshot.updated_at,
             };
           }
@@ -484,6 +486,7 @@ export default async function handler(
             regularTotalValue: 0,
             regularDayChange: 0,
             regularDayChangePercent: 0,
+            peakPotentialValue: 0,
           };
         })
       );

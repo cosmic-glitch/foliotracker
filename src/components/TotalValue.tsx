@@ -62,7 +62,7 @@ export function TotalValue({
               </div>
             </div>
             {totalGain !== null && totalGainPercent !== null && (
-                <div className={`flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl ${gainBgColor}`}>
+                <div className={`hidden md:flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl ${gainBgColor}`}>
                   <GainIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 ${gainColor}`} />
                   <div className="flex flex-col">
                     <span className={`text-xs sm:text-sm md:text-lg font-semibold ${gainColor}`}>

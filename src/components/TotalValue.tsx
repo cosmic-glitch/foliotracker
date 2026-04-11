@@ -77,13 +77,13 @@ export function TotalValue({
           </div>
         ) : (
           <div className="flex flex-row items-stretch animate-[fadeIn_0.2s_ease-out]">
-            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl bg-accent/10">
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 text-accent" />
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl bg-amber-400/10">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 text-amber-400" />
               <div className="flex flex-col">
-                <span className="text-xs sm:text-sm md:text-lg font-semibold text-accent">
+                <span className="text-xs sm:text-sm md:text-lg font-semibold text-amber-400">
                   {formatChange(peakDelta, true)}
                 </span>
-                <span className="text-[10px] sm:text-[11px] md:text-sm text-accent">
+                <span className="text-[10px] sm:text-[11px] md:text-sm text-amber-400">
                   if all hit 52w high
                 </span>
               </div>

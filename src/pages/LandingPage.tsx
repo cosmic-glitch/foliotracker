@@ -141,7 +141,7 @@ function PortfolioListRow({
                 {sign}{formatCompactValue(Math.abs(displayChange))} ({sign}{displayChangePercent.toFixed(2)}%)
               </p>
             ) : (
-              <p className="text-sm text-amber-400 flex items-center justify-end gap-1 animate-[fadeIn_0.2s_ease-out]">
+              <p className="text-sm text-amber-400 flex items-center justify-end gap-1 animate-[fadeIn_0.2s_ease-out] whitespace-nowrap">
                 <Sparkles className="w-3 h-3" />
                 {formatChange(peakDelta, true)} at 52w high
               </p>

@@ -87,7 +87,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
     });
   };
 
-  const sortedDesktopHoldings = useMemo(() => {
+  const sortedHoldings = useMemo(() => {
     const sorted = [...consolidatedHoldings];
     sorted.sort((a, b) => {
       const aValue = getSortValue(a, sortConfig.column);
@@ -211,7 +211,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             </tr>
           </thead>
           <tbody>
-            {sortedDesktopHoldings.map((holding) => (
+            {sortedHoldings.map((holding) => (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
                   <td className="w-[11ch] min-w-[11ch] max-w-[11ch] px-4 py-2 whitespace-nowrap">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -261,8 +261,9 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
 
       {/* Mobile Cards */}
       <div className="md:hidden divide-y divide-border">
-        {consolidatedHoldings.map((holding) => {
+        {sortedHoldings.map((holding) => {
           const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
+          const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
           return (
             <div key={holding.ticker} className="px-3 py-2">
               <div className="flex items-center gap-2">
@@ -278,9 +279,27 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 {/* Middle: unit price + % change */}
                 {!holding.isStatic ? (
                   <div className="flex-1 text-left">
-                    <span className="text-text-primary text-sm">{formatPrice(holding.currentPrice)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSort('currentPrice')}
+                      className="text-text-primary text-sm"
+                    >
+                      {formatPrice(holding.currentPrice)}
+                      {sortConfig.column === 'currentPrice' && (
+                        <span className="text-accent text-xs">{sortArrow}</span>
+                      )}
+                    </button>
                     {holding.dayChangePercent !== 0 && (
-                      <span className={`text-xs ml-1 ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(holding.dayChangePercent)}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSort('dayChangePercent')}
+                        className={`text-xs ml-1 ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}
+                      >
+                        {formatPercent(holding.dayChangePercent)}
+                        {sortConfig.column === 'dayChangePercent' && (
+                          <span className="text-accent">{sortArrow}</span>
+                        )}
+                      </button>
                     )}
                   </div>
                 ) : (
@@ -288,9 +307,27 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 )}
                 {/* Right: value + $ change */}
                 <div className="flex-1 text-left">
-                  <span className="font-semibold text-text-primary">{formatCurrency(holding.value, true)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSort('value')}
+                    className="font-semibold text-text-primary"
+                  >
+                    {formatCurrency(holding.value, true)}
+                    {sortConfig.column === 'value' && (
+                      <span className="text-accent text-xs">{sortArrow}</span>
+                    )}
+                  </button>
                   {!holding.isStatic && holding.dayChange !== 0 && (
-                    <span className={`text-xs ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>{formatChange(holding.dayChange, true)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSort('dayChange')}
+                      className={`text-xs ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}
+                    >
+                      {formatChange(holding.dayChange, true)}
+                      {sortConfig.column === 'dayChange' && (
+                        <span className="text-accent">{sortArrow}</span>
+                      )}
+                    </button>
                   )}
                 </div>
               </div>

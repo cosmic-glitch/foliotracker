@@ -304,7 +304,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   <div className="flex-1" />
                 )}
                 {/* Right: value + $ change */}
-                <div className="flex-1 text-left whitespace-nowrap overflow-hidden">
+                <div className="flex-1 text-left whitespace-nowrap">
                   <span
                     onClick={() => handleSort('value')}
                     className="font-semibold text-text-primary cursor-pointer select-none"

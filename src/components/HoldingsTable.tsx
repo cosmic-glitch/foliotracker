@@ -140,7 +140,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </th>
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                 <button type="button" onClick={() => handleSort('currentPrice')} className={getHeaderButtonClass()}>
-                  <span>Unit Price</span>
+                  <span>Price</span>
                   {renderSortIcon('currentPrice')}
                 </button>
               </th>
@@ -152,7 +152,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </th>
               <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                 <button type="button" onClick={() => handleSort('value')} className={getHeaderButtonClass()}>
-                  <span>Holding Size</span>
+                  <span>Size</span>
                   {renderSortIcon('value')}
                 </button>
               </th>
@@ -164,6 +164,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </th>
               {hasAnyFundamentals && (
                 <>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass()}>
+                      <span>52w Hi</span>
+                      {renderSortIcon('pctTo52WeekHigh')}
+                    </button>
+                  </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass()}>
                       <span>Revenue</span>
@@ -184,26 +190,20 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass()}>
-                      <span>Op Margin</span>
+                      <span>Margin</span>
                       {renderSortIcon('operatingMargin')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>Rev. Gr. 3Y</span>
+                      <span>Rev Gr 3Y</span>
                       {renderSortIcon('revenueGrowth3Y')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>EPS Gr. 3Y</span>
+                      <span>EPS Gr 3Y</span>
                       {renderSortIcon('epsGrowth3Y')}
-                    </button>
-                  </th>
-                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass()}>
-                      <span>% to 52w Hi</span>
-                      {renderSortIcon('pctTo52WeekHigh')}
                     </button>
                   </th>
                 </>
@@ -244,13 +244,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </td>
                   {hasAnyFundamentals && (
                     <>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
-                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.pctTo52WeekHigh != null ? formatPctTo52WeekHigh(holding.pctTo52WeekHigh) : ''}</td>
                     </>
                   )}
                 </tr>

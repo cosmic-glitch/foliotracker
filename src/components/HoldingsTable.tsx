@@ -172,13 +172,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenue')} className={getHeaderButtonClass()}>
-                      <span>Revenue</span>
+                      <span>Rev</span>
                       {renderSortIcon('revenue')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('earnings')} className={getHeaderButtonClass()}>
-                      <span>Earnings</span>
+                      <span>Profit</span>
                       {renderSortIcon('earnings')}
                     </button>
                   </th>

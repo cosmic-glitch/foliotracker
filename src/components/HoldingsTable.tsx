@@ -123,7 +123,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
   };
 
   const getHeaderButtonClass = () =>
-    'group inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors';
+    'group inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors whitespace-nowrap';
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">

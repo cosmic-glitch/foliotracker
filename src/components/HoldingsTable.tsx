@@ -279,27 +279,25 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 {/* Middle: unit price + % change */}
                 {!holding.isStatic ? (
                   <div className="flex-1 text-left">
-                    <button
-                      type="button"
+                    <span
                       onClick={() => handleSort('currentPrice')}
-                      className="text-text-primary text-sm"
+                      className="text-text-primary text-sm cursor-pointer select-none"
                     >
                       {formatPrice(holding.currentPrice)}
                       {sortConfig.column === 'currentPrice' && (
                         <span className="text-accent text-xs">{sortArrow}</span>
                       )}
-                    </button>
+                    </span>
                     {holding.dayChangePercent !== 0 && (
-                      <button
-                        type="button"
+                      <span
                         onClick={() => handleSort('dayChangePercent')}
-                        className={`text-xs ml-1 ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}
+                        className={`text-xs ml-1 cursor-pointer select-none ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}
                       >
                         {formatPercent(holding.dayChangePercent)}
                         {sortConfig.column === 'dayChangePercent' && (
                           <span className="text-accent">{sortArrow}</span>
                         )}
-                      </button>
+                      </span>
                     )}
                   </div>
                 ) : (
@@ -307,27 +305,25 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 )}
                 {/* Right: value + $ change */}
                 <div className="flex-1 text-left">
-                  <button
-                    type="button"
+                  <span
                     onClick={() => handleSort('value')}
-                    className="font-semibold text-text-primary"
+                    className="font-semibold text-text-primary cursor-pointer select-none"
                   >
                     {formatCurrency(holding.value, true)}
                     {sortConfig.column === 'value' && (
                       <span className="text-accent text-xs">{sortArrow}</span>
                     )}
-                  </button>
+                  </span>
                   {!holding.isStatic && holding.dayChange !== 0 && (
-                    <button
-                      type="button"
+                    <span
                       onClick={() => handleSort('dayChange')}
-                      className={`text-xs ml-1 ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}
+                      className={`text-xs ml-1 cursor-pointer select-none ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}
                     >
                       {formatChange(holding.dayChange, true)}
                       {sortConfig.column === 'dayChange' && (
                         <span className="text-accent">{sortArrow}</span>
                       )}
-                    </button>
+                    </span>
                   )}
                 </div>
               </div>

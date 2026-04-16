@@ -278,7 +278,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 </div>
                 {/* Middle: unit price + % change */}
                 {!holding.isStatic ? (
-                  <div className="flex-1 text-left">
+                  <div className="flex-1 text-left whitespace-nowrap overflow-hidden">
                     <span
                       onClick={() => handleSort('currentPrice')}
                       className="text-text-primary text-sm cursor-pointer select-none"
@@ -304,7 +304,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   <div className="flex-1" />
                 )}
                 {/* Right: value + $ change */}
-                <div className="flex-1 text-left">
+                <div className="flex-1 text-left whitespace-nowrap overflow-hidden">
                   <span
                     onClick={() => handleSort('value')}
                     className="font-semibold text-text-primary cursor-pointer select-none"

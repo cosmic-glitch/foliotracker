@@ -196,13 +196,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>3Y Rev Gr</span>
+                      <span>3YRevGr</span>
                       {renderSortIcon('revenueGrowth3Y')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>3Y EPS Gr</span>
+                      <span>3YEPSGr</span>
                       {renderSortIcon('epsGrowth3Y')}
                     </button>
                   </th>

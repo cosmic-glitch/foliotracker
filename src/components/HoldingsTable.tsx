@@ -166,7 +166,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass()}>
-                      <span>52w Hi</span>
+                      <span>%To52wHigh</span>
                       {renderSortIcon('pctTo52WeekHigh')}
                     </button>
                   </th>
@@ -184,25 +184,25 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()}>
-                      <span>Fwd P/E</span>
+                      <span>FwdPE</span>
                       {renderSortIcon('forwardPE')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('operatingMargin')} className={getHeaderButtonClass()}>
-                      <span>Margin</span>
+                      <span>OpMgn</span>
                       {renderSortIcon('operatingMargin')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('revenueGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>Rev Gr 3Y</span>
+                      <span>3Y Rev Gr</span>
                       {renderSortIcon('revenueGrowth3Y')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('epsGrowth3Y')} className={getHeaderButtonClass()}>
-                      <span>EPS Gr 3Y</span>
+                      <span>3Y EPS Gr</span>
                       {renderSortIcon('epsGrowth3Y')}
                     </button>
                   </th>

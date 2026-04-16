@@ -166,7 +166,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
                     <button type="button" onClick={() => handleSort('pctTo52WeekHigh')} className={getHeaderButtonClass()}>
-                      <span>%To52wHigh</span>
+                      <span>%To52wkHi</span>
                       {renderSortIcon('pctTo52WeekHigh')}
                     </button>
                   </th>

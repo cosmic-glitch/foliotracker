@@ -10,12 +10,18 @@
 
 set -euo pipefail
 
+# Ensure user-local installs (e.g. `claude` in ~/.local/bin) are findable
+# under cron's minimal PATH.
+export PATH="$HOME/.local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+set -a
 # shellcheck source=/dev/null
 source "$PROJECT_DIR/.env.local"
+set +a
 
 OUT_DIR="$PROJECT_DIR/scripts/news-output"
 LOG_FILE="$PROJECT_DIR/scripts/news.log"

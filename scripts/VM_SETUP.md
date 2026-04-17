@@ -6,24 +6,23 @@ the dev Mac. This is a one-time setup guide for that VM.
 ## 1. Clone the repo and install Node deps
 
 ```bash
-sudo mkdir -p /opt
-sudo chown "$USER:$USER" /opt
-cd /opt
+cd ~
 git clone https://github.com/<user>/foliotracker.git
-cd foliotracker
+cd ~/foliotracker
 npm ci
 ```
 
-Adjust the path if your convention differs; update `generate-news.sh`
-references accordingly if you do.
+The rest of this guide assumes the repo lives at `~/foliotracker`. The
+script uses paths relative to its own location, so any directory works as
+long as the crontab entry points there.
 
 ## 2. Provide secrets
 
-Copy the dev Mac's `.env.local` to `/opt/foliotracker/.env.local`:
+Copy the dev Mac's `.env.local` to `~/foliotracker/.env.local`:
 
 ```bash
-scp .env.local vm:/opt/foliotracker/.env.local
-ssh vm "chmod 600 /opt/foliotracker/.env.local"
+scp .env.local vm:~/foliotracker/.env.local
+ssh vm "chmod 600 ~/foliotracker/.env.local"
 ```
 
 Required keys: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_DB_URL`.
@@ -76,19 +75,23 @@ On the VM, `crontab -e`:
 
 ```
 CRON_TZ=America/New_York
-30 8 * * 1-5 /opt/foliotracker/scripts/generate-news.sh >> /opt/foliotracker/scripts/news.log 2>&1
+30 8 * * 1-5 $HOME/foliotracker/scripts/generate-news.sh >> $HOME/foliotracker/scripts/news.log 2>&1
 ```
 
 08:30 America/New_York is ~1 hour before regular US market open; weekdays
 only. Adjust if you want pre-market coverage earlier.
+
+Cron invokes the command via `/bin/sh -c`, which expands `$HOME`. The
+script itself prepends `~/.local/bin` to `PATH` so that `claude` resolves
+under cron's minimal environment — no `PATH=` line needed in the crontab.
 
 ## 8. Smoke test
 
 Kick it off once manually to confirm the whole pipeline:
 
 ```bash
-/opt/foliotracker/scripts/generate-news.sh
-tail -200 /opt/foliotracker/scripts/news.log
+~/foliotracker/scripts/generate-news.sh
+tail -200 ~/foliotracker/scripts/news.log
 ```
 
 Then verify in Supabase:

@@ -526,6 +526,71 @@ export async function upsertFundamentalsCache(
   if (error) throw error;
 }
 
+// Ticker news summary types and functions
+export interface TickerNewsSource {
+  title: string;
+  url: string;
+}
+
+export interface DbTickerNewsSummary {
+  ticker: string;
+  summary_date: string;
+  summary_markdown: string;
+  sources_json: TickerNewsSource[];
+  model: string;
+  generated_at: string;
+}
+
+export async function getLatestTickerNewsSummaries(
+  tickers: string[]
+): Promise<Map<string, DbTickerNewsSummary>> {
+  const result = new Map<string, DbTickerNewsSummary>();
+  if (tickers.length === 0) return result;
+
+  // Fetch recent rows (last 7 days) for these tickers; pick the latest per ticker in JS.
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - 7);
+  const sinceDate = since.toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('ticker_news_summaries')
+    .select('*')
+    .in('ticker', tickers)
+    .gte('summary_date', sinceDate)
+    .order('summary_date', { ascending: false });
+
+  if (error) throw error;
+
+  for (const row of (data || []) as DbTickerNewsSummary[]) {
+    if (!result.has(row.ticker)) {
+      result.set(row.ticker, row);
+    }
+  }
+  return result;
+}
+
+export async function upsertTickerNewsSummary(summary: {
+  ticker: string;
+  summary_date: string;
+  summary_markdown: string;
+  sources_json: TickerNewsSource[];
+  model?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('ticker_news_summaries').upsert(
+    {
+      ticker: summary.ticker.toUpperCase(),
+      summary_date: summary.summary_date,
+      summary_markdown: summary.summary_markdown,
+      sources_json: summary.sources_json,
+      model: summary.model ?? 'claude-code',
+      generated_at: new Date().toISOString(),
+    },
+    { onConflict: 'ticker,summary_date' }
+  );
+
+  if (error) throw error;
+}
+
 // Portfolio snapshot types and functions
 export interface SnapshotHolding {
   ticker: string;

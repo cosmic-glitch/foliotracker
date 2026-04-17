@@ -8,8 +8,27 @@ export interface NewsArticle {
   link: string;
 }
 
+export interface TickerNewsSource {
+  title: string;
+  url: string;
+}
+
+export interface AiSummary {
+  kind: 'ai';
+  summaryMarkdown: string;
+  sources: TickerNewsSource[];
+  summaryDate: string;
+}
+
+export interface FallbackNews {
+  kind: 'fallback';
+  articles: NewsArticle[];
+}
+
+export type TickerNews = AiSummary | FallbackNews;
+
 interface NewsResponse {
-  news: Record<string, NewsArticle[]>;
+  news: Record<string, TickerNews>;
 }
 
 async function fetchNews(tickers: string[]): Promise<NewsResponse> {
@@ -30,7 +49,6 @@ async function fetchNews(tickers: string[]): Promise<NewsResponse> {
 }
 
 export function usePortfolioNews(holdings: Holding[]) {
-  // Filter to Common Stock and ADRs only (individual stocks)
   const tickers = holdings
     .filter(
       (h) =>
@@ -43,8 +61,8 @@ export function usePortfolioNews(holdings: Holding[]) {
   return useQuery({
     queryKey: ['news', ...tickers],
     queryFn: () => fetchNews(tickers),
-    staleTime: 15 * 60 * 1000, // 15 min cache
-    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    staleTime: 6 * 60 * 60 * 1000, // 6 hours — summaries regenerate daily
+    gcTime: 12 * 60 * 60 * 1000,
     enabled: tickers.length > 0,
     refetchOnWindowFocus: false,
   });

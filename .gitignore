@@ -39,5 +39,8 @@ test-results/
 # Database backups
 backups/
 
+# Claude-generated news run artifacts (regenerated daily)
+scripts/news-output/
+
 # Local Supabase CLI temp metadata
 supabase/.temp/

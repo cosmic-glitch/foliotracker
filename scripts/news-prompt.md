@@ -1,78 +1,95 @@
-You are generating daily stock-news summaries for a personal portfolio tracker. The output of this session is one short, investor-material, well-sourced tweet per ticker — written to disk and persisted to Supabase by a helper script. The tweets render in a flat bullet list on the dashboard.
+You are generating a weekly stock-news digest for a personal portfolio tracker. The output of this session is a short, dated bullet list per ticker covering material news from the last 7 days — written to disk and persisted to Supabase by a helper script. The dashboard renders one block per ticker.
 
 ## Inputs
 
 - Read `scripts/news-output/tickers.json`. It is an array of objects:
   `{ "ticker": "AAPL", "name": "Apple Inc.", "already_generated_today": false }`.
-- Today's date is whatever `date +%Y-%m-%d` returns.
+- Today's date is whatever `date +%Y-%m-%d` returns. Treat "the last 7
+  days" as today plus the previous 6 calendar days.
 
 ## For each ticker where `already_generated_today` is `false`, proceed sequentially:
 
-1. **Research.** Use WebSearch and WebFetch to find material news about the
-   company from the last 2 calendar days (today and yesterday). Prefer
-   primary sources (company press releases, 10-Q/10-K, SEC filings) and
-   reputable financial press (Reuters, Bloomberg, WSJ, FT, CNBC, Barron's,
-   Yahoo Finance) over aggregators and rumor blogs.
+1. **Research.** Use WebSearch and WebFetch to find material news about
+   the company **published in the last 7 calendar days**. Prefer primary
+   sources (company press releases, 10-Q/10-K, SEC filings) and reputable
+   financial press (Reuters, Bloomberg, WSJ, FT, CNBC, Barron's, Yahoo
+   Finance) over aggregators and rumor blogs.
 
-2. **Apply a HIGH materiality bar.** The output should only exist for news
-   that a reasonable investor would act on or re-underwrite their thesis
-   for. When in doubt, exclude.
+2. **Apply a MEDIUM-HIGH materiality bar.** The goal is a weekly briefing
+   a thoughtful long-term investor would actually read. **When in doubt,
+   include** if the item could plausibly matter to the company's
+   fundamentals, market position, or leadership narrative.
 
    **INCLUDE** (material):
-   - Earnings beats / misses / pre-announcements; guidance raises / cuts
-   - M&A activity (announcements, rumors from primary sources, closings)
-   - Material regulatory, legal, or antitrust actions with financial
-     impact or precedent risk
-   - CEO / CFO departures or appointments; board-level activism
-   - Analyst actions with meaningful thesis change (price-target moves
-     >5%, rating changes from bulge-bracket firms)
-   - Sizable buybacks, dividend changes, capital structure moves
-   - Macro / sector events where **this specific stock** reacted sharply
-     (e.g., a tariff change that moved the name >3% intraday)
-   - Major customer wins/losses that materially move revenue outlook
-   - Production / supply-chain disruptions with financial impact
+   - Earnings, guidance, pre-announcements (beats, misses, raises, cuts)
+   - M&A announcements or credible reports
+   - Material regulatory, legal, or antitrust actions
+   - CEO / CFO departures or appointments; board activism
+   - **Any analyst rating change or price-target move from a bulge-bracket
+     firm**, even if the PT change is small
+   - Notable short-seller reports
+   - Sizable buybacks, dividend changes, splits, capital structure moves
+   - **Management interviews, conference talks, or shareholder letters**
+     that contain thesis-relevant content (guidance hints, capital
+     allocation shifts, strategic pivots, competitive commentary)
+   - Significant customer wins/losses or contract announcements that
+     move revenue outlook
+   - **Major product launches** — new platforms, flagship generations,
+     or categories with clear revenue implications (not refreshes)
+   - Material supply-chain events (shortages, disruptions, new suppliers)
+   - Macro / sector events where this specific stock reacted sharply
+     (>3% intraday on the event day)
+   - Strategic partnerships with meaningful financial impact
 
    **EXCLUDE** (not material enough):
-   - Routine product launches, feature updates, UI refreshes
-   - Minor partnerships, pilots, small integrations
-   - Conference talks, keynotes, interviews — unless they contain new
-     guidance or capital-allocation news
-   - Hiring, promotions, organizational changes below C-suite
-   - Marketing campaigns, brand announcements, ad spend
-   - Pure price-action recaps ("stock up X% today") with no underlying
-     catalyst
-   - Rumors from blogs / social media / unnamed sources not corroborated
-     by reputable press
-   - Industry-trend pieces that merely mention the company
+   - Puff pieces, brand / marketing campaigns, ad spend stories
+   - Hiring or promotions below C-suite
+   - Pure feature refreshes, UI updates, minor version bumps
+   - Pure price-action recaps with no underlying catalyst
+   - Uncorroborated rumors from blogs / social media / unnamed sources
+   - Industry-trend pieces that merely mention the company in passing
 
-3. **Write the tweet.** If material news exists, produce **one single
-   tweet** of roughly 120–220 characters:
-   - Active voice, strong lead verb ("Beats", "Guides", "Slashes",
-     "Upgraded", "Sues", etc.)
-   - State the fact AND why it matters for investors, concisely
-   - Include at least one inline `[source text](url)` citation; up to two
-     if a second source strengthens the claim
-   - Do NOT include the ticker or company name — the UI prefixes that
-   - Do NOT include a header, leading bullet, or trailing punctuation
-     beyond the natural end-of-sentence period
+3. **Write the digest.** If material news exists, produce a markdown
+   bullet list of **1–5 bullets, sorted newest date first**. Each bullet
+   follows this shape:
+
+   ```markdown
+   - **MMM DD**: tweet-length statement of what happened and why it matters [source text](url).
+   ```
+
+   - Date prefix is the date the news actually broke, formatted as
+     `**MMM DD**` (e.g., `**Apr 16**`). Do NOT backfill every bullet to
+     today's date.
+   - Each bullet body is ~120–220 chars: active voice, strong lead verb
+     ("Beat", "Raised", "Downgraded", "Inked", "Sued"), state the fact
+     AND the investor-relevant consequence.
+   - At least one inline `[label](url)` citation per bullet; up to two if
+     a second source strengthens the claim.
+   - Do NOT include the ticker or company name in the bullet body — the
+     UI prefixes that.
+   - Cap at 5 bullets. If more than 5 material events occurred, pick the
+     most material.
 
    Good examples (illustrative — do not copy verbatim):
-   - `Beat Q1 EPS by 12¢ and raised FY revenue guide $2B on Blackwell ramp; Street modeling in-line prints [Reuters](https://…).`
-   - `CEO exits effective immediately after board probe; CFO steps in as interim, succession vacuum likely to weigh on multiple [WSJ](https://…).`
-   - `Downgraded to Sell at Morgan Stanley on softening China demand; PT cut 18% to $140, below consensus $165 [Bloomberg](https://…).`
-
-   If **no material news** meets the bar, output exactly this single line
-   (UI filters these out entirely):
-   ```
-   No material news in the last 2 days.
+   ```markdown
+   - **Apr 16**: Beat Q1 EPS by 12¢ and raised FY revenue guide $2B on Blackwell ramp; Street was modeling in-line prints [Reuters](https://…).
+   - **Apr 14**: Downgraded to Sell at Morgan Stanley on softening China demand; PT cut 18% to $140, below consensus $165 [Bloomberg](https://…).
+   - **Apr 12**: CEO floated share-buyback acceleration on CNBC; $5B board authorization signals capital-return pivot as capex digests [CNBC](https://…).
    ```
 
-4. **Write the files.** Save the tweet to
+   If **nothing material happened** in the last 7 days, output exactly
+   this single line (UI filters these out entirely):
+   ```
+   No material news in the last 7 days.
+   ```
+
+4. **Write the files.** Save the digest to
    `scripts/news-output/<TICKER>.md` and the sources to
-   `scripts/news-output/<TICKER>.sources.json`. The sources file must be a
-   JSON array of `{"title": "...", "url": "..."}` objects covering every
-   link cited in the tweet. Deduplicate by URL. If the summary is
-   "No material news in the last 2 days.", write `[]` as the sources file.
+   `scripts/news-output/<TICKER>.sources.json`. The sources file must be
+   a JSON array of `{"title": "...", "url": "..."}` objects covering
+   every link cited in the digest. Deduplicate by URL. If the summary is
+   "No material news in the last 7 days.", write `[]` as the sources
+   file.
 
 5. **Persist to the database.** Run, via Bash:
    ```

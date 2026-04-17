@@ -7,11 +7,7 @@ interface NewsSectionProps {
   holdings: Holding[];
 }
 
-const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 2 days.';
-
-const markdownComponents = {
-  p: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-};
+const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 7 days.';
 
 export function NewsSection({ holdings }: NewsSectionProps) {
   const { data, isLoading, error } = usePortfolioNews(holdings);
@@ -33,7 +29,7 @@ export function NewsSection({ holdings }: NewsSectionProps) {
 
   const renderedRows = useMemo(() => {
     if (!data?.news) return [];
-    const rows: Array<{ ticker: string; kind: 'ai' | 'pending'; tweet?: string }> = [];
+    const rows: Array<{ ticker: string; kind: 'ai' | 'pending'; markdown?: string }> = [];
     for (const ticker of tickerOrder) {
       const entry = data.news[ticker];
       if (!entry) {
@@ -43,7 +39,7 @@ export function NewsSection({ holdings }: NewsSectionProps) {
       if (entry.kind === 'ai') {
         const body = entry.summaryMarkdown.trim();
         if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
-        rows.push({ ticker, kind: 'ai', tweet: body });
+        rows.push({ ticker, kind: 'ai', markdown: body });
       } else {
         rows.push({ ticker, kind: 'pending' });
       }
@@ -73,7 +69,7 @@ export function NewsSection({ holdings }: NewsSectionProps) {
           <div className="px-3 py-4 text-center text-text-secondary text-sm">Failed to load news</div>
         ) : renderedRows.length === 0 ? (
           <div className="px-3 py-4 text-center text-text-secondary text-sm">
-            No material news in the last 2 days.
+            No material news in the last 7 days.
           </div>
         ) : (
           <div>
@@ -82,23 +78,29 @@ export function NewsSection({ holdings }: NewsSectionProps) {
                 Last updated: {latestSummaryDate}
               </div>
             )}
-            <ul className="list-disc pl-7 pr-3 space-y-1.5 text-sm text-text-primary marker:text-text-secondary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
+            <div className="px-3 space-y-4">
               {renderedRows.map((row) =>
                 row.kind === 'ai' ? (
-                  <li key={row.ticker}>
-                    <strong className="font-semibold">{row.ticker}</strong>:{' '}
-                    <ReactMarkdown components={markdownComponents}>
-                      {row.tweet!}
-                    </ReactMarkdown>
-                  </li>
+                  <div key={row.ticker}>
+                    <div className="text-sm font-semibold text-text-primary mb-1">
+                      {row.ticker}
+                    </div>
+                    <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline marker:text-text-secondary">
+                      <ReactMarkdown>{row.markdown!}</ReactMarkdown>
+                    </div>
+                  </div>
                 ) : (
-                  <li key={row.ticker} className="opacity-60">
-                    <strong className="font-semibold">{row.ticker}</strong>:{' '}
-                    <em className="text-text-secondary">summary pending</em>
-                  </li>
+                  <div key={row.ticker} className="opacity-60">
+                    <div className="text-sm font-semibold text-text-primary mb-1">
+                      {row.ticker}
+                    </div>
+                    <div className="text-sm italic text-text-secondary pl-1">
+                      summary pending
+                    </div>
+                  </div>
                 )
               )}
-            </ul>
+            </div>
           </div>
         )}
       </div>

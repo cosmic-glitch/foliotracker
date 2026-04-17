@@ -74,12 +74,12 @@ source .env.local && npx tsx scripts/migrate-ticker-news.ts
 On the VM, `crontab -e`:
 
 ```
-CRON_TZ=America/New_York
-30 8 * * 1-5 $HOME/foliotracker/scripts/generate-news.sh >> $HOME/foliotracker/scripts/news.log 2>&1
+50 5 * * * $HOME/foliotracker/scripts/generate-news.sh >> $HOME/foliotracker/scripts/news.log 2>&1
 ```
 
-08:30 America/New_York is ~1 hour before regular US market open; weekdays
-only. Adjust if you want pre-market coverage earlier.
+05:50 UTC = 22:50 PT, daily — fires after the US after-hours session so
+the next morning's view has the previous trading day's news. Adjust the
+time or add a `* * 1-5` weekday filter if you want to skip weekends.
 
 Cron invokes the command via `/bin/sh -c`, which expands `$HOME`. The
 script itself prepends `~/.local/bin` to `PATH` so that `claude` resolves

@@ -165,7 +165,6 @@ function App() {
                 data.totalValue,
               )}
             />
-            <NewsTicker holdings={data.holdings} />
             <div className="mb-1 md:mb-3">
               <PerformanceChart
                 data={data.historicalData}
@@ -176,6 +175,7 @@ function App() {
                 showExtendedHours={showExtendedHours}
               />
             </div>
+            <NewsTicker holdings={data.holdings} />
             {/* Tab Navigation */}
             <div className="border-b border-border">
               <nav className="flex gap-1">
@@ -202,7 +202,7 @@ function App() {
                 {data.deepResearch && (
                   <button
                     onClick={() => setActiveTab('research')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    className={`hidden md:block px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                       activeTab === 'research'
                         ? 'border-accent text-accent'
                         : 'border-transparent text-text-secondary hover:text-text hover:border-border'

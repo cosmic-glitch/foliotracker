@@ -13,8 +13,6 @@ interface TickerHeadline {
   url: string;
 }
 
-const PER_TICKER_LIMIT = 2;
-
 export function NewsTicker({ holdings }: NewsTickerProps) {
   const { data } = usePortfolioNews(holdings);
 
@@ -38,7 +36,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     for (const ticker of tickerOrder) {
       const entry = data.news[ticker];
       if (!entry || entry.kind !== 'ai') continue;
-      const extracted = extractHeadlines(entry.summaryMarkdown).slice(0, PER_TICKER_LIMIT);
+      const extracted = extractHeadlines(entry.summaryMarkdown);
       if (extracted.length > 0) {
         perTicker.push(extracted.map((h) => ({ ticker, text: h.text, url: h.url })));
       }

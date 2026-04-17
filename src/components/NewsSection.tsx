@@ -1,45 +1,14 @@
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ExternalLink } from 'lucide-react';
 import type { Holding } from '../types/portfolio';
 import {
   usePortfolioNews,
   type TickerNews,
   type NewsArticle,
-  type TickerNewsSource,
 } from '../hooks/usePortfolioNews';
 
 interface NewsSectionProps {
   holdings: Holding[];
-}
-
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
-
-function SourceChips({ sources }: { sources: TickerNewsSource[] }) {
-  if (sources.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1.5 mt-2">
-      {sources.map((s, i) => (
-        <a
-          key={`${s.url}-${i}`}
-          href={s.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={s.title}
-          className="inline-flex items-center gap-1 text-xs text-accent hover:underline bg-accent/10 px-2 py-0.5 rounded"
-        >
-          <ExternalLink className="w-3 h-3" />
-          <span>{domainOf(s.url)}</span>
-        </a>
-      ))}
-    </div>
-  );
 }
 
 function FallbackArticles({ articles }: { articles: NewsArticle[] }) {
@@ -95,12 +64,9 @@ function TickerCard({ ticker, name, news }: TickerCardProps) {
         )}
       </div>
       {news.kind === 'ai' ? (
-        <>
-          <div className="prose prose-sm max-w-none prose-p:text-text-primary prose-li:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
-            <ReactMarkdown>{news.summaryMarkdown}</ReactMarkdown>
-          </div>
-          <SourceChips sources={news.sources} />
-        </>
+        <div className="prose prose-sm max-w-none prose-p:text-text-primary prose-li:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
+          <ReactMarkdown>{news.summaryMarkdown}</ReactMarkdown>
+        </div>
       ) : (
         <FallbackArticles articles={news.articles} />
       )}

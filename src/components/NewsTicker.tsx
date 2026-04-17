@@ -81,7 +81,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     ));
 
   return (
-    <div className="marquee-fade relative overflow-hidden py-1 md:py-2">
+    <div className="relative overflow-hidden py-1 md:py-2">
       <div
         className="marquee-track flex w-max"
         style={{ ['--marquee-duration' as string]: `${durationSeconds}s` }}

@@ -177,7 +177,7 @@ function App() {
             </div>
             <NewsTicker holdings={data.holdings} />
             {/* Tab Navigation */}
-            <div className="border-b border-border">
+            <div className="border-b border-border -mt-2 md:-mt-4">
               <nav className="flex gap-1">
                 <button
                   onClick={() => setActiveTab('holdings')}

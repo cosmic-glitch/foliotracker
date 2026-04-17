@@ -1,107 +1,66 @@
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Holding } from '../types/portfolio';
-import {
-  usePortfolioNews,
-  type TickerNews,
-  type NewsArticle,
-} from '../hooks/usePortfolioNews';
+import { usePortfolioNews } from '../hooks/usePortfolioNews';
 
 interface NewsSectionProps {
   holdings: Holding[];
 }
 
-function FallbackArticles({ articles }: { articles: NewsArticle[] }) {
-  if (articles.length === 0) {
-    return (
-      <div className="px-3 py-2 text-sm text-text-secondary italic">
-        AI summary not yet generated; no recent headlines either.
-      </div>
-    );
-  }
-  return (
-    <div>
-      <div className="px-3 py-1 text-xs text-text-secondary italic">
-        AI summary not yet generated — showing raw headlines.
-      </div>
-      {articles.map((article, idx) => (
-        <div key={`${article.link}-${idx}`} className="flex items-start gap-2 py-1.5 pl-3 pr-2">
-          <span className="flex-1 text-sm text-text-primary line-clamp-2">{article.title}</span>
-          <a
-            href={article.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0 text-sm text-accent hover:underline"
-          >
-            [More]
-          </a>
-        </div>
-      ))}
-    </div>
-  );
-}
+const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 2 days.';
 
-interface TickerCardProps {
-  ticker: string;
-  name: string;
-  news: TickerNews;
-}
-
-function TickerCard({ ticker, name, news }: TickerCardProps) {
-  return (
-    <div className="border border-border rounded-xl px-3 py-3">
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-semibold bg-accent/10 text-accent px-2 py-0.5 rounded">
-            {ticker}
-          </span>
-          <span className="text-xs text-text-secondary truncate">{name}</span>
-        </div>
-        {news.kind === 'ai' && (
-          <span className="text-[10px] text-text-secondary whitespace-nowrap">
-            {news.summaryDate}
-          </span>
-        )}
-      </div>
-      {news.kind === 'ai' ? (
-        <div className="prose prose-sm max-w-none prose-p:text-text-primary prose-li:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
-          <ReactMarkdown>{news.summaryMarkdown}</ReactMarkdown>
-        </div>
-      ) : (
-        <FallbackArticles articles={news.articles} />
-      )}
-    </div>
-  );
-}
+const markdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+};
 
 export function NewsSection({ holdings }: NewsSectionProps) {
   const { data, isLoading, error } = usePortfolioNews(holdings);
 
-  const tickerToName = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const h of holdings) m.set(h.ticker, h.name || h.ticker);
-    return m;
-  }, [holdings]);
-
-  const orderedTickers = useMemo(() => {
-    if (!data?.news) return [];
-    return holdings
-      .filter(
-        (h) =>
-          !h.isStatic &&
-          (h.instrumentType === 'Common Stock' ||
-            h.instrumentType === 'American Depositary Receipt')
-      )
-      .map((h) => h.ticker)
-      .filter((t) => data.news[t]);
-  }, [holdings, data?.news]);
-
-  const hasStockHoldings = holdings.some(
-    (h) =>
-      !h.isStatic &&
-      (h.instrumentType === 'Common Stock' ||
-        h.instrumentType === 'American Depositary Receipt')
+  const tickerOrder = useMemo(
+    () =>
+      holdings
+        .filter(
+          (h) =>
+            !h.isStatic &&
+            (h.instrumentType === 'Common Stock' ||
+              h.instrumentType === 'American Depositary Receipt')
+        )
+        .map((h) => h.ticker),
+    [holdings]
   );
+
+  const hasStockHoldings = tickerOrder.length > 0;
+
+  const renderedRows = useMemo(() => {
+    if (!data?.news) return [];
+    const rows: Array<{ ticker: string; kind: 'ai' | 'pending'; tweet?: string }> = [];
+    for (const ticker of tickerOrder) {
+      const entry = data.news[ticker];
+      if (!entry) {
+        rows.push({ ticker, kind: 'pending' });
+        continue;
+      }
+      if (entry.kind === 'ai') {
+        const body = entry.summaryMarkdown.trim();
+        if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
+        rows.push({ ticker, kind: 'ai', tweet: body });
+      } else {
+        rows.push({ ticker, kind: 'pending' });
+      }
+    }
+    return rows;
+  }, [data?.news, tickerOrder]);
+
+  const latestSummaryDate = useMemo(() => {
+    if (!data?.news) return null;
+    let max: string | null = null;
+    for (const entry of Object.values(data.news)) {
+      if (entry.kind === 'ai' && (!max || entry.summaryDate > max)) {
+        max = entry.summaryDate;
+      }
+    }
+    return max;
+  }, [data?.news]);
 
   if (!hasStockHoldings) return null;
 
@@ -112,20 +71,34 @@ export function NewsSection({ holdings }: NewsSectionProps) {
           <div className="px-3 py-4 text-center text-text-secondary text-sm">Loading news...</div>
         ) : error ? (
           <div className="px-3 py-4 text-center text-text-secondary text-sm">Failed to load news</div>
-        ) : orderedTickers.length === 0 ? (
+        ) : renderedRows.length === 0 ? (
           <div className="px-3 py-4 text-center text-text-secondary text-sm">
-            No recent news for your holdings
+            No material news in the last 2 days.
           </div>
         ) : (
-          <div className="space-y-3">
-            {orderedTickers.map((ticker) => (
-              <TickerCard
-                key={ticker}
-                ticker={ticker}
-                name={tickerToName.get(ticker) || ticker}
-                news={data!.news[ticker]}
-              />
-            ))}
+          <div>
+            {latestSummaryDate && (
+              <div className="px-3 pb-2 text-[11px] text-text-secondary">
+                Last updated: {latestSummaryDate}
+              </div>
+            )}
+            <ul className="list-disc pl-7 pr-3 space-y-1.5 text-sm text-text-primary marker:text-text-secondary prose-a:text-accent prose-a:no-underline hover:prose-a:underline">
+              {renderedRows.map((row) =>
+                row.kind === 'ai' ? (
+                  <li key={row.ticker}>
+                    <strong className="font-semibold">{row.ticker}</strong>:{' '}
+                    <ReactMarkdown components={markdownComponents}>
+                      {row.tweet!}
+                    </ReactMarkdown>
+                  </li>
+                ) : (
+                  <li key={row.ticker} className="opacity-60">
+                    <strong className="font-semibold">{row.ticker}</strong>:{' '}
+                    <em className="text-text-secondary">summary pending</em>
+                  </li>
+                )
+              )}
+            </ul>
           </div>
         )}
       </div>

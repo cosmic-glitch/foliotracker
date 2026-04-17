@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
 import { extractHeadlines } from '../lib/newsHeadline';
+
+const SCROLL_PX_PER_SEC = 90;
 
 interface NewsTickerProps {
   holdings: Holding[];
@@ -56,10 +58,22 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     return out;
   }, [data?.news, tickerOrder]);
 
-  const durationSeconds = useMemo(() => {
-    const chars = headlines.reduce((n, h) => n + h.ticker.length + h.text.length + 4, 0);
-    const perChar = 0.08;
-    return Math.max(25, Math.min(120, Math.round(chars * perChar)));
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el || headlines.length === 0) return;
+    const measure = () => {
+      const oneListWidth = el.scrollWidth / 2;
+      if (oneListWidth > 0) {
+        setDurationSeconds(oneListWidth / SCROLL_PX_PER_SEC);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [headlines]);
 
   if (tickerOrder.length === 0) return null;
@@ -83,8 +97,13 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
   return (
     <div className="relative overflow-hidden py-1 md:py-2">
       <div
+        ref={trackRef}
         className="marquee-track flex w-max"
-        style={{ ['--marquee-duration' as string]: `${durationSeconds}s` }}
+        style={
+          durationSeconds != null
+            ? { ['--marquee-duration' as string]: `${durationSeconds}s` }
+            : undefined
+        }
       >
         {renderEntries('a')}
         {renderEntries('b')}

@@ -8,6 +8,7 @@ import {
   AllocationView,
   CapitalGains,
   NewsSection,
+  NewsTicker,
   Footer,
   LoadingSkeleton,
   PermissionsModal,
@@ -153,6 +154,7 @@ function App() {
                 Some prices may be outdated — live data unavailable for: {data.staleTickers.join(', ')}
               </div>
             )}
+            <NewsTicker holdings={data.holdings} />
             <TotalValue
               totalValue={data.totalValue}
               dayChange={data.totalDayChange}

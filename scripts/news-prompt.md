@@ -50,31 +50,36 @@ You are generating a weekly stock-news digest for a personal portfolio tracker. 
    - Industry-trend pieces that merely mention the company in passing
 
 3. **Write the digest.** If material news exists, produce a markdown
-   bullet list of **1–5 bullets, sorted newest date first**. Each bullet
+   bullet list of **1–8 bullets, sorted newest date first**. Each bullet
    follows this shape:
 
    ```markdown
-   - **MMM DD**: tweet-length statement of what happened and why it matters [source text](url).
+   - **MMM DD**: punchy headline of what happened [source](url).
    ```
 
    - Date prefix is the date the news actually broke, formatted as
      `**MMM DD**` (e.g., `**Apr 16**`). Do NOT backfill every bullet to
      today's date.
-   - Each bullet body is ~120–220 chars: active voice, strong lead verb
-     ("Beat", "Raised", "Downgraded", "Inked", "Sued"), state the fact
-     AND the investor-relevant consequence.
+   - **One fact per bullet.** If two material events happened, write two
+     bullets — do NOT compress them into a single bullet with a semicolon
+     or "and…" clause.
+   - **Body target: ~50–110 chars.** Write like a Bloomberg ticker
+     headline: active voice, strong lead verb ("Beat", "Raised",
+     "Downgraded", "Inked", "Sued"), concrete numbers. Include the
+     investor-relevant consequence only if it fits inside the budget.
    - At least one inline `[label](url)` citation per bullet; up to two if
      a second source strengthens the claim.
    - Do NOT include the ticker or company name in the bullet body — the
      UI prefixes that.
-   - Cap at 5 bullets. If more than 5 material events occurred, pick the
+   - Cap at 8 bullets. If more than 8 material events occurred, pick the
      most material.
 
    Good examples (illustrative — do not copy verbatim):
    ```markdown
-   - **Apr 16**: Beat Q1 EPS by 12¢ and raised FY revenue guide $2B on Blackwell ramp; Street was modeling in-line prints [Reuters](https://…).
-   - **Apr 14**: Downgraded to Sell at Morgan Stanley on softening China demand; PT cut 18% to $140, below consensus $165 [Bloomberg](https://…).
-   - **Apr 12**: CEO floated share-buyback acceleration on CNBC; $5B board authorization signals capital-return pivot as capex digests [CNBC](https://…).
+   - **Apr 16**: Beat Q1 EPS by 12¢; raised FY revenue guide $2B [Reuters](https://…).
+   - **Apr 16**: Blackwell ramp drives guide raise ahead of Street [Reuters](https://…).
+   - **Apr 14**: Morgan Stanley cut to Sell, PT -18% to $140 [Bloomberg](https://…).
+   - **Apr 12**: CEO floated $5B buyback acceleration on CNBC [CNBC](https://…).
    ```
 
    If **nothing material happened** in the last 7 days, output exactly

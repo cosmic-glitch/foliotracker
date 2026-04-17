@@ -6,6 +6,7 @@ export { HoldingsByType } from './HoldingsByType';
 export { AllocationView } from './AllocationView';
 export { CapitalGains } from './CapitalGains';
 export { NewsSection } from './NewsSection';
+export { NewsTicker } from './NewsTicker';
 export { Footer } from './Footer';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { PermissionsModal } from './PermissionsModal';

@@ -145,8 +145,8 @@ source .env.local && bash scripts/backup-db.sh
 
 - Dumps roles, schema, and data to `backups/<date>/`
 - 30-day retention (auto-cleans old backups)
-- **Automated via launchd**: `com.foliotracker.backup` agent runs every 3 days (plist at `~/Library/LaunchAgents/com.foliotracker.backup.plist`)
-- Logs to `backups/backup.log`
+- **Automated on the DigitalOcean VM** via cron at 06:30 UTC daily (see `scripts/VM_SETUP.md`). Previously ran on the Mac via launchd but lid-closed sleep kept missing the schedule.
+- Logs to `backups/backup.log` on the VM
 
 ## Password Reset
 

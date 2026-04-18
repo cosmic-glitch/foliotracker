@@ -109,3 +109,36 @@ FROM ticker_news_summaries
 WHERE summary_date = CURRENT_DATE
 ORDER BY ticker;
 ```
+
+## 9. Daily DB backup cron
+
+The same VM hosts the daily `pg_dump` backup that previously ran on the
+dev Mac via launchd. The Mac's lid-closed sleep kept missing the 3-day
+cadence, so we moved it here where the box is always up.
+
+```bash
+# Install postgres client so pg_dump is on PATH
+sudo apt-get update && sudo apt-get install -y postgresql-client
+
+# backup-db.sh already reads SUPABASE_DB_URL from .env.local (set in step 2).
+# Kick it off once manually to prove it works end-to-end:
+bash ~/foliotracker/scripts/backup-db.sh
+ls ~/foliotracker/backups/   # should have today's dated folder
+
+# Install the cron entry (daily at 06:30 UTC, 40 min after the news slot)
+crontab -e
+```
+
+Append (keep the news line above it):
+```
+30 6 * * * $HOME/foliotracker/scripts/backup-db.sh >> $HOME/foliotracker/backups/backup.log 2>&1
+```
+
+Backups land at `~/foliotracker/backups/<YYYY-MM-DD>/` with 30-day retention
+(the script's `find -mtime +30 -exec rm -rf` prunes automatically).
+
+**Caveat:** backups live only on the VM. If the VM is destroyed, they go
+with it. Same single-point-of-failure as the Mac setup had — just with
+better uptime. For off-box durability, append an `rclone`/`aws s3 cp`
+step at the end of `backup-db.sh` to push the new date folder to remote
+storage.

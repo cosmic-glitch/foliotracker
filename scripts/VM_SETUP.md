@@ -161,9 +161,11 @@ storage.
 
 ## 10. Snapshot refresh cron
 
-Portfolio snapshot refresh moved off Vercel (formerly driven by
-cron-job.org hitting `/api/refresh-prices`) and onto this VM, so the
-Vercel deployment no longer needs the Pro plan's 60s function window.
+Portfolio snapshot refresh runs on this VM rather than being triggered
+by an external scheduler hitting `/api/refresh-prices`, so the Vercel
+deployment no longer needs the Pro plan's 60s function window. The
+`/api/refresh-prices` endpoint is still deployed as a manual fallback
+but is not called on any schedule.
 
 `scripts/refresh-snapshots.sh` sources `.env.local`, takes a `flock` so
 overlapping ticks can't double-run, and invokes
@@ -193,5 +195,3 @@ and a full refresh line at `:00` and `:30`. During live sessions every
 tick runs the full refresh (~6–8s for ~40 tickers / 7 portfolios; the
 lockfile skips if the previous tick is still running).
 
-Once this is running reliably, disable the cron-job.org trigger that
-previously hit `/api/refresh-prices` to avoid double-refreshing.

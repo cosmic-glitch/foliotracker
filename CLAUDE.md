@@ -63,7 +63,7 @@ vercel --prod    # Deploy to production
 - **Snapshot-based architecture**: Portfolio data is pre-computed in the background
   - DigitalOcean VM cron fires `scripts/refresh-snapshots.sh` every minute; the wrapped tsx script calls `refreshAllSnapshots()` directly against Supabase (no Vercel round-trip). See `scripts/VM_SETUP.md` section 10.
   - Cadence is gated in TypeScript (`isLiveMarketSession`): every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), otherwise only at UTC minute `0` and `30`.
-  - Previously a cron-job.org trigger hit `POST /api/refresh-prices` (secured by `REFRESH_SECRET`). That endpoint still exists as a fallback path but is no longer the primary refresh trigger.
+  - The `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` bearer auth) still exists as a manual fallback but is no longer triggered on a schedule — the VM cron handles all scheduled refreshes.
   - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
   - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
   - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
@@ -96,7 +96,7 @@ Snapshot refresh runs on the VM via cron — see `scripts/VM_SETUP.md` section 1
 - **Script:** `scripts/refresh-snapshots.ts` (calls `refreshAllSnapshots()` + `deleteExpiredSessions()` directly against Supabase; pass `--force` to bypass off-hours gating)
 - **Crontab:** `* * * * * $HOME/foliotracker/scripts/refresh-snapshots.sh` — fires every minute; the script self-skips off-hours ticks (minute not in {0,30}).
 - **Cadence:** every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), every 30 minutes otherwise.
-- The legacy `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` auth) remains callable but is no longer driven by cron-job.org.
+- The legacy `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` auth) remains deployed as a manual fallback but is no longer driven on a schedule.
 
 ## Database Migrations
 

@@ -61,9 +61,9 @@ vercel --prod    # Deploy to production
 - `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, Money Market → Cash / Money Market, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
 - **Snapshot-based architecture**: Portfolio data is pre-computed in the background
-  - External cron service (cron-job.org) triggers `/api/refresh-prices` endpoint
-  - Refresh frequency: Every 1 minute during live US sessions (pre-market, market, after-hours), every 30 minutes otherwise
-  - Requires `REFRESH_SECRET` auth header
+  - DigitalOcean VM cron fires `scripts/refresh-snapshots.sh` every minute; the wrapped tsx script calls `refreshAllSnapshots()` directly against Supabase (no Vercel round-trip). See `scripts/VM_SETUP.md` section 10.
+  - Cadence is gated in TypeScript (`isLiveMarketSession`): every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), otherwise only at UTC minute `0` and `30`.
+  - Previously a cron-job.org trigger hit `POST /api/refresh-prices` (secured by `REFRESH_SECRET`). That endpoint still exists as a fallback path but is no longer the primary refresh trigger.
   - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
   - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
   - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
@@ -90,11 +90,13 @@ Copy `.env.example` to `.env.local` and fill in values. Required:
 
 **Local development:** All secrets stored in `.env.local` (gitignored). Use `source .env.local` before running local scripts.
 
-### External Cron Configuration (cron-job.org)
-Snapshot refresh is handled by an external cron service at https://console.cron-job.org/
-- **Endpoint:** `POST https://foliotracker.vercel.app/api/refresh-prices`
-- **Auth header:** `Authorization: Bearer <REFRESH_SECRET>`
-- **Schedule:** Every 1 minute during live US sessions (4:00 AM - 8:00 PM ET, Mon-Fri), every 30 minutes otherwise
+### Snapshot Refresh Cron (DigitalOcean VM)
+Snapshot refresh runs on the VM via cron — see `scripts/VM_SETUP.md` section 10 for install steps.
+- **Wrapper:** `scripts/refresh-snapshots.sh` (sources `.env.local`, `flock`s a lockfile, logs to `scripts/refresh-snapshots.log`)
+- **Script:** `scripts/refresh-snapshots.ts` (calls `refreshAllSnapshots()` + `deleteExpiredSessions()` directly against Supabase; pass `--force` to bypass off-hours gating)
+- **Crontab:** `* * * * * $HOME/foliotracker/scripts/refresh-snapshots.sh` — fires every minute; the script self-skips off-hours ticks (minute not in {0,30}).
+- **Cadence:** every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), every 30 minutes otherwise.
+- The legacy `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` auth) remains callable but is no longer driven by cron-job.org.
 
 ## Database Migrations
 

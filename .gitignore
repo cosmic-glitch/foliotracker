@@ -42,5 +42,8 @@ backups/
 # Claude-generated news run artifacts (regenerated daily)
 scripts/news-output/
 
+# Cron lockfile for refresh-snapshots.sh
+scripts/refresh-snapshots.lock
+
 # Local Supabase CLI temp metadata
 supabase/.temp/

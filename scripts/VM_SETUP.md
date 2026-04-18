@@ -158,3 +158,40 @@ with it. Same single-point-of-failure as the Mac setup had — just with
 better uptime. For off-box durability, append an `rclone`/`aws s3 cp`
 step at the end of `backup-db.sh` to push the new date folder to remote
 storage.
+
+## 10. Snapshot refresh cron
+
+Portfolio snapshot refresh moved off Vercel (formerly driven by
+cron-job.org hitting `/api/refresh-prices`) and onto this VM, so the
+Vercel deployment no longer needs the Pro plan's 60s function window.
+
+`scripts/refresh-snapshots.sh` sources `.env.local`, takes a `flock` so
+overlapping ticks can't double-run, and invokes
+`scripts/refresh-snapshots.ts`. The tsx script calls
+`refreshAllSnapshots()` and `deleteExpiredSessions()` directly against
+Supabase, and gates cadence via `isLiveMarketSession`: every tick during
+live US sessions, otherwise only UTC minute `0` or `30` does work.
+
+Smoke test manually first (`--force` bypasses the gate):
+```bash
+source ~/foliotracker/.env.local && \
+  npx tsx ~/foliotracker/scripts/refresh-snapshots.ts --force
+```
+
+Then install the cron entry (keep the existing lines above it):
+```
+* * * * * $HOME/foliotracker/scripts/refresh-snapshots.sh
+```
+
+Verify it's firing:
+```bash
+tail -f ~/foliotracker/scripts/refresh-snapshots.log
+```
+
+Off-hours you'll see `off-hours tick, skipping (minute=N)` most minutes
+and a full refresh line at `:00` and `:30`. During live sessions every
+tick runs the full refresh (~6–8s for ~40 tickers / 7 portfolios; the
+lockfile skips if the previous tick is still running).
+
+Once this is running reliably, disable the cron-job.org trigger that
+previously hit `/api/refresh-prices` to avoid double-refreshing.

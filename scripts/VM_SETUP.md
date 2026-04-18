@@ -135,14 +135,20 @@ pg_dump --version   # must report 17.x to match the Supabase server
 bash ~/foliotracker/scripts/backup-db.sh
 ls ~/foliotracker/backups/   # should have today's dated folder
 
-# Install the cron entry (daily at 06:30 UTC, 40 min after the news slot)
+# Install the cron entry (every 3rd day of the month at 06:30 UTC,
+# 40 min after the news slot)
 crontab -e
 ```
 
 Append (keep the news line above it):
 ```
-30 6 * * * $HOME/foliotracker/scripts/backup-db.sh >> $HOME/foliotracker/backups/backup.log 2>&1
+30 6 */3 * * $HOME/foliotracker/scripts/backup-db.sh >> $HOME/foliotracker/backups/backup.log 2>&1
 ```
+
+`*/3` fires on days 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31 of each
+month. At month boundaries the gap compresses (e.g. Jan 31 → Feb 1
+is a single day) — acceptable here because the DB changes slowly and
+30-day retention leaves plenty of coverage.
 
 Backups land at `~/foliotracker/backups/<YYYY-MM-DD>/` with 30-day retention
 (the script's `find -mtime +30 -exec rm -rf` prunes automatically).

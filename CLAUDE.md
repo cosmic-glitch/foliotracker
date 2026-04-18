@@ -145,7 +145,7 @@ source .env.local && bash scripts/backup-db.sh
 
 - Dumps roles, schema, and data to `backups/<date>/`
 - 30-day retention (auto-cleans old backups)
-- **Automated on the DigitalOcean VM** via cron at 06:30 UTC daily (see `scripts/VM_SETUP.md`). Previously ran on the Mac via launchd but lid-closed sleep kept missing the schedule.
+- **Automated on the DigitalOcean VM** via cron at 06:30 UTC every 3rd day of the month (see `scripts/VM_SETUP.md`). Previously ran on the Mac via launchd but lid-closed sleep kept missing the schedule.
 - Logs to `backups/backup.log` on the VM
 
 ## Password Reset

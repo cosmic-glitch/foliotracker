@@ -28,6 +28,14 @@ LOG_FILE="$PROJECT_DIR/scripts/news.log"
 
 echo "[$(date -u +%FT%TZ)] generate-news: starting" >> "$LOG_FILE"
 
+# Self-sync with main so prompt/script edits propagate without manual SSH.
+# Non-fatal: on pull failure, proceed with the current checkout.
+if git pull --ff-only origin main >> "$LOG_FILE" 2>&1; then
+  echo "[$(date -u +%FT%TZ)] generate-news: git pull OK at $(git rev-parse --short HEAD)" >> "$LOG_FILE"
+else
+  echo "[$(date -u +%FT%TZ)] generate-news: git pull FAILED at $(git rev-parse --short HEAD); proceeding" >> "$LOG_FILE"
+fi
+
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 

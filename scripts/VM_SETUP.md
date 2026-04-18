@@ -85,6 +85,13 @@ Cron invokes the command via `/bin/sh -c`, which expands `$HOME`. The
 script itself prepends `~/.local/bin` to `PATH` so that `claude` resolves
 under cron's minimal environment — no `PATH=` line needed in the crontab.
 
+The script runs `git pull --ff-only origin main` before each generation so
+prompt/script edits propagate without manual SSH. Pull failures are logged
+and non-fatal — a network hiccup won't skip the day's news, but it also
+means a broken push on `main` will start affecting the cron run the next
+day. If you ever push something you want the VM to skip, revert on `main`
+before the next 05:50 UTC slot.
+
 ## 8. Smoke test
 
 Kick it off once manually to confirm the whole pipeline:

@@ -117,8 +117,18 @@ dev Mac via launchd. The Mac's lid-closed sleep kept missing the 3-day
 cadence, so we moved it here where the box is always up.
 
 ```bash
-# Install postgres client so pg_dump is on PATH
-sudo apt-get update && sudo apt-get install -y postgresql-client
+# Install postgres client so pg_dump is on PATH.
+# Ubuntu 24.04's default postgresql-client is v16, but Supabase runs
+# PG 17 and pg_dump refuses to dump from a newer server. Add the PGDG
+# apt repo and install the matching major version.
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  | sudo tee /etc/apt/sources.list.d/pgdg.list
+sudo apt-get update
+sudo apt-get install -y postgresql-client-17
+pg_dump --version   # must report 17.x to match the Supabase server
 
 # backup-db.sh already reads SUPABASE_DB_URL from .env.local (set in step 2).
 # Kick it off once manually to prove it works end-to-end:

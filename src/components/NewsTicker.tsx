@@ -13,6 +13,7 @@ interface TickerHeadline {
   ticker: string;
   text: string;
   url: string;
+  sortKey?: number;
 }
 
 export function NewsTicker({ holdings }: NewsTickerProps) {
@@ -33,29 +34,35 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
 
   const headlines = useMemo<TickerHeadline[]>(() => {
     if (!data?.news) return [];
-    const perTicker: Array<TickerHeadline[]> = [];
+    const collected: Array<TickerHeadline & { order: number }> = [];
 
     for (const ticker of tickerOrder) {
       const entry = data.news[ticker];
       if (!entry || entry.kind !== 'ai') continue;
-      const extracted = extractHeadlines(entry.summaryMarkdown);
-      if (extracted.length > 0) {
-        perTicker.push(extracted.map((h) => ({ ticker, text: h.text, url: h.url })));
+      for (const h of extractHeadlines(entry.summaryMarkdown)) {
+        collected.push({
+          ticker,
+          text: h.text,
+          url: h.url,
+          sortKey: h.sortKey,
+          order: collected.length,
+        });
       }
     }
 
-    const out: TickerHeadline[] = [];
-    let added = true;
-    for (let i = 0; added; i++) {
-      added = false;
-      for (const bucket of perTicker) {
-        if (bucket[i]) {
-          out.push(bucket[i]);
-          added = true;
-        }
+    collected.sort((a, b) => {
+      const aHas = a.sortKey !== undefined;
+      const bHas = b.sortKey !== undefined;
+      if (aHas && bHas) {
+        if (b.sortKey! !== a.sortKey!) return b.sortKey! - a.sortKey!;
+        return a.order - b.order;
       }
-    }
-    return out;
+      if (aHas) return -1;
+      if (bHas) return 1;
+      return a.order - b.order;
+    });
+
+    return collected.map(({ ticker, text, url, sortKey }) => ({ ticker, text, url, sortKey }));
   }, [data?.news, tickerOrder]);
 
   const trackRef = useRef<HTMLDivElement>(null);

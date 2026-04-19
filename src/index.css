@@ -65,7 +65,7 @@ body {
 }
 
 .marquee-track {
-  animation: marquee var(--marquee-duration, 40s) linear infinite;
+  animation: marquee var(--marquee-duration, 40s) linear 2s infinite;
   will-change: transform;
 }
 

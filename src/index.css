@@ -59,22 +59,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
 .marquee-track {
-  animation: marquee var(--marquee-duration, 40s) linear 4s infinite;
   will-change: transform;
-}
-
-.marquee-track:hover {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee-track {
-    animation: none;
-  }
+  touch-action: pan-y;
+  user-select: none;
 }

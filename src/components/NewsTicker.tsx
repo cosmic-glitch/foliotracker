@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
 import { extractHeadlines } from '../lib/newsHeadline';
@@ -74,14 +74,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
   const lastTsRef = useRef<number | null>(null);
   const startTsRef = useRef<number | null>(null);
 
-  const [userPaused, setUserPaused] = useState(false);
-  const userPausedRef = useRef(userPaused);
-  useEffect(() => {
-    userPausedRef.current = userPaused;
-  }, [userPaused]);
-
-  const isHoveringRef = useRef(false);
-  const isDraggingRef = useRef(false);
+  const isPointerDownRef = useRef(false);
   const dragStartXRef = useRef(0);
   const dragStartOffsetRef = useRef(0);
   const dragMovedRef = useRef(false);
@@ -125,11 +118,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
       if (startTsRef.current === null) startTsRef.current = ts;
 
       const pastInitialDelay = ts - startTsRef.current > INITIAL_DELAY_MS;
-      const shouldMove =
-        pastInitialDelay &&
-        !userPausedRef.current &&
-        !isHoveringRef.current &&
-        !isDraggingRef.current;
+      const shouldMove = pastInitialDelay && !isPointerDownRef.current;
 
       if (shouldMove && lastTsRef.current !== null) {
         const dtSec = (ts - lastTsRef.current) / 1000;
@@ -158,15 +147,14 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (prefersReducedMotion) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (!trackRef.current?.contains(e.target as Node)) return;
 
-    isDraggingRef.current = true;
+    isPointerDownRef.current = true;
     dragMovedRef.current = false;
     dragStartXRef.current = e.clientX;
     dragStartOffsetRef.current = offsetRef.current;
 
     const onMove = (ev: PointerEvent) => {
-      if (!isDraggingRef.current) return;
+      if (!isPointerDownRef.current) return;
       const dx = ev.clientX - dragStartXRef.current;
       if (Math.abs(dx) > DRAG_THRESHOLD_PX) dragMovedRef.current = true;
       offsetRef.current = dragStartOffsetRef.current + dx;
@@ -180,7 +168,8 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
       detachDragRef.current = null;
     };
     const onEnd = () => {
-      isDraggingRef.current = false;
+      isPointerDownRef.current = false;
+      lastTsRef.current = null;
       detach();
     };
     detachDragRef.current = detach;
@@ -218,13 +207,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
 
   return (
     <div
-      className="relative overflow-hidden py-1 md:py-2 pr-8"
-      onMouseEnter={() => {
-        isHoveringRef.current = true;
-      }}
-      onMouseLeave={() => {
-        isHoveringRef.current = false;
-      }}
+      className="relative overflow-hidden py-1 md:py-2"
       onPointerDown={onPointerDown}
       onClickCapture={onClickCapture}
     >
@@ -235,26 +218,6 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
         {renderEntries('a')}
         {renderEntries('b')}
       </div>
-      <button
-        type="button"
-        aria-label={userPaused ? 'Resume news ticker' : 'Pause news ticker'}
-        onClick={(e) => {
-          e.stopPropagation();
-          setUserPaused((p) => !p);
-        }}
-        className="absolute right-1 top-1/2 -translate-y-1/2 z-10 rounded-full p-1 text-text-secondary/60 hover:text-accent hover:bg-card focus:outline-none focus:ring-1 focus:ring-accent"
-      >
-        {userPaused ? (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M4 2.5v11l9-5.5z" />
-          </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <rect x="4" y="2.5" width="3" height="11" />
-            <rect x="9" y="2.5" width="3" height="11" />
-          </svg>
-        )}
-      </button>
     </div>
   );
 }

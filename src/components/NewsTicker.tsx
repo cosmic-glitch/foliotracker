@@ -5,7 +5,6 @@ import { extractHeadlines } from '../lib/newsHeadline';
 
 const SCROLL_PX_PER_SEC = 90;
 const INITIAL_DELAY_MS = 4000;
-const DRAG_THRESHOLD_PX = 5;
 
 interface NewsTickerProps {
   holdings: Holding[];
@@ -77,7 +76,6 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
   const isPointerDownRef = useRef(false);
   const dragStartXRef = useRef(0);
   const dragStartOffsetRef = useRef(0);
-  const dragMovedRef = useRef(false);
   const detachDragRef = useRef<(() => void) | null>(null);
 
   const prefersReducedMotion = useMemo(() => {
@@ -149,14 +147,12 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     isPointerDownRef.current = true;
-    dragMovedRef.current = false;
     dragStartXRef.current = e.clientX;
     dragStartOffsetRef.current = offsetRef.current;
 
     const onMove = (ev: PointerEvent) => {
       if (!isPointerDownRef.current) return;
       const dx = ev.clientX - dragStartXRef.current;
-      if (Math.abs(dx) > DRAG_THRESHOLD_PX) dragMovedRef.current = true;
       offsetRef.current = dragStartOffsetRef.current + dx;
       wrapOffset();
       applyTransform();
@@ -178,38 +174,25 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     document.addEventListener('pointercancel', onEnd);
   };
 
-  const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragMovedRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      dragMovedRef.current = false;
-    }
-  };
-
   if (tickerOrder.length === 0) return null;
   if (headlines.length === 0) return null;
 
   const renderEntries = (keyPrefix: string) =>
     headlines.map((h, i) => (
-      <a
+      <span
         key={`${keyPrefix}-${i}`}
-        href={h.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        draggable={false}
-        className="inline-flex items-center gap-2 px-3 text-sm whitespace-nowrap hover:text-accent select-none"
+        className="inline-flex items-center gap-2 px-3 text-sm whitespace-nowrap select-none"
       >
         <span className="font-semibold text-text-primary">{h.ticker}</span>
         <span className="text-text-secondary">{h.text}</span>
         <span className="text-text-secondary/40 px-1" aria-hidden="true">•</span>
-      </a>
+      </span>
     ));
 
   return (
     <div
       className="relative overflow-hidden py-1 md:py-2"
       onPointerDown={onPointerDown}
-      onClickCapture={onClickCapture}
     >
       <div
         ref={trackRef}

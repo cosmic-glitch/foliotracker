@@ -24,6 +24,9 @@ export interface Quote {
   currentPrice: number;
   previousClose: number;
   changePercent: number;
+  // Split-adjusted 52-week high from Yahoo. Preferred over the
+  // companiesmarketcap.org value since Yahoo reliably adjusts for stock splits.
+  fiftyTwoWeekHigh: number | null;
 }
 
 export interface SymbolInfo {
@@ -113,8 +116,13 @@ async function getYahooQuote(symbol: string): Promise<Quote | null> {
       const changePercent = previousClose > 0
         ? ((currentPrice - previousClose) / previousClose) * 100
         : 0;
+      const rawFiftyTwoWeekHigh = meta.fiftyTwoWeekHigh;
+      const fiftyTwoWeekHigh =
+        typeof rawFiftyTwoWeekHigh === 'number' && rawFiftyTwoWeekHigh > 0
+          ? rawFiftyTwoWeekHigh
+          : null;
 
-      return { currentPrice, previousClose, changePercent };
+      return { currentPrice, previousClose, changePercent, fiftyTwoWeekHigh };
     });
   } catch (error) {
     const ts = new Date().toISOString();

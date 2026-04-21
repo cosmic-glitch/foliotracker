@@ -105,7 +105,11 @@ function computeHoldings(
   dbHoldings: DbHolding[],
   prices: Map<string, PriceData>,
   fundamentals: Map<string, DbFundamentalsCache> = new Map(),
-  regularPrices?: Map<string, PriceData>
+  regularPrices?: Map<string, PriceData>,
+  // Split-adjusted 52w highs from Yahoo. Preferred over
+  // fundamentals.week_52_high (companiesmarketcap.org), which has been observed
+  // to return pre-split values that wildly inflate peak-potential totals.
+  yahoo52WeekHighs: Map<string, number> = new Map()
 ): { holdings: SnapshotHolding[]; totalValue: number; totalDayChange: number; totalGain: number | null; totalGainPercent: number | null } {
   const holdings: SnapshotHolding[] = [];
   let totalValue = 0;
@@ -175,8 +179,12 @@ function computeHoldings(
       const forwardPE = (fund?.forward_eps && fund.forward_eps > 0 && price.currentPrice > 0)
         ? price.currentPrice / fund.forward_eps
         : null;
-      const pctTo52WeekHigh = (fund?.week_52_high && fund.week_52_high > 0 && price.currentPrice > 0)
-        ? ((fund.week_52_high - price.currentPrice) / price.currentPrice) * 100
+      const yahooHigh = yahoo52WeekHighs.get(holding.ticker);
+      const effective52WeekHigh = (yahooHigh && yahooHigh > 0)
+        ? yahooHigh
+        : (fund?.week_52_high && fund.week_52_high > 0 ? fund.week_52_high : null);
+      const pctTo52WeekHigh = (effective52WeekHigh && price.currentPrice > 0)
+        ? ((effective52WeekHigh - price.currentPrice) / price.currentPrice) * 100
         : null;
 
       const regPrice = regularPrices?.get(holding.ticker);
@@ -199,7 +207,7 @@ function computeHoldings(
         earnings: fund?.earnings ?? null,
         forwardPE,
         pctTo52WeekHigh,
-        week52High: fund?.week_52_high ?? null,
+        week52High: effective52WeekHigh,
         operatingMargin: fund?.operating_margin ?? null,
         revenueGrowth3Y: fund?.revenue_growth_3y ?? null,
         epsGrowth3Y: fund?.eps_growth_3y ?? null,
@@ -461,6 +469,7 @@ export async function refreshAllSnapshots(): Promise<void> {
 
   // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
+  const yahoo52WeekHighMap = new Map<string, number>();
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -468,6 +477,9 @@ export async function refreshAllSnapshots(): Promise<void> {
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
+    if (quote.fiftyTwoWeekHigh != null) {
+      yahoo52WeekHighMap.set(ticker, quote.fiftyTwoWeekHigh);
+    }
   }
 
   // Fall back to cached prices for any tickers that Yahoo failed to return
@@ -627,7 +639,7 @@ export async function refreshAllSnapshots(): Promise<void> {
   for (const portfolio of portfolios) {
     const holdings = allHoldingsMap.get(portfolio.id) || [];
 
-    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap);
+    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap);
     const previousTotalValue = totalValue - totalDayChange;
     const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 
@@ -691,6 +703,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
 
   // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
+  const yahoo52WeekHighMap = new Map<string, number>();
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -698,6 +711,9 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
+    if (quote.fiftyTwoWeekHigh != null) {
+      yahoo52WeekHighMap.set(ticker, quote.fiftyTwoWeekHigh);
+    }
   }
 
   // Fall back to cached prices for any tickers that Yahoo failed to return
@@ -831,7 +847,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const benchmarkHistory = computeBenchmarkHistory(spyPrices);
 
   // Compute snapshot
-  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap);
+  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap);
   const previousTotalValue = totalValue - totalDayChange;
   const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 

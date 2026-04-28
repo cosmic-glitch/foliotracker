@@ -119,7 +119,7 @@ function computeHoldings(
 
   for (const holding of dbHoldings) {
     if (holding.is_static) {
-      const value = holding.static_value || 0;
+      const value = holding.static_value ?? 0;
       const costBasis = holding.cost_basis;
       const profitLoss = costBasis !== null ? value - costBasis : null;
       const profitLossPercent = costBasis !== null && costBasis > 0
@@ -252,7 +252,7 @@ async function compute30DHistory(
   // Calculate static value
   let staticValue = 0;
   for (const holding of staticHoldings) {
-    staticValue += holding.static_value || 0;
+    staticValue += holding.static_value ?? 0;
   }
 
   // Get all unique dates
@@ -287,7 +287,7 @@ async function compute30DHistory(
       }
     }
 
-    if (totalValue > 0) {
+    if (Number.isFinite(totalValue)) {
       history.push({ date, value: totalValue });
     }
   }
@@ -307,7 +307,7 @@ async function compute1DHistory(
   // Calculate constant value (static + holdings without intraday data)
   let constantValue = 0;
   for (const holding of staticHoldings) {
-    constantValue += holding.static_value || 0;
+    constantValue += holding.static_value ?? 0;
   }
 
   const holdingsWithData: Array<{ ticker: string; shares: number; data: Array<{ date: string; close: number }> }> = [];
@@ -377,7 +377,7 @@ async function compute1DHistory(
       }
     }
 
-    if (totalValue > 0) {
+    if (Number.isFinite(totalValue)) {
       history.push({ date: timestamp, value: totalValue });
     }
   }

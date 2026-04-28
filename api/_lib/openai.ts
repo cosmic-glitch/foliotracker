@@ -17,17 +17,27 @@ export interface HoldingSummary {
   profitLossPercent?: number | null;
 }
 
+function formatDollarAmount(value: number): string {
+  const sign = value < 0 ? '-' : '';
+  return `${sign}$${Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+function formatSignedDollarAmount(value: number): string {
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}$${Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
 function formatHoldingsList(holdings: HoldingSummary[]): string {
   return holdings
     .map(
       (h) =>
-        `- ${h.ticker} (${h.name}): $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%) - ${h.instrumentType}`
+        `- ${h.ticker} (${h.name}): ${formatDollarAmount(h.value)} (${h.allocation.toFixed(1)}%) - ${h.instrumentType}`
     )
     .join('\n');
 }
 
 function formatPortfolioContext(holdings: HoldingSummary[], totalValue: number): string {
-  return `Portfolio total value: $${totalValue.toLocaleString()}\n\nHoldings:\n${formatHoldingsList(holdings)}`;
+  return `Portfolio total value: ${formatDollarAmount(totalValue)}\n\nHoldings:\n${formatHoldingsList(holdings)}`;
 }
 
 export async function generateHotTake(
@@ -138,7 +148,7 @@ function getPersonaSystemPrompt(
   holdingsList: string,
   totalValue: number
 ): string {
-  const portfolioContext = `Current portfolio ($${totalValue.toLocaleString()} total):\n${holdingsList}`;
+  const portfolioContext = `Current portfolio (${formatDollarAmount(totalValue)} total):\n${holdingsList}`;
 
   switch (persona) {
     case 'buffett':
@@ -187,7 +197,7 @@ export async function chatWithPortfolio(
 ): Promise<string> {
   const holdingsList = holdings
     .map(
-      (h) => `- ${h.ticker}: $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%)`
+      (h) => `- ${h.ticker}: ${formatDollarAmount(h.value)} (${h.allocation.toFixed(1)}%)`
     )
     .join('\n');
 
@@ -221,9 +231,9 @@ export async function generateDeepResearch(
       const linkageTag = h.isStatic === true ? 'STATIC' : 'MARKET_LINKED';
       const gainInfo =
         h.profitLoss !== null && h.profitLoss !== undefined
-          ? ` | Unrealized: ${h.profitLoss >= 0 ? '+' : ''}$${h.profitLoss.toLocaleString()} (${h.profitLossPercent?.toFixed(1)}%)`
+          ? ` | Unrealized: ${formatSignedDollarAmount(h.profitLoss)} (${h.profitLossPercent?.toFixed(1)}%)`
           : '';
-      return `- ${h.ticker} (${h.name}): $${h.value.toLocaleString()} (${h.allocation.toFixed(1)}%) [${h.instrumentType} | ${linkageTag}]${gainInfo}`;
+      return `- ${h.ticker} (${h.name}): ${formatDollarAmount(h.value)} (${h.allocation.toFixed(1)}%) [${h.instrumentType} | ${linkageTag}]${gainInfo}`;
     })
     .join('\n');
 
@@ -234,7 +244,7 @@ ${DEEP_RESEARCH_SYSTEM_PROMPT}
 </SYSTEM_PROMPT>
 
 <PORTFOLIO_DATA>
-Total Portfolio Value: $${totalValue.toLocaleString()}
+Total Portfolio Value: ${formatDollarAmount(totalValue)}
 
 Holdings:
 ${holdingsSummary}

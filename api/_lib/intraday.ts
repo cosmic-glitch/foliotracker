@@ -68,7 +68,7 @@ export async function getIntradayPortfolioValue(
 
   // Add static holdings to constant value (no day change for static)
   for (const holding of staticHoldings) {
-    const staticVal = holding.static_value || 0;
+    const staticVal = holding.static_value ?? 0;
     constantValue += staticVal;
     previousCloseTotal += staticVal; // Static doesn't change
   }

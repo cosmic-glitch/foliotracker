@@ -21,6 +21,7 @@ const TYPE_CATEGORY_MAP: Record<string, { name: string; color: string }> = {
   'Real Estate': { name: 'Real Estate', color: '#f59e0b' }, // amber
   'Crypto': { name: 'Crypto', color: '#f97316' }, // orange
   'Bonds': { name: 'Bonds', color: '#06b6d4' }, // cyan (static bonds)
+  'Liabilities': { name: 'Liabilities', color: '#ef4444' },
   'Other': { name: 'Other', color: '#6b7280' }, // gray
 };
 
@@ -49,10 +50,10 @@ function HoldingsBreakdown({ holdings, totalValue }: { holdings: Holding[]; tota
           >
             <span className="font-medium text-text-primary">{holding.ticker}</span>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-text-secondary">
+              <span className={holding.value < 0 ? 'text-negative' : 'text-text-secondary'}>
                 {formatCurrency(holding.value, true)}
               </span>
-              <span className="text-text-secondary w-12 text-right">
+              <span className={`w-12 text-right ${portfolioPercent < 0 ? 'text-negative' : 'text-text-secondary'}`}>
                 {portfolioPercent.toFixed(1)}%
               </span>
             </div>
@@ -110,10 +111,10 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
       color: data.color,
       holdings: data.holdings,
     };
-  }).filter((t) => t.value > 0).sort((a, b) => b.value - a.value);
+  }).filter((t) => t.value !== 0).sort((a, b) => b.value - a.value);
 
-  const maxAllocation = Math.max(...typeData.map((t) => t.allocation));
-  const maxNameLength = Math.max(...typeData.map((t) => t.name.length));
+  const maxAllocation = Math.max(0, ...typeData.map((t) => Math.abs(t.allocation)));
+  const maxNameLength = Math.max(0, ...typeData.map((t) => t.name.length));
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden h-full">
@@ -123,8 +124,9 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
 
       <div className="p-3 space-y-0.5">
         {typeData.map((type) => {
-          const barWidth = maxAllocation > 0 ? (type.allocation / maxAllocation) * 100 : 0;
+          const barWidth = maxAllocation > 0 ? (Math.abs(type.allocation) / maxAllocation) * 100 : 0;
           const isExpanded = expandedCategories.has(type.name);
+          const isNegative = type.allocation < 0;
 
           return (
             <div key={type.name}>
@@ -140,7 +142,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
                 </span>
                 <div className="flex-1 min-w-0 flex items-center gap-1">
                   <div
-                    className="h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 bg-accent/80"
+                    className={`h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 ${isNegative ? 'bg-negative/80' : 'bg-accent/80'}`}
                     style={{ width: `${barWidth}%` }}
                   >
                     {barWidth >= 20 && (
@@ -150,7 +152,7 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
                     )}
                   </div>
                   {barWidth < 20 && (
-                    <span className="text-xs font-medium text-text-secondary">
+                    <span className={`text-xs font-medium ${isNegative ? 'text-negative' : 'text-text-secondary'}`}>
                       {type.allocation.toFixed(1)}%
                     </span>
                   )}

@@ -33,6 +33,7 @@ interface PreviewResponse {
 }
 
 type Visibility = 'public' | 'private' | 'selective';
+type StaticHoldingFormRow = Omit<StaticHoldingInput, 'value'> & { value: string };
 
 export function CreatePortfolio() {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export function CreatePortfolio() {
   const [tradeableHoldings, setTradeableHoldings] = useState<TradeableHoldingInput[]>([
     { ticker: '', shares: 0 }
   ]);
-  const [staticHoldings, setStaticHoldings] = useState<StaticHoldingInput[]>([]);
+  const [staticHoldings, setStaticHoldings] = useState<StaticHoldingFormRow[]>([]);
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
   const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
@@ -100,19 +101,19 @@ export function CreatePortfolio() {
 
   // Static holdings handlers
   const addStaticRow = () => {
-    setStaticHoldings([...staticHoldings, { name: '', value: 0 }]);
+    setStaticHoldings([...staticHoldings, { name: '', value: '' }]);
   };
 
   const removeStaticRow = (index: number) => {
     setStaticHoldings(staticHoldings.filter((_, i) => i !== index));
   };
 
-  const updateStaticRow = (index: number, field: keyof StaticHoldingInput, value: string | number) => {
+  const updateStaticRow = (index: number, field: keyof StaticHoldingFormRow, value: string) => {
     const updated = [...staticHoldings];
     if (field === 'name') {
-      updated[index] = { ...updated[index], name: value as string };
+      updated[index] = { ...updated[index], name: value };
     } else if (field === 'value') {
-      updated[index] = { ...updated[index], value: Number(value) || 0 };
+      updated[index] = { ...updated[index], value };
     }
     setStaticHoldings(updated);
   };
@@ -120,7 +121,9 @@ export function CreatePortfolio() {
   const buildHoldingsInput = (): HoldingsInput => {
     return {
       tradeable: tradeableHoldings.filter(h => h.ticker.trim() && h.shares > 0),
-      static: staticHoldings.filter(h => h.name.trim() && h.value > 0),
+      static: staticHoldings
+        .map((h): StaticHoldingInput => ({ name: h.name, value: Number(h.value) }))
+        .filter(h => h.name.trim() && Number.isFinite(h.value) && h.value !== 0),
     };
   };
 
@@ -373,12 +376,12 @@ export function CreatePortfolio() {
               </button>
             </div>
             <p className="text-xs text-text-secondary mb-4">
-              Non-market assets like cash, real estate, or crypto. Enter a fixed dollar value.
+              Non-market assets or liabilities like cash, real estate, crypto, loans, or mortgages. Enter a signed fixed dollar value.
             </p>
 
             {staticHoldings.length === 0 ? (
               <div className="text-sm text-text-secondary text-center py-4 bg-background rounded-lg border border-border">
-                No static holdings. Click "Add Row" to add cash, real estate, etc.
+                No static holdings. Click "Add Row" to add cash, real estate, loans, etc.
               </div>
             ) : (
               <div className="space-y-3">
@@ -402,10 +405,9 @@ export function CreatePortfolio() {
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
                       <input
                         type="number"
-                        value={holding.value || ''}
+                        value={holding.value}
                         onChange={(e) => updateStaticRow(index, 'value', e.target.value)}
-                        placeholder="100000"
-                        min="0"
+                        placeholder="-25000"
                         step="any"
                         className="w-full bg-background border border-border rounded-lg pl-7 pr-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent text-sm"
                       />

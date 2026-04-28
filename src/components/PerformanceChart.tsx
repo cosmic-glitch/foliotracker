@@ -60,7 +60,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     const mediaQuery = window.matchMedia('(max-width: 640px)');
     const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
 
-    setIsMobile(mediaQuery.matches);
     mediaQuery.addEventListener('change', onChange);
     return () => mediaQuery.removeEventListener('change', onChange);
   }, []);
@@ -134,7 +133,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     }
 
     // For 30D view, add today's point with currentValue to ensure chart ends at correct date
-    if (currentValue && points.length > 0 && chartView !== '1D') {
+    if (currentValue !== undefined && Number.isFinite(currentValue) && points.length > 0 && chartView !== '1D') {
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       const lastPoint = points[points.length - 1];
@@ -227,7 +226,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue;
-  const padding = range * 0.1 || maxValue * 0.05; // 10% padding, or 5% of max if flat
+  const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(maxValue) * 0.05, 1); // 10% padding, or a small positive pad if flat
 
   const getETOffsetIso = (date: Date): string => {
     const offsetPart = new Intl.DateTimeFormat('en-US', {

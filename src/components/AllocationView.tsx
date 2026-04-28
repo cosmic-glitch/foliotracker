@@ -28,8 +28,8 @@ export function AllocationView({ holdings }: AllocationViewProps) {
       .sort((a, b) => b.value - a.value),
     [consolidatedHoldings, filteredTotal]
   );
-  const maxAllocation = Math.max(...byValue.map((h) => h.allocation));
-  const maxTickerLength = Math.max(...byValue.map((h) => h.ticker.length));
+  const maxAllocation = Math.max(0, ...byValue.map((h) => Math.abs(h.allocation)));
+  const maxTickerLength = Math.max(0, ...byValue.map((h) => h.ticker.length));
 
   return (
     <div className="space-y-3 md:space-y-6">

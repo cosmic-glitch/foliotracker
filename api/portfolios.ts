@@ -7,7 +7,6 @@ import {
   createPortfolio,
   deletePortfolio,
   setHoldings,
-  verifyPortfolioPassword,
   authenticateRequest,
   verifySessionToken,
   deleteSessionsForPortfolio,
@@ -37,7 +36,6 @@ import {
   decrementPortfolioCount,
   deleteSnapshotFromRedis,
   deletePortfolioFromRedis,
-  setPortfolioInRedis,
 } from './_lib/redis.js';
 
 const MAX_PORTFOLIOS = 10;
@@ -202,7 +200,8 @@ async function processStructuredInput(input: StructuredHoldingsInput): Promise<C
 
   // Process static holdings
   for (const holding of input.static) {
-    if (!holding.name || holding.value <= 0) {
+    const value = Number(holding.value);
+    if (!holding.name || !Number.isFinite(value) || value === 0) {
       continue;
     }
 
@@ -211,16 +210,24 @@ async function processStructuredInput(input: StructuredHoldingsInput): Promise<C
       shares: 1,
       isStatic: true,
       name: holding.name,
-      instrumentType: getStaticInstrumentType(holding.name),
-      staticValue: holding.value,
+      instrumentType: getStaticInstrumentType(holding.name, value),
+      staticValue: value,
     });
   }
 
   return { tradeable, static: staticHoldings, errors };
 }
 
+function hasClassifiedHoldings(classification: ClassificationResult): boolean {
+  return classification.tradeable.length > 0 || classification.static.length > 0;
+}
+
 // Determine instrument type for static holdings based on name
-function getStaticInstrumentType(ticker: string): string {
+function getStaticInstrumentType(ticker: string, value?: number): string {
+  if (value !== undefined && value < 0) {
+    return 'Liabilities';
+  }
+
   const lowerTicker = ticker.toLowerCase();
   if (lowerTicker.includes('cash') || lowerTicker.includes('savings') || lowerTicker.includes('checking')) {
     return 'Cash';
@@ -307,7 +314,7 @@ function buildPreviewResponse(classification: ClassificationResult): {
 
   const staticPreview: StaticPreview[] = classification.static.map((h) => ({
     name: h.name || h.ticker,
-    value: h.staticValue || 0,
+    value: h.staticValue ?? 0,
     instrumentType: h.instrumentType || 'Other',
   }));
 
@@ -539,6 +546,11 @@ export default async function handler(
         return;
       }
 
+      if (!hasClassifiedHoldings(classification) && classification.errors.length === 0) {
+        res.status(400).json({ error: 'At least one nonzero holding is required' });
+        return;
+      }
+
       // If preview mode, return the enhanced preview
       if (isPreview) {
         res.status(200).json(buildPreviewResponse(classification));
@@ -710,6 +722,11 @@ export default async function handler(
         classification = await classifyLegacyHoldings(parsedHoldings);
       } else {
         res.status(400).json({ error: 'Invalid holdings format' });
+        return;
+      }
+
+      if (!hasClassifiedHoldings(classification) && classification.errors.length === 0) {
+        res.status(400).json({ error: 'At least one nonzero holding is required' });
         return;
       }
 

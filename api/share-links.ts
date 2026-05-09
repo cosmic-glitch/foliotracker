@@ -3,6 +3,7 @@ import {
   authenticateRequest,
   createShareLink,
   getPortfolio,
+  listShareLinks,
 } from './_lib/db.js';
 
 interface MintBody {
@@ -27,6 +28,42 @@ export default async function handler(
   }
 
   try {
+    if (req.method === 'GET') {
+      const portfolioId = (req.query.portfolioId as string)?.toLowerCase();
+      const token = req.query.token as string | undefined;
+      const password = req.query.password as string | undefined;
+
+      if (!portfolioId) {
+        res.status(400).json({ error: 'portfolioId is required' });
+        return;
+      }
+
+      const portfolio = await getPortfolio(portfolioId);
+      if (!portfolio) {
+        res.status(404).json({ error: 'Portfolio not found' });
+        return;
+      }
+
+      const { authenticated } = await authenticateRequest(portfolioId, token, password);
+      if (!authenticated) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const links = await listShareLinks(portfolioId);
+      res.status(200).json({
+        links: links.map((l) => ({
+          id: l.id,
+          token: l.token,
+          label: l.label,
+          createdAt: l.created_at,
+          expiresAt: l.expires_at,
+          revokedAt: l.revoked_at,
+        })),
+      });
+      return;
+    }
+
     if (req.method === 'POST') {
       const body = (req.body || {}) as MintBody;
       const portfolioId = body.portfolioId?.toLowerCase();

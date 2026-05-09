@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Header,
@@ -48,6 +48,9 @@ function App() {
     ? (getToken(portfolioId) || (loggedInAs === portfolioId.toLowerCase() ? getLoginToken() : null))
     : null;
 
+  // Share token from URL — set when someone visits /portfolioId?share=<token>
+  const shareToken = new URLSearchParams(window.location.search).get('share');
+
   const {
     data,
     isLoading,
@@ -59,7 +62,19 @@ function App() {
     setChartView,
     showExtendedHours,
     refresh,
-  } = usePortfolioData(portfolioId || '', storedToken, loggedInAs);
+  } = usePortfolioData(portfolioId || '', storedToken, loggedInAs, shareToken);
+
+  // If the share token was rejected (server returned 401 → React Query threw "Invalid password"),
+  // drop the share param from the URL so the normal visibility flow takes over instead of
+  // showing the user a stuck "Invalid password" error banner.
+  useEffect(() => {
+    if (!shareToken) return;
+    if (error === 'Invalid password') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('share');
+      window.location.replace(url.toString());
+    }
+  }, [shareToken, error]);
 
   // Analytics hook - logs views on initial load, tab visibility, and manual refresh
   const { logView } = useViewAnalytics(portfolioId, storedToken, loggedInAs);

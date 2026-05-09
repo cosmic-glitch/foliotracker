@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { X, Link2, Copy, Trash2, Loader2 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -31,6 +32,7 @@ function statusFor(link: ShareLink): { text: string; tone: 'active' | 'revoked' 
 }
 
 export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
+  const { showToast } = useToast();
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,8 +101,9 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
         await navigator.clipboard.writeText(url);
         setCopiedId(created.id);
         setTimeout(() => setCopiedId(null), 2000);
+        showToast('Link copied to clipboard');
       } catch {
-        // Clipboard may be unavailable; ignore.
+        showToast('Link generated (clipboard unavailable)');
       }
       setLabelInput('');
       setDaysInput('1');
@@ -118,6 +121,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
       await navigator.clipboard.writeText(shareUrl(portfolioId, link.token));
       setCopiedId(link.id);
       setTimeout(() => setCopiedId(null), 2000);
+      showToast('Link copied to clipboard');
     } catch {
       setError('Could not copy to clipboard');
     }

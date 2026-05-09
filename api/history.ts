@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer } from './_lib/db.js';
+import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid } from './_lib/db.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
@@ -75,8 +75,17 @@ export default async function handler(
     }
 
     // Handle visibility-based authentication
+    const shareToken = req.query.share_token as string;
     let authResult = { authenticated: false, isAdmin: false };
-    if (token || password) {
+
+    if (shareToken) {
+      const link = await getShareLinkByToken(shareToken);
+      if (!link || link.portfolio_id !== portfolioId.toLowerCase() || !isShareLinkValid(link)) {
+        res.status(401).json({ error: 'Share link invalid or expired' });
+        return;
+      }
+      authResult = { authenticated: true, isAdmin: false };
+    } else if (token || password) {
       authResult = await authenticateRequest(portfolioId, token, password);
       if ((token || password) && !authResult.authenticated) {
         res.status(401).json({ error: 'Invalid password' });

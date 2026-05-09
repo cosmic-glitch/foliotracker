@@ -174,15 +174,16 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
             placeholder="Label (optional)"
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-text-secondary">Expires after</span>
             <input
               type="number"
               min={1}
               value={daysInput}
               onChange={(e) => setDaysInput(e.target.value)}
-              className="w-24 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              className="w-20 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
             />
-            <span className="text-sm text-text-secondary self-center">days</span>
+            <span className="text-sm text-text-secondary">days</span>
             <button
               type="button"
               onClick={handleCreate}
@@ -199,7 +200,9 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
           <p className="text-xs text-negative mb-3">{error}</p>
         )}
 
-        {/* List */}
+        <div className="border-t border-border my-5" />
+        <h4 className="text-sm font-medium text-text-primary mb-3">Existing links</h4>
+
         {loading ? (
           <p className="text-sm text-text-secondary">Loading…</p>
         ) : links.length === 0 ? (

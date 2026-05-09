@@ -112,6 +112,7 @@ async function fetchHistoryApi(
   if (loggedInAs) url.searchParams.set('logged_in_as', loggedInAs);
   if (shareToken) url.searchParams.set('share_token', shareToken);
   const response = await fetch(url.toString(), { cache: 'no-store' });
+  if (response.status === 401) throw new Error('Invalid password');
   if (!response.ok) throw new Error('Failed to fetch history');
   return response.json();
 }
@@ -129,6 +130,7 @@ async function fetchIntradayApi(
   if (loggedInAs) url.searchParams.set('logged_in_as', loggedInAs);
   if (shareToken) url.searchParams.set('share_token', shareToken);
   const response = await fetch(url.toString(), { cache: 'no-store' });
+  if (response.status === 401) throw new Error('Invalid password');
   if (!response.ok) throw new Error('Failed to fetch intraday data');
   return response.json();
 }
@@ -335,7 +337,11 @@ export function usePortfolioData(
     isLoading: portfolioQuery.isLoading,
     isHistoryLoading: isChartLoading,
     isRefreshing: portfolioQuery.isFetching && !portfolioQuery.isLoading,
-    error: portfolioQuery.error?.message || (portfolioQuery.data === null ? 'Portfolio not found' : null),
+    error: (
+      historyQuery.error?.message === 'Invalid password' || intradayQuery.error?.message === 'Invalid password'
+        ? 'Invalid password'
+        : portfolioQuery.error?.message
+    ) || (portfolioQuery.data === null ? 'Portfolio not found' : null),
     requiresAuth,
     privateDisplayName,
     chartView,

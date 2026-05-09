@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Header,
   TotalValue,
@@ -49,7 +49,8 @@ function App() {
     : null;
 
   // Share token from URL — set when someone visits /portfolioId?share=<token>
-  const shareToken = new URLSearchParams(window.location.search).get('share');
+  const [searchParams] = useSearchParams();
+  const shareToken = searchParams.get('share');
 
   const {
     data,

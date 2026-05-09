@@ -182,7 +182,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
             placeholder="Label (optional)"
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center relative">
             <span className="text-sm text-text-secondary">Expiry</span>
             <input
               type="number"
@@ -201,17 +201,16 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               Generate link
             </button>
+            {flashMessage && (
+              <div className="absolute right-0 top-full mt-1.5 z-10 bg-card border border-accent/40 text-accent text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fade-in pointer-events-none whitespace-nowrap">
+                {flashMessage}
+              </div>
+            )}
           </div>
         </div>
 
         {error && (
           <p className="text-xs text-negative mb-3">{error}</p>
-        )}
-
-        {flashMessage && (
-          <p className="text-xs text-accent mb-3 text-center animate-fade-in">
-            {flashMessage}
-          </p>
         )}
 
         <div className="border-t border-border my-5" />

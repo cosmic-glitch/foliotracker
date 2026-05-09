@@ -175,20 +175,20 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
           <div className="flex gap-2 items-center">
-            <span className="text-sm text-text-secondary">Expires after</span>
+            <span className="text-sm text-text-secondary">Expiry</span>
             <input
               type="number"
               min={1}
               value={daysInput}
               onChange={(e) => setDaysInput(e.target.value)}
-              className="w-20 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              className="w-14 bg-background border border-border rounded-lg px-2 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm text-center"
             />
             <span className="text-sm text-text-secondary">days</span>
             <button
               type="button"
               onClick={handleCreate}
               disabled={submitting}
-              className="ml-auto bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+              className="ml-auto bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               Generate link
@@ -201,50 +201,49 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
         )}
 
         <div className="border-t border-border my-5" />
-        <h4 className="text-sm font-medium text-text-primary mb-3">Existing links</h4>
+        <h4 className="text-sm font-medium text-text-primary mb-3">Active links</h4>
 
         {loading ? (
           <p className="text-sm text-text-secondary">Loading…</p>
-        ) : links.length === 0 ? (
-          <p className="text-sm text-text-secondary">No share links yet.</p>
-        ) : (
-          <div className="bg-background rounded-lg border border-border divide-y divide-border">
-            {links.map((link) => {
-              const status = statusFor(link);
-              const isActive = status.tone === 'active';
-              return (
-                <div key={link.id} className={`flex items-center gap-3 px-3 py-2 ${isActive ? '' : 'opacity-60'}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-primary truncate">
-                      {link.label || 'Untitled link'}
-                    </p>
-                    <p className="text-xs text-text-secondary">{status.text}</p>
+        ) : (() => {
+          const activeLinks = links.filter((l) => statusFor(l).tone === 'active');
+          if (activeLinks.length === 0) {
+            return <p className="text-sm text-text-secondary">No active links.</p>;
+          }
+          return (
+            <div className="bg-background rounded-lg border border-border divide-y divide-border">
+              {activeLinks.map((link) => {
+                const status = statusFor(link);
+                return (
+                  <div key={link.id} className="flex items-center gap-3 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-text-primary truncate">
+                        {link.label || 'Untitled link'}
+                      </p>
+                      <p className="text-xs text-text-secondary">{status.text}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(link)}
+                      title="Copy URL"
+                      className="p-1 hover:bg-card-hover rounded transition-colors"
+                    >
+                      <Copy className={`w-4 h-4 ${copiedId === link.id ? 'text-accent' : 'text-text-secondary'}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRevoke(link)}
+                      title="Revoke"
+                      className="p-1 hover:bg-negative/10 hover:text-negative rounded transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4 text-text-secondary hover:text-negative" />
+                    </button>
                   </div>
-                  {isActive && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(link)}
-                        title="Copy URL"
-                        className="p-1 hover:bg-card-hover rounded transition-colors"
-                      >
-                        <Copy className={`w-4 h-4 ${copiedId === link.id ? 'text-accent' : 'text-text-secondary'}`} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRevoke(link)}
-                        title="Revoke"
-                        className="p-1 hover:bg-negative/10 hover:text-negative rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4 text-text-secondary hover:text-negative" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

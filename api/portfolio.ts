@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, verifyPortfolioPassword, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, type Visibility } from './_lib/db.js';
+import { getPortfolio, verifyPortfolioPassword, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, getShareLinkByToken, isShareLinkValid, type Visibility } from './_lib/db.js';
 import { chatWithPortfolio, type HoldingSummary, type AIPersona } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -304,11 +304,20 @@ export default async function handler(
     // Handle visibility-based authentication
     const token = req.query.token as string;
     const password = req.query.password as string;
+    const shareToken = req.query.share_token as string;
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
-    // If token or password is provided, verify once and cache the result
     let authResult = { authenticated: false, isAdmin: false };
-    if (token || password) {
+
+    // Share token: if present, validate and short-circuit visibility checks.
+    if (shareToken) {
+      const link = await getShareLinkByToken(shareToken);
+      if (!link || link.portfolio_id !== portfolioId.toLowerCase() || !isShareLinkValid(link)) {
+        res.status(401).json({ error: 'Share link invalid or expired' });
+        return;
+      }
+      authResult = { authenticated: true, isAdmin: false };
+    } else if (token || password) {
       authResult = await authenticateRequest(portfolioId, token, password);
       if ((token || password) && !authResult.authenticated) {
         res.status(401).json({ error: 'Invalid password' });

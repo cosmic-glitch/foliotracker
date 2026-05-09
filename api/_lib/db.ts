@@ -258,6 +258,82 @@ export async function deleteExpiredSessions(): Promise<void> {
   }
 }
 
+// Share link types and functions
+export interface DbShareLink {
+  id: string;
+  portfolio_id: string;
+  token: string;
+  label: string | null;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+export async function createShareLink(
+  portfolioId: string,
+  durationDays: number,
+  label: string | null
+): Promise<DbShareLink> {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('share_links')
+    .insert({
+      portfolio_id: portfolioId.toLowerCase(),
+      token,
+      label,
+      expires_at: expiresAt,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data as DbShareLink;
+}
+
+export async function listShareLinks(portfolioId: string): Promise<DbShareLink[]> {
+  const { data, error } = await supabase
+    .from('share_links')
+    .select('*')
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as DbShareLink[];
+}
+
+export async function getShareLinkByToken(token: string): Promise<DbShareLink | null> {
+  const { data, error } = await supabase
+    .from('share_links')
+    .select('*')
+    .eq('token', token)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return (data as DbShareLink) || null;
+}
+
+export async function revokeShareLink(id: string, portfolioId: string): Promise<boolean> {
+  // Scoped to portfolioId to prevent cross-portfolio revocation by a leaked id.
+  const { data, error } = await supabase
+    .from('share_links')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .is('revoked_at', null)
+    .select('id');
+
+  if (error) throw error;
+  return !!data && data.length > 0;
+}
+
+export function isShareLinkValid(link: DbShareLink): boolean {
+  if (link.revoked_at) return false;
+  if (new Date(link.expires_at) <= new Date()) return false;
+  return true;
+}
+
 export async function deletePortfolio(id: string): Promise<void> {
   const normalizedId = id.toLowerCase();
 

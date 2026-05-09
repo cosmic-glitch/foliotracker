@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, ArrowLeft, Loader2, Globe, Lock, Users, Plus, Trash2, AlertCircle, X } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { SharePanel } from '../components/SharePanel';
 import type { TradeableHoldingInput, StaticHoldingInput, HoldingsInput } from '../types/portfolio';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -634,6 +635,11 @@ export function EditPortfolio() {
               </div>
             )}
           </div>
+
+          {/* Share via link */}
+          {portfolioId && token && (
+            <SharePanel portfolioId={portfolioId} ownerToken={token} />
+          )}
 
           {/* Submit */}
           <div className="flex gap-3">

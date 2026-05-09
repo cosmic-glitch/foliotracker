@@ -10,11 +10,12 @@ interface HeaderProps {
   loggedInAs?: string | null;
   onEdit?: () => void;
   onPermissions?: () => void;
+  onShare?: () => void;
   onLogout?: () => void;
   showEditAndPermissions?: boolean;
 }
 
-export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onLogout, showEditAndPermissions }: HeaderProps) {
+export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 py-2 md:py-4">
@@ -42,6 +43,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 loggedInAs={loggedInAs}
                 onEdit={onEdit}
                 onPermissions={onPermissions}
+                onShare={onShare}
                 onLogout={onLogout}
                 showEditAndPermissions={showEditAndPermissions}
               />

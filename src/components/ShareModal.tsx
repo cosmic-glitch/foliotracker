@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { X, Link2, Copy, Trash2, Loader2 } from 'lucide-react';
-import { useToast } from '../context/ToastContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -32,7 +31,6 @@ function statusFor(link: ShareLink): { text: string; tone: 'active' | 'revoked' 
 }
 
 export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
-  const { showToast } = useToast();
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +39,12 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
   const [daysInput, setDaysInput] = useState('1');
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [flashMessage, setFlashMessage] = useState<string | null>(null);
+
+  const flash = useCallback((message: string) => {
+    setFlashMessage(message);
+    setTimeout(() => setFlashMessage(null), 2000);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -101,9 +105,9 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
         await navigator.clipboard.writeText(url);
         setCopiedId(created.id);
         setTimeout(() => setCopiedId(null), 2000);
-        showToast('Link copied to clipboard');
+        flash('Link copied to clipboard');
       } catch {
-        showToast('Link generated (clipboard unavailable)');
+        flash('Link generated (clipboard unavailable)');
       }
       setLabelInput('');
       setDaysInput('1');
@@ -121,7 +125,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
       await navigator.clipboard.writeText(shareUrl(portfolioId, link.token));
       setCopiedId(link.id);
       setTimeout(() => setCopiedId(null), 2000);
-      showToast('Link copied to clipboard');
+      flash('Link copied to clipboard');
     } catch {
       setError('Could not copy to clipboard');
     }
@@ -202,6 +206,12 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
 
         {error && (
           <p className="text-xs text-negative mb-3">{error}</p>
+        )}
+
+        {flashMessage && (
+          <p className="text-xs text-accent mb-3 text-center animate-fade-in">
+            {flashMessage}
+          </p>
         )}
 
         <div className="border-t border-border my-5" />

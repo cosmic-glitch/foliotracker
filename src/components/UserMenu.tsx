@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 
@@ -7,11 +7,12 @@ interface UserMenuProps {
   loggedInAs: string;
   onEdit?: () => void;
   onPermissions?: () => void;
+  onShare?: () => void;
   onLogout: () => void;
   showEditAndPermissions?: boolean;
 }
 
-export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEditAndPermissions = true }: UserMenuProps) {
+export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions = true }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
@@ -71,7 +72,16 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onLogout, showEdit
               Permissions
             </button>
           )}
-          {showEditAndPermissions && (onEdit || onPermissions) && (
+          {showEditAndPermissions && onShare && (
+            <button
+              onClick={() => { setOpen(false); onShare(); }}
+              className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+            >
+              <Link2 className="w-4 h-4 text-text-secondary" />
+              Share
+            </button>
+          )}
+          {showEditAndPermissions && (onEdit || onPermissions || onShare) && (
             <div className="mx-3 my-1 border-t border-border" />
           )}
           <button

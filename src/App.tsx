@@ -12,6 +12,7 @@ import {
   Footer,
   LoadingSkeleton,
   PermissionsModal,
+  ShareModal,
   AIResearchSection,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
@@ -41,6 +42,7 @@ function App() {
   const { loggedInAs, login, logout, getToken: getLoginToken } = useLoggedInPortfolio();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'research' | 'news'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
@@ -126,6 +128,13 @@ function App() {
     }
   };
 
+  const handleShare = () => {
+    if (!portfolioId) return;
+    if (loggedInAs === portfolioId.toLowerCase()) {
+      setShowShareModal(true);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -150,6 +159,7 @@ function App() {
         loggedInAs={loggedInAs}
         onEdit={handleEdit}
         onPermissions={handlePermissions}
+        onShare={handleShare}
         onLogout={handleLogout}
         showEditAndPermissions={loggedInAs === portfolioId?.toLowerCase()}
       />
@@ -304,6 +314,15 @@ function App() {
           portfolioId={portfolioId}
           token={getLoginToken() || ''}
           onClose={() => setShowPermissionsModal(false)}
+        />
+      )}
+
+      {/* Share modal */}
+      {showShareModal && portfolioId && loggedInAs === portfolioId.toLowerCase() && (
+        <ShareModal
+          portfolioId={portfolioId}
+          ownerToken={getLoginToken() || ''}
+          onClose={() => setShowShareModal(false)}
         />
       )}
 

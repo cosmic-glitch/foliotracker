@@ -4,6 +4,7 @@ import {
   createShareLink,
   getPortfolio,
   listShareLinks,
+  revokeShareLink,
 } from './_lib/db.js';
 
 interface MintBody {
@@ -105,6 +106,39 @@ export default async function handler(
         expiresAt: link.expires_at,
         revokedAt: link.revoked_at,
       });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      const id = (req.query.id as string) || (req.body && (req.body as { id?: string }).id);
+      const portfolioId = ((req.query.portfolioId as string) || (req.body && (req.body as { portfolioId?: string }).portfolioId))?.toLowerCase();
+      const token = (req.query.token as string) || (req.body && (req.body as { token?: string }).token);
+      const password = (req.query.password as string) || (req.body && (req.body as { password?: string }).password);
+
+      if (!id || !portfolioId) {
+        res.status(400).json({ error: 'id and portfolioId are required' });
+        return;
+      }
+
+      const portfolio = await getPortfolio(portfolioId);
+      if (!portfolio) {
+        res.status(404).json({ error: 'Portfolio not found' });
+        return;
+      }
+
+      const { authenticated } = await authenticateRequest(portfolioId, token, password);
+      if (!authenticated) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const revoked = await revokeShareLink(id, portfolioId);
+      if (!revoked) {
+        res.status(404).json({ error: 'Share link not found or already revoked' });
+        return;
+      }
+
+      res.status(200).json({ ok: true });
       return;
     }
 

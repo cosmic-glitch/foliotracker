@@ -1,15 +1,11 @@
 /**
  * Helpers for the `allocation_only` share-link mode.
  *
- * The goal: a viewer of an `allocation_only` share link must not be able to
- * recover the owner's wealth, share counts, or absolute gains/losses from the
- * API responses. We strip all dollar-denominated fields and convert the
- * historical chart series to a normalized index (start = 100, later points
- * are `(value / firstValue) * 100`).
- *
- * `allocation` (a percentage, already computed by the snapshot pipeline) is
- * preserved so the frontend can render the existing AllocationView without
- * needing per-holding dollar values.
+ * Strips every dollar-denominated field from a portfolio response so a
+ * viewer cannot recover the owner's wealth, share counts, or absolute
+ * gains/losses. `allocation` (a percentage, already computed by the
+ * snapshot pipeline) is preserved so the frontend can render the existing
+ * AllocationView without needing per-holding dollar values.
  */
 
 interface AnyHolding {
@@ -40,11 +36,6 @@ interface PortfolioResponseLike {
   deepResearch?: string | null;
   deepResearchAt?: string | null;
   [k: string]: unknown;
-}
-
-interface HistoryPoint {
-  date: string;
-  value: number;
 }
 
 /**
@@ -108,21 +99,4 @@ function stripHolding(h: AnyHolding): AnyHolding {
     epsGrowth3Y: null,
     regularMarketPrice: 0,
   };
-}
-
-/**
- * Convert a series of dollar values into an indexed series (first non-zero
- * point = 100). If no positive base value exists we return an empty array
- * rather than leaking the sign of the portfolio.
- */
-export function indexHistory(points: HistoryPoint[] | null | undefined): HistoryPoint[] {
-  if (!points || points.length === 0) return [];
-
-  const base = points.find((p) => p.value > 0)?.value;
-  if (!base) return [];
-
-  return points.map((p) => ({
-    date: p.date,
-    value: Math.round((p.value / base) * 10000) / 100, // two-decimal precision
-  }));
 }

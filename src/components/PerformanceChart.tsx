@@ -19,9 +19,6 @@ interface PerformanceChartProps {
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
   showExtendedHours?: boolean;
-  // When true, the incoming `value`s are an index (start point = 100) rather
-  // than dollar amounts. Used by the allocation-only share-link viewer.
-  indexed?: boolean;
 }
 
 interface ChartDataPoint {
@@ -35,33 +32,24 @@ interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ value: number; payload: ChartDataPoint }>;
   label?: number;
-  indexed?: boolean;
 }
 
-function CustomTooltip({ active, payload, indexed }: CustomTooltipProps) {
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
 
   const dataPoint = payload[0].payload;
-  const value = payload[0].value;
 
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
       <p className="text-text-secondary text-xs mb-1">{dataPoint.formattedDate}</p>
-      {indexed ? (
-        <>
-          <p className="text-sm text-text-primary font-semibold">{value.toFixed(2)}</p>
-          <p className="text-xs text-text-secondary">
-            {(value - 100 >= 0 ? '+' : '') + (value - 100).toFixed(2)}% vs. start
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-text-primary font-semibold">{formatCurrency(value)}</p>
-      )}
+      <p className="text-sm text-text-primary font-semibold">
+        {formatCurrency(payload[0].value)}
+      </p>
     </div>
   );
 }
 
-export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true, indexed = false }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true }: PerformanceChartProps) {
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
@@ -144,9 +132,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       });
     }
 
-    // For 30D view, add today's point with currentValue to ensure chart ends at correct date.
-    // Skip for indexed mode — currentValue is a $ amount, not an index level.
-    if (!indexed && currentValue !== undefined && Number.isFinite(currentValue) && points.length > 0 && chartView !== '1D') {
+    // For 30D view, add today's point with currentValue to ensure chart ends at correct date
+    if (currentValue !== undefined && Number.isFinite(currentValue) && points.length > 0 && chartView !== '1D') {
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       const lastPoint = points[points.length - 1];
@@ -171,7 +158,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     }
 
     return points;
-  }, [data, chartView, currentValue, indexed]);
+  }, [data, chartView, currentValue]);
 
   const renderToggle = () => (
     <div className="flex flex-col rounded-lg overflow-hidden border border-border bg-card/90 backdrop-blur-sm">
@@ -349,10 +336,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   tickLine={false}
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
                   tickFormatter={(value) => {
-                    if (indexed) {
-                      // Index level (start = 100). Two decimals near-100, fewer farther out.
-                      return value.toFixed(Math.abs(value - 100) < 10 ? 1 : 0);
-                    }
                     if (Math.abs(value) >= 1_000_000) {
                       return `$${(value / 1_000_000).toFixed(2)}M`;
                     }
@@ -363,7 +346,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   }}
                   width={isMobile ? 54 : 58}
                 />
-                <Tooltip content={<CustomTooltip indexed={indexed} />} />
+                <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="value"

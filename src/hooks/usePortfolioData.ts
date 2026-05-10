@@ -161,12 +161,19 @@ export function usePortfolioData(
     refetchIntervalInBackground: true,
   });
 
+  // Allocation-only share viewers don't render the chart, so skip both
+  // history fetches entirely.
+  const isAllocationOnlyResponse =
+    !!portfolioQuery.data &&
+    !('requiresAuth' in portfolioQuery.data) &&
+    portfolioQuery.data.viewMode === 'allocation_only';
+
   // History query (30D) - refetch when switching to this view
   // Include auth params in queryKey so it refetches when they change
   const historyQuery = useQuery({
     queryKey: [...portfolioKeys.history(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login', shareToken ?? 'no-share'],
     queryFn: () => fetchHistoryApi(portfolioId, MAX_DAYS, token, loggedInAs, shareToken),
-    enabled: !!portfolioId && !!portfolioQuery.data && chartView === '30D',
+    enabled: !!portfolioId && !!portfolioQuery.data && !isAllocationOnlyResponse && chartView === '30D',
     staleTime: 5 * 60 * 1000, // Fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchOnMount: true,
@@ -180,7 +187,7 @@ export function usePortfolioData(
     queryKey: [...portfolioKeys.intraday(portfolioId), token ?? 'no-auth', loggedInAs ?? 'no-login', shareToken ?? 'no-share'],
     queryFn: () => fetchIntradayApi(portfolioId, token, loggedInAs, shareToken),
     // Fetch when viewing 1D OR when market is in a live session (for accurate total value)
-    enabled: !!portfolioId && !!portfolioQuery.data && (chartView === '1D' || isLiveMarketSession()),
+    enabled: !!portfolioId && !!portfolioQuery.data && !isAllocationOnlyResponse && (chartView === '1D' || isLiveMarketSession()),
     staleTime: 0, // Always stale - fetch fresh
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: true,

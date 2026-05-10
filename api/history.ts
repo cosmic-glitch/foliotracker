@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid, type ShareLinkMode } from './_lib/db.js';
-import { indexHistory } from './_lib/anonymize.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
@@ -166,11 +165,12 @@ export default async function handler(
       benchmark = snapshot.benchmark_30d_json || [];
     }
 
-    // For allocation_only share links: convert dollar series to an indexed
-    // series (start = 100). Benchmark is already a percentChange series.
+    // Allocation-only share links never render a chart. Return empty arrays
+    // as defense-in-depth so direct API calls cannot recover dollar amounts.
     if (shareLinkMode === 'allocation_only') {
-      data = indexHistory(data);
-      if (regularData) regularData = indexHistory(regularData);
+      data = [];
+      if (regularData) regularData = [];
+      benchmark = [];
     }
 
     // Check if snapshot is stale (more than 10 minutes old)

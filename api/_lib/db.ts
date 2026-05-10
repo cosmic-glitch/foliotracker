@@ -259,6 +259,8 @@ export async function deleteExpiredSessions(): Promise<void> {
 }
 
 // Share link types and functions
+export type ShareLinkMode = 'full' | 'allocation_only';
+
 export interface DbShareLink {
   id: string;
   portfolio_id: string;
@@ -267,12 +269,14 @@ export interface DbShareLink {
   created_at: string;
   expires_at: string;
   revoked_at: string | null;
+  mode: ShareLinkMode;
 }
 
 export async function createShareLink(
   portfolioId: string,
   durationDays: number,
-  label: string | null
+  label: string | null,
+  mode: ShareLinkMode = 'full'
 ): Promise<DbShareLink> {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
@@ -284,6 +288,7 @@ export async function createShareLink(
       token,
       label,
       expires_at: expiresAt,
+      mode,
     })
     .select('*')
     .single();

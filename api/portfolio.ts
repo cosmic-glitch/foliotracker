@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, verifyPortfolioPassword, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, getShareLinkByToken, isShareLinkValid, type Visibility } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
+import { stripPortfolioForAllocationOnly } from './_lib/anonymize.js';
 import { chatWithPortfolio, type HoldingSummary, type AIPersona } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -57,6 +58,7 @@ interface PortfolioResponse {
   mungerCommentAt: string | null;
   deepResearch: string | null;
   deepResearchAt: string | null;
+  viewMode?: 'full' | 'allocation_only';
 }
 
 // Helper to time async operations
@@ -308,6 +310,7 @@ export default async function handler(
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
     let authResult = { authenticated: false, isAdmin: false };
+    let shareLinkMode: ShareLinkMode | null = null;
 
     // Share token: if present, validate and short-circuit visibility checks.
     if (shareToken) {
@@ -317,6 +320,7 @@ export default async function handler(
         return;
       }
       authResult = { authenticated: true, isAdmin: false };
+      shareLinkMode = link.mode;
     } else if (token || password) {
       authResult = await authenticateRequest(portfolioId, token, password);
       if ((token || password) && !authResult.authenticated) {
@@ -437,8 +441,12 @@ export default async function handler(
       deepResearchAt: aiComments.deep_research_at,
     };
 
+    const finalResponse = shareLinkMode === 'allocation_only'
+      ? stripPortfolioForAllocationOnly(response)
+      : response;
+
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
-    res.status(200).json(response);
+    res.status(200).json(finalResponse);
   } catch (error) {
     console.error('Portfolio API error:', error);
     console.log(`[TIMING] portfolio.ts error after: ${Date.now() - requestStart}ms`);

@@ -79,6 +79,15 @@ function App() {
     }
   }, [shareToken, error]);
 
+  // Allocation-only share viewers see only the Allocation and News tabs.
+  // Override the active tab when the stored value points to a hidden tab
+  // (default `holdings`, or `research`) — derived rather than via setState
+  // in an effect.
+  const isAllocationOnly = data?.viewMode === 'allocation_only';
+  const effectiveActiveTab = isAllocationOnly && activeTab !== 'allocation' && activeTab !== 'news'
+    ? 'allocation'
+    : activeTab;
+
   // Analytics hook - logs views on initial load, tab visibility, and manual refresh
   const { logView } = useViewAnalytics(portfolioId, storedToken, loggedInAs);
 
@@ -180,56 +189,66 @@ function App() {
                 Some prices may be outdated — live data unavailable for: {data.staleTickers.join(', ')}
               </div>
             )}
-            <TotalValue
-              totalValue={data.totalValue}
-              dayChange={data.totalDayChange}
-              dayChangePercent={data.totalDayChangePercent}
-              totalGain={data.totalGain}
-              totalGainPercent={data.totalGainPercent}
-              peakPotentialValue={Math.max(
-                computePeakPotentialTotal(data.holdings),
-                data.totalValue,
-              )}
-            />
+            {isAllocationOnly && (
+              <div className="mb-2 px-4 py-2.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-sm">
+                This share link shows allocation only — dollar amounts and individual holdings are hidden.
+              </div>
+            )}
+            {!isAllocationOnly && (
+              <TotalValue
+                totalValue={data.totalValue}
+                dayChange={data.totalDayChange}
+                dayChangePercent={data.totalDayChangePercent}
+                totalGain={data.totalGain}
+                totalGainPercent={data.totalGainPercent}
+                peakPotentialValue={Math.max(
+                  computePeakPotentialTotal(data.holdings),
+                  data.totalValue,
+                )}
+              />
+            )}
             <div className="mb-1 md:mb-3">
               <PerformanceChart
                 data={data.historicalData}
                 isLoading={isHistoryLoading}
                 chartView={chartView}
                 onViewChange={setChartView}
-                currentValue={data.totalValue}
+                currentValue={isAllocationOnly ? undefined : data.totalValue}
                 showExtendedHours={showExtendedHours}
+                indexed={isAllocationOnly}
               />
             </div>
             <NewsTicker holdings={data.holdings} />
             {/* Tab Navigation */}
             <div className="border-b border-border -mt-2 md:-mt-4">
               <nav className="flex gap-1">
-                <button
-                  onClick={() => setActiveTab('holdings')}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === 'holdings'
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-text-secondary hover:text-text hover:border-border'
-                  }`}
-                >
-                  Holdings
-                </button>
+                {!isAllocationOnly && (
+                  <button
+                    onClick={() => setActiveTab('holdings')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      effectiveActiveTab === 'holdings'
+                        ? 'border-accent text-accent'
+                        : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                    }`}
+                  >
+                    Holdings
+                  </button>
+                )}
                 <button
                   onClick={() => setActiveTab('allocation')}
                   className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === 'allocation'
+                    effectiveActiveTab === 'allocation'
                       ? 'border-accent text-accent'
                       : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                   }`}
                 >
                   Alloc %
                 </button>
-                {data.deepResearch && (
+                {!isAllocationOnly && data.deepResearch && (
                   <button
                     onClick={() => setActiveTab('research')}
                     className={`hidden md:block px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeTab === 'research'
+                      effectiveActiveTab === 'research'
                         ? 'border-accent text-accent'
                         : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                     }`}
@@ -240,7 +259,7 @@ function App() {
                 <button
                   onClick={() => setActiveTab('news')}
                   className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === 'news'
+                    effectiveActiveTab === 'news'
                       ? 'border-accent text-accent'
                       : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                   }`}
@@ -251,25 +270,25 @@ function App() {
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'holdings' && (
+            {!isAllocationOnly && effectiveActiveTab === 'holdings' && (
               <div className="space-y-3 md:space-y-6">
                 <HoldingsTable holdings={data.holdings} />
                 <CapitalGains holdings={data.holdings} />
               </div>
             )}
 
-            {activeTab === 'allocation' && (
-              <AllocationView holdings={data.holdings} />
+            {effectiveActiveTab === 'allocation' && (
+              <AllocationView holdings={data.holdings} hideValues={isAllocationOnly} />
             )}
 
-            {activeTab === 'research' && data.deepResearch && (
+            {!isAllocationOnly && effectiveActiveTab === 'research' && data.deepResearch && (
               <AIResearchSection
                 research={data.deepResearch}
                 researchAt={data.deepResearchAt}
               />
             )}
 
-            {activeTab === 'news' && (
+            {effectiveActiveTab === 'news' && (
               <NewsSection holdings={data.holdings} />
             )}
           </>

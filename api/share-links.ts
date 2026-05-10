@@ -5,7 +5,10 @@ import {
   getPortfolio,
   listShareLinks,
   revokeShareLink,
+  type ShareLinkMode,
 } from './_lib/db.js';
+
+const VALID_MODES: ShareLinkMode[] = ['full', 'allocation_only'];
 
 interface MintBody {
   portfolioId?: string;
@@ -13,6 +16,7 @@ interface MintBody {
   label?: string;
   token?: string;
   password?: string;
+  mode?: string;
 }
 
 export default async function handler(
@@ -60,6 +64,7 @@ export default async function handler(
           createdAt: l.created_at,
           expiresAt: l.expires_at,
           revokedAt: l.revoked_at,
+          mode: l.mode,
         })),
       });
       return;
@@ -70,6 +75,7 @@ export default async function handler(
       const portfolioId = body.portfolioId?.toLowerCase();
       const durationDays = body.durationDays;
       const label = body.label?.trim() || null;
+      const mode: ShareLinkMode = (body.mode ?? 'full') as ShareLinkMode;
 
       if (!portfolioId) {
         res.status(400).json({ error: 'portfolioId is required' });
@@ -77,6 +83,10 @@ export default async function handler(
       }
       if (!Number.isInteger(durationDays) || (durationDays as number) < 1) {
         res.status(400).json({ error: 'durationDays must be a positive integer' });
+        return;
+      }
+      if (!VALID_MODES.includes(mode)) {
+        res.status(400).json({ error: `mode must be one of: ${VALID_MODES.join(', ')}` });
         return;
       }
 
@@ -96,7 +106,7 @@ export default async function handler(
         return;
       }
 
-      const link = await createShareLink(portfolioId, durationDays as number, label);
+      const link = await createShareLink(portfolioId, durationDays as number, label, mode);
 
       res.status(201).json({
         id: link.id,
@@ -105,6 +115,7 @@ export default async function handler(
         createdAt: link.created_at,
         expiresAt: link.expires_at,
         revokedAt: link.revoked_at,
+        mode: link.mode,
       });
       return;
     }

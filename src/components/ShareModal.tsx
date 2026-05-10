@@ -3,6 +3,8 @@ import { X, Link2, Copy, Trash2, Loader2 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+type ShareLinkMode = 'full' | 'allocation_only';
+
 interface ShareLink {
   id: string;
   token: string;
@@ -10,6 +12,7 @@ interface ShareLink {
   createdAt: string;
   expiresAt: string;
   revokedAt: string | null;
+  mode: ShareLinkMode;
 }
 
 interface Props {
@@ -37,6 +40,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
 
   const [labelInput, setLabelInput] = useState('');
   const [daysInput, setDaysInput] = useState('1');
+  const [modeInput, setModeInput] = useState<ShareLinkMode>('full');
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
@@ -93,6 +97,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
           durationDays: days,
           label: labelInput.trim() || undefined,
           token: ownerToken,
+          mode: modeInput,
         }),
       });
       if (!res.ok) {
@@ -111,6 +116,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
       }
       setLabelInput('');
       setDaysInput('1');
+      setModeInput('full');
       setError(null);
       await refresh();
     } catch (e) {
@@ -182,6 +188,38 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
             placeholder="Label (optional)"
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           />
+          <div className="flex gap-2 items-center text-sm">
+            <span className="text-text-secondary">Show</span>
+            <div className="inline-flex rounded-lg border border-border bg-background overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setModeInput('full')}
+                className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                  modeInput === 'full'
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:bg-card-hover'
+                }`}
+              >
+                Full view
+              </button>
+              <button
+                type="button"
+                onClick={() => setModeInput('allocation_only')}
+                className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                  modeInput === 'allocation_only'
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:bg-card-hover'
+                }`}
+              >
+                Allocation only
+              </button>
+            </div>
+          </div>
+          {modeInput === 'allocation_only' && (
+            <p className="text-xs text-text-secondary -mt-1">
+              Hides dollar amounts, share counts, and individual holdings. Viewer sees % allocation and an indexed performance chart.
+            </p>
+          )}
           <div className="flex gap-2 items-center relative">
             <span className="text-sm text-text-secondary">Expiry</span>
             <input
@@ -230,9 +268,16 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
                 return (
                   <div key={link.id} className="flex items-center gap-3 px-3 py-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary truncate">
-                        {link.label || 'Untitled link'}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm text-text-primary truncate">
+                          {link.label || 'Untitled link'}
+                        </p>
+                        {link.mode === 'allocation_only' && (
+                          <span className="shrink-0 text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded bg-accent/15 text-accent">
+                            Alloc only
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-text-secondary">{status.text}</p>
                     </div>
                     <button

@@ -60,6 +60,7 @@ interface ApiPortfolioResponse {
   deepResearch: string | null;
   deepResearchAt: string | null;
   staleTickers?: string[];
+  viewMode?: 'full' | 'allocation_only';
 }
 
 interface PrivatePortfolioResponse {
@@ -221,6 +222,7 @@ export function usePortfolioData(
     // If it's a private portfolio requiring auth, return null for data
     if ('requiresAuth' in portfolioQuery.data) return null;
     const p = portfolioQuery.data;
+    const isAllocationOnly = p.viewMode === 'allocation_only';
 
     // During live sessions, use intraday as ground truth for consistency.
     // This ensures consistent total when switching between 1D/30D views
@@ -244,6 +246,37 @@ export function usePortfolioData(
       epsGrowth3Y: h.epsGrowth3Y ?? null,
       regularMarketPrice: h.regularMarketPrice ?? h.currentPrice,
     }));
+
+    // Allocation-only share-link viewers: skip every client-side recompute.
+    // The server already stripped $ values (so the regular-hours and intraday
+    // overrides below would zero out everything) and indexed the chart series.
+    if (isAllocationOnly) {
+      return {
+        portfolioId: p.portfolioId,
+        displayName: p.displayName,
+        totalValue: 0,
+        totalDayChange: 0,
+        totalDayChangePercent: p.totalDayChangePercent,
+        totalGain: null,
+        totalGainPercent: p.totalGainPercent,
+        holdings,
+        historicalData: chartData,
+        benchmarkHistory: historyQuery.data?.benchmark || [],
+        lastUpdated: new Date(p.lastUpdated),
+        marketStatus: p.marketStatus,
+        benchmark: p.benchmark,
+        hotTake: null,
+        hotTakeAt: null,
+        buffettComment: null,
+        buffettCommentAt: null,
+        mungerComment: null,
+        mungerCommentAt: null,
+        deepResearch: null,
+        deepResearchAt: null,
+        staleTickers: p.staleTickers ?? [],
+        viewMode: 'allocation_only',
+      };
+    }
 
     if (!showExtendedHours) {
       // Use regular market prices for totals and holdings
@@ -314,6 +347,7 @@ export function usePortfolioData(
       deepResearch: p.deepResearch,
       deepResearchAt: p.deepResearchAt,
       staleTickers: p.staleTickers ?? [],
+      viewMode: p.viewMode ?? 'full',
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
 

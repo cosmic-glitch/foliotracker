@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid } from './_lib/db.js';
+import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid, type ShareLinkMode } from './_lib/db.js';
+import { indexHistory } from './_lib/anonymize.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
@@ -77,6 +78,7 @@ export default async function handler(
     // Handle visibility-based authentication
     const shareToken = req.query.share_token as string;
     let authResult = { authenticated: false, isAdmin: false };
+    let shareLinkMode: ShareLinkMode | null = null;
 
     if (shareToken) {
       const link = await getShareLinkByToken(shareToken);
@@ -85,6 +87,7 @@ export default async function handler(
         return;
       }
       authResult = { authenticated: true, isAdmin: false };
+      shareLinkMode = link.mode;
     } else if (token || password) {
       authResult = await authenticateRequest(portfolioId, token, password);
       if ((token || password) && !authResult.authenticated) {
@@ -161,6 +164,13 @@ export default async function handler(
       // 30D daily data
       data = snapshot.history_30d_json || [];
       benchmark = snapshot.benchmark_30d_json || [];
+    }
+
+    // For allocation_only share links: convert dollar series to an indexed
+    // series (start = 100). Benchmark is already a percentChange series.
+    if (shareLinkMode === 'allocation_only') {
+      data = indexHistory(data);
+      if (regularData) regularData = indexHistory(regularData);
     }
 
     // Check if snapshot is stale (more than 10 minutes old)

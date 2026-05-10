@@ -6,6 +6,10 @@ import { ChevronDown } from 'lucide-react';
 
 interface HoldingsByTypeProps {
   holdings: Holding[];
+  // When true (allocation-only share viewer), the server has zeroed every
+  // dollar field. Compute weights from `allocation` instead of `value` and
+  // hide the $ column from the per-category breakdown.
+  hideValues?: boolean;
 }
 
 // Map instrument types from API to display categories
@@ -35,13 +39,25 @@ interface CategoryData {
   holdings: Holding[];
 }
 
-function HoldingsBreakdown({ holdings, totalValue }: { holdings: Holding[]; totalValue: number }) {
-  const sortedHoldings = [...holdings].sort((a, b) => b.value - a.value);
+function HoldingsBreakdown({
+  holdings,
+  totalValue,
+  hideValues = false,
+}: {
+  holdings: Holding[];
+  totalValue: number;
+  hideValues?: boolean;
+}) {
+  const sortedHoldings = [...holdings].sort((a, b) =>
+    hideValues ? b.allocation - a.allocation : b.value - a.value
+  );
 
   return (
     <div className="mt-2 mb-1 ml-4 space-y-1.5">
       {sortedHoldings.map((holding) => {
-        const portfolioPercent = totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
+        const portfolioPercent = hideValues
+          ? holding.allocation
+          : totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
 
         return (
           <div
@@ -50,9 +66,11 @@ function HoldingsBreakdown({ holdings, totalValue }: { holdings: Holding[]; tota
           >
             <span className="font-medium text-text-primary">{holding.ticker}</span>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className={holding.value < 0 ? 'text-negative' : 'text-text-secondary'}>
-                {formatCurrency(holding.value, true)}
-              </span>
+              {!hideValues && (
+                <span className={holding.value < 0 ? 'text-negative' : 'text-text-secondary'}>
+                  {formatCurrency(holding.value, true)}
+                </span>
+              )}
               <span className={`w-12 text-right ${portfolioPercent < 0 ? 'text-negative' : 'text-text-secondary'}`}>
                 {portfolioPercent.toFixed(1)}%
               </span>
@@ -64,10 +82,14 @@ function HoldingsBreakdown({ holdings, totalValue }: { holdings: Holding[]; tota
   );
 }
 
-export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
+export function HoldingsByType({ holdings, hideValues = false }: HoldingsByTypeProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
-  const totalValue = consolidatedHoldings.reduce((sum, h) => sum + h.value, 0);
+  // In hideValues mode, the server has zeroed `value` for every holding; use
+  // `allocation` (a percentage) as the synthetic weight so the existing
+  // ratio math keeps working without leaking dollar amounts.
+  const weightOf = (h: Holding) => (hideValues ? h.allocation : h.value);
+  const totalValue = consolidatedHoldings.reduce((sum, h) => sum + weightOf(h), 0);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories((prev) => {
@@ -90,8 +112,8 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
 
     const existing = categoryTotals.get(categoryName) || { value: 0, dayChange: 0, color: typeInfo.color, holdings: [] };
     categoryTotals.set(categoryName, {
-      value: existing.value + holding.value,
-      dayChange: existing.dayChange + holding.dayChange,
+      value: existing.value + weightOf(holding),
+      dayChange: existing.dayChange + (hideValues ? 0 : holding.dayChange),
       color: typeInfo.color,
       holdings: [...existing.holdings, holding],
     });
@@ -165,7 +187,11 @@ export function HoldingsByType({ holdings }: HoldingsByTypeProps) {
               </button>
               {isExpanded && (
                 <div className="ml-1">
-                  <HoldingsBreakdown holdings={type.holdings} totalValue={totalValue} />
+                  <HoldingsBreakdown
+                    holdings={type.holdings}
+                    totalValue={totalValue}
+                    hideValues={hideValues}
+                  />
                 </div>
               )}
             </div>

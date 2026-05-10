@@ -67,6 +67,11 @@ export interface PortfolioData {
   deepResearch: string | null;
   deepResearchAt: string | null;
   staleTickers: string[];
+  // Set when viewing through an `allocation_only` share link. In that mode
+  // the API zeroes out all dollar-denominated fields on holdings (value,
+  // shares, dayChange, costBasis, profitLoss, week52High, etc.) and the
+  // historical series is normalized so the first point is 100.
+  viewMode?: 'full' | 'allocation_only';
 }
 
 export interface HoldingConfig {

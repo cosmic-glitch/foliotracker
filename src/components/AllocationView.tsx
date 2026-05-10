@@ -6,9 +6,12 @@ import { AllocationBar } from './AllocationBar';
 
 interface AllocationViewProps {
   holdings: Holding[];
+  // When true (allocation-only share viewer), $ fields are zeroed by the
+  // server. Use the server-provided `allocation` percentage as the weight.
+  hideValues?: boolean;
 }
 
-export function AllocationView({ holdings }: AllocationViewProps) {
+export function AllocationView({ holdings, hideValues = false }: AllocationViewProps) {
   const [excludeStatic, setExcludeStatic] = useState(false);
 
   const hasStaticHoldings = useMemo(() => holdings.some(h => h.isStatic), [holdings]);
@@ -20,13 +23,20 @@ export function AllocationView({ holdings }: AllocationViewProps) {
 
   const consolidatedHoldings = useMemo(() => consolidateHoldings(filteredHoldings), [filteredHoldings]);
 
-  // Recalculate allocation percentages based on filtered total
-  const filteredTotal = consolidatedHoldings.reduce((sum, h) => sum + h.value, 0);
+  // Recalculate allocation percentages based on filtered total. In
+  // hideValues mode `value` is 0, so use `allocation` as the weight.
+  const weightOf = (h: Holding) => (hideValues ? h.allocation : h.value);
+  const filteredTotal = consolidatedHoldings.reduce((sum, h) => sum + weightOf(h), 0);
   const byValue = useMemo(() =>
     [...consolidatedHoldings]
-      .map(h => ({ ...h, allocation: filteredTotal > 0 ? (h.value / filteredTotal) * 100 : 0 }))
-      .sort((a, b) => b.value - a.value),
-    [consolidatedHoldings, filteredTotal]
+      .map(h => ({
+        ...h,
+        allocation: filteredTotal > 0 ? (weightOf(h) / filteredTotal) * 100 : 0,
+      }))
+      .sort((a, b) => weightOf(b) - weightOf(a)),
+    // weightOf depends only on hideValues, captured here to satisfy the linter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [consolidatedHoldings, filteredTotal, hideValues]
   );
   const maxAllocation = Math.max(0, ...byValue.map((h) => Math.abs(h.allocation)));
   const maxTickerLength = Math.max(0, ...byValue.map((h) => h.ticker.length));
@@ -57,7 +67,7 @@ export function AllocationView({ holdings }: AllocationViewProps) {
         </div>
       </div>
 
-      <HoldingsByType holdings={filteredHoldings} />
+      <HoldingsByType holdings={filteredHoldings} hideValues={hideValues} />
     </div>
   );
 }

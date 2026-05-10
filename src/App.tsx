@@ -61,7 +61,7 @@ function AllocationOnlyView({ holdings }: { holdings: Holding[] }) {
         }
       >
         <AllocationView holdings={holdings} hideValues />
-        {hasNewsContent && <NewsSection holdings={holdings} />}
+        {hasNewsContent && <NewsSection holdings={holdings} title="Relevant News" />}
       </div>
     </>
   );

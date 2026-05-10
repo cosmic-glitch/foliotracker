@@ -5,11 +5,15 @@ import { usePortfolioNews } from '../hooks/usePortfolioNews';
 
 interface NewsSectionProps {
   holdings: Holding[];
+  // Render a panel header above the news list. Used in the allocation-only
+  // share view where the news appears alongside the allocation breakdown
+  // (no tab bar to label it).
+  title?: string;
 }
 
 const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 7 days.';
 
-export function NewsSection({ holdings }: NewsSectionProps) {
+export function NewsSection({ holdings, title }: NewsSectionProps) {
   const { data, isLoading, error } = usePortfolioNews(holdings);
 
   const tickerOrder = useMemo(
@@ -62,6 +66,11 @@ export function NewsSection({ holdings }: NewsSectionProps) {
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
+      {title && (
+        <div className="px-4 py-3 border-b border-border">
+          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+        </div>
+      )}
       <div className="p-3">
         {isLoading ? (
           <div className="px-3 py-4 text-center text-text-secondary text-sm">Loading news...</div>

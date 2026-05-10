@@ -82,11 +82,6 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
           </div>
         ) : (
           <div>
-            {latestSummaryDate && (
-              <div className="px-3 pb-2 text-[11px] text-text-secondary">
-                Last updated: {latestSummaryDate}
-              </div>
-            )}
             <div className="px-3 space-y-4">
               {renderedRows.map((row) =>
                 row.kind === 'ai' ? (
@@ -110,6 +105,11 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
                 )
               )}
             </div>
+            {latestSummaryDate && (
+              <div className="px-3 pt-3 text-[11px] text-text-secondary">
+                Last updated: {latestSummaryDate}
+              </div>
+            )}
           </div>
         )}
       </div>

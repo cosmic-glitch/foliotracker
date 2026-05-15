@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { TrendingUp, ArrowLeft, Loader2, Globe, Lock, Users, Plus, Trash2, AlertCircle, X } from 'lucide-react';
+import { TrendingUp, ArrowLeft, Loader2, Globe, Lock, Users, Plus, Trash2, AlertCircle, X, Upload } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useHoldingsCsvUpload } from '../hooks/useHoldingsCsvUpload';
 import type { TradeableHoldingInput, StaticHoldingInput, HoldingsInput } from '../types/portfolio';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -63,6 +64,8 @@ export function EditPortfolio() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const { csvError, handleCsvFile } = useHoldingsCsvUpload(tradeableHoldings, setTradeableHoldings);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!token) {
@@ -381,17 +384,38 @@ export function EditPortfolio() {
               <label className="block text-sm font-medium text-text-primary">
                 Tradeable Holdings
               </label>
-              <button
-                type="button"
-                onClick={addTradeableRow}
-                className="flex items-center gap-1 text-sm text-accent hover:text-accent/80 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Row
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1 text-sm text-accent hover:text-accent/80 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={addTradeableRow}
+                  className="flex items-center gap-1 text-sm text-accent hover:text-accent/80 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Row
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleCsvFile(file);
+                  e.target.value = '';
+                }}
+              />
             </div>
             <p className="text-xs text-text-secondary mb-4">
-              Stocks, ETFs, and mutual funds. Enter number of shares and optional cost basis per share.
+              Stocks, ETFs, and mutual funds. Enter number of shares and optional cost basis per share. Upload a CSV with columns ticker, shares, and optional cost/share — a header row is auto-detected.
             </p>
 
             <div className="space-y-3">
@@ -444,6 +468,12 @@ export function EditPortfolio() {
                 </div>
               ))}
             </div>
+
+            {csvError && (
+              <div className="bg-negative/10 border border-negative/20 rounded-lg px-3 py-2 text-negative text-xs whitespace-pre-line mt-3">
+                {csvError}
+              </div>
+            )}
           </div>
 
           {/* Static Holdings */}

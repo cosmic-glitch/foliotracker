@@ -388,25 +388,43 @@ export async function setHoldings(
   holdings: Omit<DbHolding, 'portfolio_id'>[]
 ): Promise<void> {
   const normalizedId = portfolioId.toLowerCase();
+  const rows = holdings.map((h) => ({ ...h, portfolio_id: normalizedId }));
 
-  // Delete existing holdings for this portfolio
-  const { error: deleteError } = await supabase
+  // No holdings to keep: remove everything for this portfolio.
+  if (rows.length === 0) {
+    const { error } = await supabase
+      .from('holdings')
+      .delete()
+      .eq('portfolio_id', normalizedId);
+    if (error) throw error;
+    return;
+  }
+
+  // 1. Upsert the new/changed rows FIRST (single atomic statement). If this
+  //    throws, nothing has been deleted — existing holdings stay intact, so a
+  //    failed write can never wipe a portfolio.
+  const { error: upsertError } = await supabase
     .from('holdings')
-    .delete()
+    .upsert(rows, { onConflict: 'portfolio_id,ticker' });
+  if (upsertError) throw upsertError;
+
+  // 2. Remove rows for tickers no longer present. Worst case if this fails:
+  //    a few stale rows linger until the next save — never lost data.
+  const { data: existing, error: selectError } = await supabase
+    .from('holdings')
+    .select('ticker')
     .eq('portfolio_id', normalizedId);
+  if (selectError) throw selectError;
 
-  if (deleteError) throw deleteError;
-
-  // Insert new holdings
-  if (holdings.length > 0) {
-    const { error: insertError } = await supabase.from('holdings').insert(
-      holdings.map((h) => ({
-        ...h,
-        portfolio_id: normalizedId,
-      }))
-    );
-
-    if (insertError) throw insertError;
+  const kept = new Set(rows.map((r) => r.ticker));
+  const stale = (existing ?? []).map((e) => e.ticker).filter((t) => !kept.has(t));
+  if (stale.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('holdings')
+      .delete()
+      .eq('portfolio_id', normalizedId)
+      .in('ticker', stale);
+    if (deleteError) throw deleteError;
   }
 }
 

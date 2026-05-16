@@ -222,6 +222,37 @@ function hasClassifiedHoldings(classification: ClassificationResult): boolean {
   return classification.tradeable.length > 0 || classification.static.length > 0;
 }
 
+// Validate classified holdings against DB constraints BEFORE any write, so bad
+// input surfaces in the preview response instead of throwing during setHoldings.
+function validateClassifiedHoldings(classification: ClassificationResult): string[] {
+  const errors: string[] = [];
+
+  // holdings.ticker is varchar(20); static holdings store their name there.
+  for (const h of classification.static) {
+    if (h.ticker.length > 20) {
+      errors.push(`Static holding name too long (max 20 characters): "${h.ticker}"`);
+    }
+  }
+  for (const h of classification.tradeable) {
+    if (h.ticker.length > 20) {
+      errors.push(`Ticker too long (max 20 characters): "${h.ticker}"`);
+    }
+  }
+
+  // Primary key is (portfolio_id, ticker) — duplicates break the write.
+  const seen = new Set<string>();
+  const reported = new Set<string>();
+  for (const h of [...classification.tradeable, ...classification.static]) {
+    if (seen.has(h.ticker) && !reported.has(h.ticker)) {
+      errors.push(`Duplicate holding: "${h.ticker}" appears more than once`);
+      reported.add(h.ticker);
+    }
+    seen.add(h.ticker);
+  }
+
+  return errors;
+}
+
 // Determine instrument type for static holdings based on name
 function getStaticInstrumentType(ticker: string, value?: number): string {
   if (value !== undefined && value < 0) {
@@ -546,6 +577,9 @@ export default async function handler(
         return;
       }
 
+      // Validate against DB constraints before any write.
+      classification.errors.push(...validateClassifiedHoldings(classification));
+
       if (!hasClassifiedHoldings(classification) && classification.errors.length === 0) {
         res.status(400).json({ error: 'At least one nonzero holding is required' });
         return;
@@ -559,7 +593,7 @@ export default async function handler(
 
       // Check for validation errors
       if (classification.errors.length > 0) {
-        res.status(400).json({ error: 'Some tickers could not be found', details: classification.errors });
+        res.status(400).json({ error: 'Some holdings are invalid', details: classification.errors });
         return;
       }
 
@@ -601,7 +635,7 @@ export default async function handler(
       for (const holding of classification.tradeable) {
         dbHoldings.push({
           ticker: holding.ticker,
-          name: holding.name || holding.ticker,
+          name: (holding.name || holding.ticker).slice(0, 100),
           shares: holding.shares,
           is_static: false,
           static_value: null,
@@ -613,7 +647,7 @@ export default async function handler(
       for (const holding of classification.static) {
         dbHoldings.push({
           ticker: holding.ticker,
-          name: holding.name || holding.ticker,
+          name: (holding.name || holding.ticker).slice(0, 100),
           shares: 1,
           is_static: true,
           static_value: holding.staticValue ?? null,
@@ -725,6 +759,9 @@ export default async function handler(
         return;
       }
 
+      // Validate against DB constraints before any write.
+      classification.errors.push(...validateClassifiedHoldings(classification));
+
       if (!hasClassifiedHoldings(classification) && classification.errors.length === 0) {
         res.status(400).json({ error: 'At least one nonzero holding is required' });
         return;
@@ -738,7 +775,7 @@ export default async function handler(
 
       // Check for validation errors
       if (classification.errors.length > 0) {
-        res.status(400).json({ error: 'Some tickers could not be found', details: classification.errors });
+        res.status(400).json({ error: 'Some holdings are invalid', details: classification.errors });
         return;
       }
 
@@ -748,7 +785,7 @@ export default async function handler(
       for (const holding of classification.tradeable) {
         dbHoldings.push({
           ticker: holding.ticker,
-          name: holding.name || holding.ticker,
+          name: (holding.name || holding.ticker).slice(0, 100),
           shares: holding.shares,
           is_static: false,
           static_value: null,
@@ -760,7 +797,7 @@ export default async function handler(
       for (const holding of classification.static) {
         dbHoldings.push({
           ticker: holding.ticker,
-          name: holding.name || holding.ticker,
+          name: (holding.name || holding.ticker).slice(0, 100),
           shares: 1,
           is_static: true,
           static_value: holding.staticValue ?? null,
@@ -878,6 +915,21 @@ export default async function handler(
     res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('Portfolios API error:', error);
+    // Translate known Postgres errors into actionable 400s (defense-in-depth;
+    // pre-write validation should already catch these).
+    const code = (error as { code?: string })?.code;
+    if (code === '22001') {
+      res.status(400).json({ error: 'A holding name is too long (max 20 characters).' });
+      return;
+    }
+    if (code === '23505' || code === '21000') {
+      res.status(400).json({ error: 'Each ticker and static holding name must be unique.' });
+      return;
+    }
+    if (code === '22003') {
+      res.status(400).json({ error: 'A shares or value figure is out of range.' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 }

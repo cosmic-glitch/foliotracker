@@ -406,7 +406,7 @@ export function CreatePortfolio() {
               </button>
             </div>
             <p className="text-xs text-text-secondary mb-4">
-              Non-market assets or liabilities like cash, real estate, crypto, loans, or mortgages. Enter a signed fixed dollar value.
+              Non-market assets or liabilities like cash, real estate, crypto, loans, or mortgages. Enter a signed fixed dollar value. Names are limited to 20 characters.
             </p>
 
             {staticHoldings.length === 0 ? (
@@ -429,6 +429,7 @@ export function CreatePortfolio() {
                       value={holding.name}
                       onChange={(e) => updateStaticRow(index, 'name', e.target.value)}
                       placeholder="Real Estate"
+                      maxLength={20}
                       className="col-span-6 bg-background border border-border rounded-lg px-3 py-2 text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent text-sm"
                     />
                     <div className="col-span-5 relative">

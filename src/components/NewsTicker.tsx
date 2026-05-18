@@ -15,6 +15,7 @@ interface TickerHeadline {
   text: string;
   url: string;
   sortKey?: number;
+  allocation: number;
 }
 
 export function NewsTicker({ holdings }: NewsTickerProps) {
@@ -29,7 +30,13 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
             (h.instrumentType === 'Common Stock' ||
               h.instrumentType === 'American Depositary Receipt')
         )
+        .sort((a, b) => b.allocation - a.allocation) // heaviest holdings first
         .map((h) => h.ticker),
+    [holdings]
+  );
+
+  const allocByTicker = useMemo(
+    () => new Map(holdings.map((h) => [h.ticker, h.allocation])),
     [holdings]
   );
 
@@ -46,25 +53,37 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
           text: h.text,
           url: h.url,
           sortKey: h.sortKey,
+          allocation: allocByTicker.get(ticker) ?? 0,
           order: collected.length,
         });
       }
     }
 
+    // Date first (newest day → oldest); within a date, heaviest portfolio
+    // weight first; `order` keeps a stock's same-date headlines grouped in
+    // markdown order.
     collected.sort((a, b) => {
       const aHas = a.sortKey !== undefined;
       const bHas = b.sortKey !== undefined;
       if (aHas && bHas) {
         if (b.sortKey! !== a.sortKey!) return b.sortKey! - a.sortKey!;
+        if (b.allocation !== a.allocation) return b.allocation - a.allocation;
         return a.order - b.order;
       }
       if (aHas) return -1;
       if (bHas) return 1;
+      if (b.allocation !== a.allocation) return b.allocation - a.allocation;
       return a.order - b.order;
     });
 
-    return collected.map(({ ticker, text, url, sortKey }) => ({ ticker, text, url, sortKey }));
-  }, [data?.news, tickerOrder]);
+    return collected.map(({ ticker, text, url, sortKey, allocation }) => ({
+      ticker,
+      text,
+      url,
+      sortKey,
+      allocation,
+    }));
+  }, [data?.news, tickerOrder, allocByTicker]);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const oneListWidthRef = useRef(0);

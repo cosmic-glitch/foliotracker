@@ -25,6 +25,7 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
             (h.instrumentType === 'Common Stock' ||
               h.instrumentType === 'American Depositary Receipt')
         )
+        .sort((a, b) => b.allocation - a.allocation) // heaviest holdings first
         .map((h) => h.ticker),
     [holdings]
   );

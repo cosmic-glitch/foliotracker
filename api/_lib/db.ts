@@ -434,16 +434,36 @@ export async function getDailyPrices(
 ): Promise<DbDailyPrice[]> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().split('T')[0];
 
-  const { data, error } = await supabase
-    .from('daily_prices')
-    .select('*')
-    .in('ticker', tickers)
-    .gte('date', startDate.toISOString().split('T')[0])
-    .order('date', { ascending: true });
+  // Paginate explicitly. PostgREST caps a single response at the project's
+  // "Max rows" limit (1000 by default), so an unpaginated select silently
+  // truncates once tickers * days exceeds that. The snapshot refresh relies on
+  // this result to decide which tickers have stale history — a truncated
+  // result makes every ticker look stale and triggers a full Yahoo re-fetch +
+  // daily_prices re-upsert on every run. Secondary sort on ticker keeps the
+  // ordering total so rows can't shift across page boundaries.
+  const PAGE_SIZE = 1000;
+  const rows: DbDailyPrice[] = [];
 
-  if (error) throw error;
-  return data || [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('daily_prices')
+      .select('*')
+      .in('ticker', tickers)
+      .gte('date', startDateStr)
+      .order('date', { ascending: true })
+      .order('ticker', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  return rows;
 }
 
 export async function upsertDailyPrice(

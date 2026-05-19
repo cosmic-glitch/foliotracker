@@ -58,7 +58,7 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
         <div className="p-3 space-y-0.5">
           {byValue.map((holding) => (
             <div key={holding.ticker} className="flex items-center gap-1.5 px-1">
-              <span className="font-medium text-text-primary text-sm shrink-0 whitespace-nowrap" style={{ minWidth: `${maxTickerLength}ch` }}>{holding.ticker}</span>
+              <span className="font-mono font-medium text-text-primary text-sm shrink-0 whitespace-nowrap" style={{ minWidth: `${maxTickerLength}ch` }}>{holding.ticker}</span>
               <div className="flex-1 min-w-0">
                 <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
               </div>

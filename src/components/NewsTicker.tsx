@@ -59,20 +59,15 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
       }
     }
 
-    // Date first (newest day → oldest); within a date, heaviest portfolio
-    // weight first; `order` keeps a stock's same-date headlines grouped in
+    // Weight-first: the heaviest portfolio holding leads the ticker. Within a
+    // stock, newest headline first; `order` keeps same-date headlines in
     // markdown order.
     collected.sort((a, b) => {
+      if (b.allocation !== a.allocation) return b.allocation - a.allocation;
       const aHas = a.sortKey !== undefined;
       const bHas = b.sortKey !== undefined;
-      if (aHas && bHas) {
-        if (b.sortKey! !== a.sortKey!) return b.sortKey! - a.sortKey!;
-        if (b.allocation !== a.allocation) return b.allocation - a.allocation;
-        return a.order - b.order;
-      }
-      if (aHas) return -1;
-      if (bHas) return 1;
-      if (b.allocation !== a.allocation) return b.allocation - a.allocation;
+      if (aHas && bHas && b.sortKey! !== a.sortKey!) return b.sortKey! - a.sortKey!;
+      if (aHas !== bHas) return aHas ? -1 : 1;
       return a.order - b.order;
     });
 

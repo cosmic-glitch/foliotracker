@@ -660,13 +660,24 @@ export interface DbTickerNewsSummary {
   generated_at: string;
 }
 
+// The generator emits this exact line when no material news was found.
+const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 7 days.';
+// When the newest summary is a sentinel, fall back to the most recent real
+// summary only if it is no older than this — beyond that the news is stale.
+const FALLBACK_MAX_AGE_DAYS = 4;
+
+const isSentinelSummary = (md: string): boolean => {
+  const t = md.trim();
+  return t.length === 0 || t === NO_MATERIAL_NEWS_SENTINEL;
+};
+
 export async function getLatestTickerNewsSummaries(
   tickers: string[]
 ): Promise<Map<string, DbTickerNewsSummary>> {
   const result = new Map<string, DbTickerNewsSummary>();
   if (tickers.length === 0) return result;
 
-  // Fetch recent rows (last 7 days) for these tickers; pick the latest per ticker in JS.
+  // Fetch recent rows (last 7 days) for these tickers; pick the best per ticker in JS.
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 7);
   const sinceDate = since.toISOString().split('T')[0];
@@ -680,10 +691,34 @@ export async function getLatestTickerNewsSummaries(
 
   if (error) throw error;
 
+  // Group rows per ticker, preserving the summary_date-desc order.
+  const byTicker = new Map<string, DbTickerNewsSummary[]>();
   for (const row of (data || []) as DbTickerNewsSummary[]) {
-    if (!result.has(row.ticker)) {
-      result.set(row.ticker, row);
+    const rows = byTicker.get(row.ticker);
+    if (rows) rows.push(row);
+    else byTicker.set(row.ticker, [row]);
+  }
+
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  for (const [ticker, rows] of byTicker) {
+    const newest = rows[0];
+    if (!isSentinelSummary(newest.summary_markdown)) {
+      result.set(ticker, newest);
+      continue;
     }
+    // Newest summary is a sentinel — fall back to the most recent real
+    // summary, but only if it is still fresh enough to be worth showing.
+    const realRow = rows.find((r) => !isSentinelSummary(r.summary_markdown));
+    if (realRow) {
+      const ageDays = (now - new Date(realRow.summary_date).getTime()) / DAY_MS;
+      if (ageDays <= FALLBACK_MAX_AGE_DAYS) {
+        result.set(ticker, realRow);
+        continue;
+      }
+    }
+    // No fresh real summary — keep the sentinel so the frontend hides it.
+    result.set(ticker, newest);
   }
   return result;
 }

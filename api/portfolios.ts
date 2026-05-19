@@ -447,43 +447,33 @@ export default async function handler(
       }
       const snapshotMap = new Map(snapshots.map((s) => [s.portfolio_id, s]));
 
-      // Build response with visibility checks
+      // Build response with visibility checks.
+      // Three cases per row:
+      //   hideAllValues    — restricted viewer + allocation_public=FALSE → null everything (today's blur).
+      //   hideDollarsOnly  — restricted viewer + allocation_public=TRUE  → null dollars, keep %-changes
+      //                                                                   so the LP can show "+X.XX% today".
+      //   full             — owner / allowed viewer → unchanged.
       const portfoliosWithSummary = await Promise.all(
         portfolios.map(async (portfolio) => {
-          // Determine if values should be hidden
-          let hideValues = false;
-          if (portfolio.visibility === 'private') {
-            // Private: always hide unless viewer is the owner
-            hideValues = loggedInAs?.toLowerCase() !== portfolio.id.toLowerCase();
-          } else if (portfolio.visibility === 'selective') {
-            // Selective: hide unless viewer is owner or in allowed list
-            const isOwner = loggedInAs?.toLowerCase() === portfolio.id.toLowerCase();
-            const isAllowed = loggedInAs ? await isAllowedViewer(portfolio.id, loggedInAs) : false;
-            hideValues = !isOwner && !isAllowed;
-          }
+          const isOwner = loggedInAs?.toLowerCase() === portfolio.id.toLowerCase();
+          const isAllowed = loggedInAs ? await isAllowedViewer(portfolio.id, loggedInAs) : false;
+          const restricted =
+            (portfolio.visibility === 'private' && !isOwner) ||
+            (portfolio.visibility === 'selective' && !isOwner && !isAllowed);
+          // `?? true` tolerates Redis blobs cached before migration 010.
+          const allocationPublic = portfolio.allocation_public ?? true;
+          const hideAllValues = restricted && !allocationPublic;
+          const hideDollarsOnly = restricted && allocationPublic;
 
-          // If hiding values, skip returning values
-          if (hideValues) {
-            return {
-              ...portfolio,
-              totalValue: null,
-              dayChange: null,
-              dayChangePercent: null,
-              regularTotalValue: null,
-              regularDayChange: null,
-              regularDayChangePercent: null,
-              peakPotentialValue: null,
-            };
-          }
-
-          // Get pre-computed snapshot
           const snapshot = snapshotMap.get(portfolio.id);
+
+          // Compute regular-hours totals from holdings' regularMarketPrice and
+          // peak-potential (what-if-all-hit-52w-high) in a single pass. Shared
+          // between full-access and hideDollarsOnly branches.
+          let regularTotalValue = 0;
+          let regularPreviousTotal = 0;
+          let peakPotentialValue = 0;
           if (snapshot) {
-            // Compute regular-hours totals from holdings' regularMarketPrice
-            // and peak-potential (what-if-all-hit-52w-high) in a single pass.
-            let regularTotalValue = 0;
-            let regularPreviousTotal = 0;
-            let peakPotentialValue = 0;
             for (const h of snapshot.holdings_json) {
               if (h.isStatic) {
                 regularTotalValue += h.value;
@@ -497,11 +487,44 @@ export default async function handler(
                   : h.value;
               }
             }
-            const regularDayChange = regularTotalValue - regularPreviousTotal;
-            const regularDayChangePercent = regularPreviousTotal > 0
-              ? (regularDayChange / regularPreviousTotal) * 100
-              : 0;
+          }
+          const regularDayChange = regularTotalValue - regularPreviousTotal;
+          const regularDayChangePercent = regularPreviousTotal > 0
+            ? (regularDayChange / regularPreviousTotal) * 100
+            : 0;
 
+          if (hideAllValues) {
+            return {
+              ...portfolio,
+              totalValue: null,
+              dayChange: null,
+              dayChangePercent: null,
+              regularTotalValue: null,
+              regularDayChange: null,
+              regularDayChangePercent: null,
+              peakPotentialValue: null,
+            };
+          }
+
+          if (hideDollarsOnly) {
+            // Null the dollar-denominated fields but expose day-change
+            // percentages so the LP row can show "+X.XX% today" instead of a
+            // blur. The FE detects this branch via (visibility !== 'public'
+            // && totalValue === null && allocation_public).
+            return {
+              ...portfolio,
+              totalValue: null,
+              dayChange: null,
+              dayChangePercent: snapshot?.day_change_percent ?? 0,
+              regularTotalValue: null,
+              regularDayChange: null,
+              regularDayChangePercent: snapshot ? regularDayChangePercent : 0,
+              peakPotentialValue: null,
+              lastUpdated: snapshot?.updated_at,
+            };
+          }
+
+          if (snapshot) {
             return {
               ...portfolio,
               totalValue: snapshot.total_value,

@@ -20,6 +20,7 @@ export interface DbPortfolio {
   created_at: string;
   is_private: boolean;
   visibility: Visibility;
+  allocation_public: boolean;
   hot_take: string | null;
   hot_take_at: string | null;
   buffett_comment: string | null;
@@ -98,13 +99,14 @@ export interface DbPortfolioListItem {
   created_at: string;
   is_private: boolean;
   visibility: Visibility;
+  allocation_public: boolean;
 }
 
 // Portfolio functions
 export async function getPortfolios(): Promise<DbPortfolioListItem[]> {
   const { data, error } = await supabase
     .from('portfolios')
-    .select('id, display_name, created_at, is_private, visibility')
+    .select('id, display_name, created_at, is_private, visibility, allocation_public')
     .order('created_at', { ascending: true });
 
   if (error) throw error;
@@ -361,7 +363,13 @@ export async function deletePortfolio(id: string): Promise<void> {
 
 export async function updatePortfolioSettings(
   id: string,
-  settings: { is_private?: boolean; display_name?: string; password_hash?: string; visibility?: Visibility }
+  settings: {
+    is_private?: boolean;
+    display_name?: string;
+    password_hash?: string;
+    visibility?: Visibility;
+    allocation_public?: boolean;
+  }
 ): Promise<void> {
   const { error } = await supabase
     .from('portfolios')

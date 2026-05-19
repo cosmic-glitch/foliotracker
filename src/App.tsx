@@ -35,10 +35,17 @@ function computePeakPotentialTotal(holdings: Holding[]): number {
   }, 0);
 }
 
-// Layout for visitors using an allocation-only share link: a banner above
-// AllocationView and NewsSection rendered side-by-side. Self-contained so
-// the standard portfolio layout below stays simple.
-function AllocationOnlyView({ holdings }: { holdings: Holding[] }) {
+// Layout used in two cases: (1) a viewer arrived via an allocation-only share
+// link, or (2) the viewer lacks owner-level permission on a portfolio whose
+// owner opted into public-allocation. `viewSource` lets us pick the right
+// banner copy; the layout is otherwise identical.
+function AllocationOnlyView({
+  holdings,
+  viewSource,
+}: {
+  holdings: Holding[];
+  viewSource: 'share_link' | 'restricted';
+}) {
   // Same predicate NewsSection uses to decide whether to render itself; we
   // collapse to a single column when it would otherwise be empty.
   const hasNewsContent = holdings.some(
@@ -48,10 +55,15 @@ function AllocationOnlyView({ holdings }: { holdings: Holding[] }) {
         h.instrumentType === 'American Depositary Receipt'),
   );
 
+  const bannerMessage =
+    viewSource === 'share_link'
+      ? 'This share link shows allocation only — dollar amounts and individual holdings are hidden.'
+      : 'You do not have permissions to see dollar amounts. Showing only allocation percentages.';
+
   return (
     <>
       <div className="mb-2 px-4 py-2.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-sm">
-        This share link shows allocation only — dollar amounts and individual holdings are hidden.
+        {bannerMessage}
       </div>
       <div
         className={
@@ -216,7 +228,10 @@ function App() {
             )}
 
             {isAllocationOnly ? (
-              <AllocationOnlyView holdings={data.holdings} />
+              <AllocationOnlyView
+                holdings={data.holdings}
+                viewSource={data.viewSource ?? 'share_link'}
+              />
             ) : (
               <>
                 <TotalValue

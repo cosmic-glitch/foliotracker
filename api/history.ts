@@ -66,6 +66,7 @@ export default async function handler(
           created_at: dbPortfolio.created_at,
           is_private: dbPortfolio.is_private,
           visibility: dbPortfolio.visibility,
+          allocation_public: dbPortfolio.allocation_public,
         };
       }
     }
@@ -95,34 +96,29 @@ export default async function handler(
       }
     }
 
+    // Mirror api/portfolio.ts gating: restricted viewers on allocation-public
+    // portfolios fall through but get the chart wiped (Line ~170) so direct
+    // API calls cannot recover dollar values from history_*_json.
+    let restricted = false;
     if (portfolio.visibility === 'private') {
-      // Private portfolios require authentication
-      if (!authResult.authenticated) {
-        res.status(200).json({
-          data: [],
-          benchmark: [],
-          lastUpdated: new Date().toISOString(),
-          isStale: true,
-          requiresAuth: true,
-        });
-        return;
-      }
+      restricted = !authResult.authenticated;
     } else if (portfolio.visibility === 'selective') {
-      // Selective portfolios require either authentication or being an allowed viewer
-      const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
-
-      if (!authResult.authenticated && !isViewer) {
-        res.status(200).json({
-          data: [],
-          benchmark: [],
-          lastUpdated: new Date().toISOString(),
-          isStale: true,
-          requiresAuth: true,
-        });
-        return;
-      }
+      const isViewer = !!loggedInAs && (await isAllowedViewer(portfolioId, loggedInAs));
+      restricted = !authResult.authenticated && !isViewer;
     }
-    // Public portfolios: no auth required
+    const allocationPublic = portfolio.allocation_public ?? true;
+
+    if (restricted && !allocationPublic) {
+      res.status(200).json({
+        data: [],
+        benchmark: [],
+        lastUpdated: new Date().toISOString(),
+        isStale: true,
+        requiresAuth: true,
+      });
+      return;
+    }
+    // Public portfolios + restricted+allocPublic viewers: fall through.
 
     // Read from Redis first, fall back to DB
     let snapshotStart = Date.now();
@@ -165,9 +161,12 @@ export default async function handler(
       benchmark = snapshot.benchmark_30d_json || [];
     }
 
-    // Allocation-only share links never render a chart. Return empty arrays
-    // as defense-in-depth so direct API calls cannot recover dollar amounts.
-    if (shareLinkMode === 'allocation_only') {
+    // Allocation-only viewers (share-link allocation_only OR restricted viewer
+    // with allocation_public ON) never render a chart. Return empty arrays as
+    // defense-in-depth so direct API calls cannot recover dollar amounts.
+    const allocationOnly =
+      shareLinkMode === 'allocation_only' || (restricted && allocationPublic);
+    if (allocationOnly) {
       data = [];
       if (regularData) regularData = [];
       benchmark = [];

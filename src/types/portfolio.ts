@@ -67,11 +67,15 @@ export interface PortfolioData {
   deepResearch: string | null;
   deepResearchAt: string | null;
   staleTickers: string[];
-  // Set when viewing through an `allocation_only` share link. In that mode
-  // the API zeroes out all dollar-denominated fields on holdings (value,
-  // shares, dayChange, costBasis, profitLoss, week52High, etc.) and the
-  // historical series is normalized so the first point is 100.
+  // Set when viewing through an `allocation_only` share link OR when the
+  // viewer is restricted (private/selective + not the owner) on a portfolio
+  // whose owner has `allocation_public = TRUE`. In that mode the API zeroes
+  // out all dollar-denominated fields on holdings (value, shares, dayChange,
+  // costBasis, profitLoss, week52High, etc.) and the historical series is
+  // normalized so the first point is 100.
   viewMode?: 'full' | 'allocation_only';
+  // Distinguishes the two paths above so the banner picks the right copy.
+  viewSource?: 'share_link' | 'restricted';
 }
 
 export interface HoldingConfig {

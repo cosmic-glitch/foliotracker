@@ -23,6 +23,9 @@ export interface CachedPortfolio {
   created_at: string;
   is_private: boolean;
   visibility: Visibility;
+  // Consumers should read this with `?? true` to tolerate blobs cached before
+  // the field was added in migration 010.
+  allocation_public: boolean;
 }
 
 /**
@@ -120,6 +123,7 @@ export async function setPortfolioInRedis(portfolio: DbPortfolio): Promise<void>
       created_at: portfolio.created_at,
       is_private: portfolio.is_private,
       visibility: portfolio.visibility,
+      allocation_public: portfolio.allocation_public,
     };
     await redis.set(`${PORTFOLIO_PREFIX}${portfolio.id.toLowerCase()}`, cached);
   } catch (error) {
@@ -162,6 +166,7 @@ export async function setPortfoliosInRedis(portfolios: DbPortfolioListItem[]): P
       created_at: p.created_at,
       is_private: p.is_private,
       visibility: p.visibility,
+      allocation_public: p.allocation_public,
     }));
     await redis.set(PORTFOLIOS_LIST_KEY, cached);
   } catch (error) {

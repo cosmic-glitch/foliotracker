@@ -7,10 +7,12 @@ import {
   authenticateRequest,
   Visibility,
 } from './_lib/db.js';
+import { invalidatePortfoliosListCache, deletePortfolioFromRedis } from './_lib/redis.js';
 
 interface PermissionsResponse {
   visibility: Visibility;
   viewers: string[];
+  allocationPublic: boolean;
 }
 
 export default async function handler(
@@ -62,6 +64,7 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: portfolio.visibility,
         viewers,
+        allocationPublic: portfolio.allocation_public,
       };
 
       res.status(200).json(response);
@@ -69,7 +72,7 @@ export default async function handler(
     }
 
     if (req.method === 'PUT') {
-      const { password, token, visibility, viewers } = req.body;
+      const { password, token, visibility, viewers, allocationPublic } = req.body;
 
       if (!token && !password) {
         res.status(401).json({ error: 'Password is required' });
@@ -94,9 +97,15 @@ export default async function handler(
         return;
       }
 
-      // Update visibility if provided
-      if (visibility) {
-        await updatePortfolioSettings(portfolioId, { visibility });
+      // Bundle column updates into a single round-trip.
+      const settings: {
+        visibility?: Visibility;
+        allocation_public?: boolean;
+      } = {};
+      if (visibility) settings.visibility = visibility;
+      if (typeof allocationPublic === 'boolean') settings.allocation_public = allocationPublic;
+      if (Object.keys(settings).length > 0) {
+        await updatePortfolioSettings(portfolioId, settings);
       }
 
       // Update viewers if provided (only relevant for selective visibility)
@@ -110,6 +119,13 @@ export default async function handler(
         await setPortfolioViewers(portfolioId, viewers);
       }
 
+      // Bust caches so the new settings take effect immediately on the LP and
+      // detail page. (Previously, visibility changes could lag by up to ~60s.)
+      await Promise.all([
+        invalidatePortfoliosListCache(),
+        deletePortfolioFromRedis(portfolioId),
+      ]);
+
       // Return updated permissions
       const updatedPortfolio = await getPortfolio(portfolioId);
       const updatedViewers = await getPortfolioViewers(portfolioId);
@@ -117,6 +133,7 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: updatedPortfolio!.visibility,
         viewers: updatedViewers,
+        allocationPublic: updatedPortfolio!.allocation_public,
       };
 
       res.status(200).json(response);

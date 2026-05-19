@@ -14,6 +14,9 @@ interface PermissionsModalProps {
 export function PermissionsModal({ portfolioId, token, onClose }: PermissionsModalProps) {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
+  // Defaults to TRUE on the server (migration 010); mirror that here so we
+  // don't briefly render the box unchecked before the GET completes.
+  const [allocationPublic, setAllocationPublic] = useState(true);
   const [allPortfolios, setAllPortfolios] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -36,6 +39,7 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
         const permData = await permResponse.json();
         setVisibility(permData.visibility);
         setViewers(permData.viewers || []);
+        setAllocationPublic(permData.allocationPublic ?? true);
 
         // Fetch all portfolios
         const portfoliosResponse = await fetch(`${API_BASE_URL}/api/portfolios`);
@@ -75,6 +79,7 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
           token,
           visibility,
           viewers,
+          allocationPublic,
         }),
       });
 
@@ -191,6 +196,34 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
                   </div>
                 </label>
               </div>
+            </div>
+
+            {/* Allocation-public toggle: lets restricted viewers see allocation
+                percentages (no dollar amounts) instead of being blocked. No-op
+                when visibility = public. */}
+            <div
+              className={`p-3 rounded-lg border border-border ${
+                visibility === 'public' ? 'opacity-50' : ''
+              }`}
+            >
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allocationPublic}
+                  onChange={(e) => setAllocationPublic(e.target.checked)}
+                  disabled={visibility === 'public'}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="font-medium text-text-primary">
+                    Show allocation percentages publicly
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    Anyone can see what % of your portfolio is in each holding — dollar amounts and share counts stay hidden.
+                    {visibility === 'public' && ' (Not applicable for public portfolios.)'}
+                  </p>
+                </div>
+              </label>
             </div>
 
             {/* Viewers List (only for selective) */}

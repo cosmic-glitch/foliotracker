@@ -61,6 +61,7 @@ interface ApiPortfolioResponse {
   deepResearchAt: string | null;
   staleTickers?: string[];
   viewMode?: 'full' | 'allocation_only';
+  viewSource?: 'share_link' | 'restricted';
 }
 
 interface PrivatePortfolioResponse {
@@ -282,6 +283,7 @@ export function usePortfolioData(
         deepResearchAt: null,
         staleTickers: p.staleTickers ?? [],
         viewMode: 'allocation_only',
+        viewSource: p.viewSource ?? 'share_link',
       };
     }
 

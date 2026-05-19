@@ -27,6 +27,9 @@ interface Portfolio {
   peakPotentialValue: number | null;
   is_private: boolean;
   visibility: 'public' | 'private' | 'selective';
+  // When TRUE, restricted viewers still receive day-change % (no $ total).
+  // The LP row uses this to pick the "Allocation only" render instead of blur.
+  allocation_public: boolean;
   lastUpdated?: string;
 }
 
@@ -64,6 +67,9 @@ interface PortfolioListRowProps {
   displayChangePercent: number;
   peakPotentialValue: number;
   shouldBlurValues: boolean;
+  // When true, the row is restricted but allocation_public is ON: show
+  // day-change % instead of a blurred dollar total.
+  restrictedAllocOnly: boolean;
   loggedInAs: string | null;
   onLoginClick: (portfolio: Portfolio) => void;
 }
@@ -75,6 +81,7 @@ function PortfolioListRow({
   displayChangePercent,
   peakPotentialValue,
   shouldBlurValues,
+  restrictedAllocOnly,
   loggedInAs,
   onLoginClick,
 }: PortfolioListRowProps) {
@@ -125,6 +132,15 @@ function PortfolioListRow({
               +$X.Xk (+X.XX%)
             </p>
           </div>
+        ) : restrictedAllocOnly ? (
+          // No owner-level access, but the owner has allocation_public ON.
+          // Show day-change % only — dollar total stays hidden.
+          <div>
+            <p className={`text-lg font-semibold ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
+              {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}% today
+            </p>
+            <p className="text-xs text-text-secondary">Allocation only</p>
+          </div>
         ) : (
           <div
             className={canReveal ? 'cursor-pointer select-none' : ''}
@@ -150,19 +166,18 @@ function PortfolioListRow({
         )}
       </div>
 
-      {/* Right: Action buttons */}
+      {/* Right: Action buttons.
+          View is always rendered now — restricted viewers land on the
+          allocation-only detail page when allocation_public is on, or hit
+          the password prompt when it's off. */}
       <div className="flex flex-col items-end gap-0.5 shrink-0">
-        {(portfolio.visibility === 'public' ||
-          loggedInAs === portfolio.id.toLowerCase() ||
-          (portfolio.visibility === 'selective' && portfolio.totalValue !== null)) && (
-          <Link
-            to={`/${portfolio.id}`}
-            className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            View
-          </Link>
-        )}
+        <Link
+          to={`/${portfolio.id}`}
+          className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          View
+        </Link>
         {!loggedInAs && (
           <button
             onClick={() => onLoginClick(portfolio)}
@@ -296,7 +311,13 @@ export function LandingPage() {
               ) : (
                 <div className="divide-y divide-border">
                   {portfolios.map((portfolio) => {
-                    const shouldBlurValues = portfolio.visibility !== 'public' && portfolio.totalValue === null;
+                    // Restricted = visibility !== public AND server omitted
+                    // the dollar total. Owner-side: server returned full
+                    // values, so isRestricted stays false.
+                    const isRestricted =
+                      portfolio.visibility !== 'public' && portfolio.totalValue === null;
+                    const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
+                    const shouldBlurValues = isRestricted && !portfolio.allocation_public;
                     const displayValue = showExtendedHours
                       ? (portfolio.totalValue ?? 0)
                       : (portfolio.regularTotalValue ?? portfolio.totalValue ?? 0);
@@ -320,6 +341,7 @@ export function LandingPage() {
                         displayChangePercent={displayChangePercent}
                         peakPotentialValue={peakPotentialValue}
                         shouldBlurValues={shouldBlurValues}
+                        restrictedAllocOnly={restrictedAllocOnly}
                         loggedInAs={loggedInAs}
                         onLoginClick={setLoginTarget}
                       />

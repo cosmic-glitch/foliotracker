@@ -59,6 +59,10 @@ interface PortfolioResponse {
   deepResearch: string | null;
   deepResearchAt: string | null;
   viewMode?: 'full' | 'allocation_only';
+  // Set when viewMode === 'allocation_only' so the FE can pick the right banner copy.
+  // 'share_link' = viewer arrived via a ?share=... token in allocation_only mode.
+  // 'restricted' = viewer lacks owner-level permission on a portfolio that allows public allocation.
+  viewSource?: 'share_link' | 'restricted';
 }
 
 // Helper to time async operations
@@ -295,6 +299,7 @@ export default async function handler(
           created_at: dbPortfolio.created_at,
           is_private: dbPortfolio.is_private,
           visibility: dbPortfolio.visibility,
+          allocation_public: dbPortfolio.allocation_public,
         };
       }
     }
@@ -329,34 +334,32 @@ export default async function handler(
       }
     }
 
+    // Compute whether the viewer lacks owner-level access. Share-token viewers
+    // are already marked `authenticated: true` above, so they bypass this.
+    let restricted = false;
     if (portfolio.visibility === 'private') {
-      // Private portfolios require authentication
-      if (!authResult.authenticated) {
-        res.status(200).json({
-          portfolioId,
-          displayName: portfolio.display_name,
-          isPrivate: true,
-          visibility: portfolio.visibility,
-          requiresAuth: true,
-        });
-        return;
-      }
+      restricted = !authResult.authenticated;
     } else if (portfolio.visibility === 'selective') {
-      // Selective portfolios require either authentication or being an allowed viewer
-      const isViewer = loggedInAs && await isAllowedViewer(portfolioId, loggedInAs);
-
-      if (!authResult.authenticated && !isViewer) {
-        res.status(200).json({
-          portfolioId,
-          displayName: portfolio.display_name,
-          isPrivate: false,
-          visibility: portfolio.visibility,
-          requiresAuth: true,
-        });
-        return;
-      }
+      const isViewer = !!loggedInAs && (await isAllowedViewer(portfolioId, loggedInAs));
+      restricted = !authResult.authenticated && !isViewer;
     }
-    // Public portfolios: no auth required
+    // `?? true` tolerates Redis blobs cached before migration 010 added the field.
+    const allocationPublic = portfolio.allocation_public ?? true;
+
+    if (restricted && !allocationPublic) {
+      // Owner has opted out of public allocation — return today's opaque stub.
+      res.status(200).json({
+        portfolioId,
+        displayName: portfolio.display_name,
+        isPrivate: portfolio.visibility === 'private',
+        visibility: portfolio.visibility,
+        requiresAuth: true,
+      });
+      return;
+    }
+    // If `restricted && allocationPublic`, fall through. The strip step at the
+    // bottom of the handler anonymizes the response into allocation-only form.
+    // Public portfolios: no auth required.
 
     // Read from Redis first, fall back to DB
     let snapshot = await timed('getSnapshotFromRedis', () => getSnapshotFromRedis(portfolioId));
@@ -365,8 +368,11 @@ export default async function handler(
     }
 
     if (!snapshot) {
-      // No snapshot available yet - return empty state
-      res.status(200).json({
+      // No snapshot available yet - return empty state.
+      // If the viewer is restricted-but-allocation-public, tag the placeholder
+      // with viewMode so the FE shows the allocation-only banner instead of a
+      // blank "snapshot pending" page.
+      const emptyResponse: Record<string, unknown> = {
         portfolioId,
         displayName: portfolio.display_name,
         totalValue: 0,
@@ -381,7 +387,12 @@ export default async function handler(
         isPrivate: portfolio.visibility === 'private',
         visibility: portfolio.visibility,
         message: 'Snapshot not yet available. Please wait for the next refresh cycle.',
-      });
+      };
+      if (restricted && allocationPublic) {
+        emptyResponse.viewMode = 'allocation_only';
+        emptyResponse.viewSource = 'restricted';
+      }
+      res.status(200).json(emptyResponse);
       return;
     }
 
@@ -441,9 +452,18 @@ export default async function handler(
       deepResearchAt: aiComments.deep_research_at,
     };
 
-    const finalResponse = shareLinkMode === 'allocation_only'
-      ? stripPortfolioForAllocationOnly(response)
-      : response;
+    // Anonymize when either (a) the viewer arrived via an allocation-only share
+    // link, or (b) the viewer is restricted on a portfolio with allocation_public
+    // turned on. `viewSource` lets the FE pick the right banner copy.
+    const allocationOnly =
+      shareLinkMode === 'allocation_only' || (restricted && allocationPublic);
+    const finalResponse: typeof response | (typeof response & { viewSource: 'share_link' | 'restricted' }) =
+      allocationOnly
+        ? {
+            ...stripPortfolioForAllocationOnly(response),
+            viewSource: shareLinkMode === 'allocation_only' ? 'share_link' : 'restricted',
+          }
+        : response;
 
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(finalResponse);

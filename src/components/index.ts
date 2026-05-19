@@ -15,4 +15,3 @@ export { HotTakeSection } from './HotTakeSection';
 export { AICommentSection } from './AICommentSection';
 export { AIResearchSection } from './AIResearchSection';
 export { ChatModal } from './ChatModal';
-export { WidgetModal } from './WidgetModal';

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
+import { consolidateHoldings } from '../utils/equivalentTickers';
 
 interface NewsSectionProps {
   holdings: Holding[];
@@ -18,7 +19,9 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
 
   const tickerOrder = useMemo(
     () =>
-      holdings
+      // Consolidate equivalent tickers (GOOG/GOOGL) so a split position renders
+      // as one news row, ordered by its true combined allocation.
+      consolidateHoldings(holdings)
         .filter(
           (h) =>
             !h.isStatic &&

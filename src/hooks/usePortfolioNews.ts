@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Holding } from '../types/portfolio';
+import { consolidateHoldings } from '../utils/equivalentTickers';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -49,7 +50,9 @@ async function fetchNews(tickers: string[]): Promise<NewsResponse> {
 }
 
 export function usePortfolioNews(holdings: Holding[]) {
-  const tickers = holdings
+  // Consolidate equivalent tickers (e.g. GOOG/GOOGL) before fetching news so we
+  // don't request duplicate summaries; the canonical ticker is used as the key.
+  const tickers = consolidateHoldings(holdings)
     .filter(
       (h) =>
         !h.isStatic &&

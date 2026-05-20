@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
 import { extractHeadlines } from '../lib/newsHeadline';
+import { consolidateHoldings } from '../utils/equivalentTickers';
 
 const SCROLL_PX_PER_SEC = 90;
 const INITIAL_DELAY_MS = 4000;
@@ -21,9 +22,13 @@ interface TickerHeadline {
 export function NewsTicker({ holdings }: NewsTickerProps) {
   const { data } = usePortfolioNews(holdings);
 
+  // Consolidate equivalent tickers (GOOG/GOOGL) so a split position rolls up to
+  // a single headline source weighted by its true combined allocation.
+  const consolidated = useMemo(() => consolidateHoldings(holdings), [holdings]);
+
   const tickerOrder = useMemo(
     () =>
-      holdings
+      consolidated
         .filter(
           (h) =>
             !h.isStatic &&
@@ -32,12 +37,12 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
         )
         .sort((a, b) => b.allocation - a.allocation) // heaviest holdings first
         .map((h) => h.ticker),
-    [holdings]
+    [consolidated]
   );
 
   const allocByTicker = useMemo(
-    () => new Map(holdings.map((h) => [h.ticker, h.allocation])),
-    [holdings]
+    () => new Map(consolidated.map((h) => [h.ticker, h.allocation])),
+    [consolidated]
   );
 
   const headlines = useMemo<TickerHeadline[]>(() => {

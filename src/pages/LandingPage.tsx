@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
-import { PasswordModal } from '../components/PasswordModal';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
+import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { UserMenu } from '../components/UserMenu';
@@ -70,8 +70,6 @@ interface PortfolioListRowProps {
   // When true, the row is restricted but allocation_public is ON: show
   // day-change % instead of a blurred dollar total.
   restrictedAllocOnly: boolean;
-  loggedInAs: string | null;
-  onLoginClick: (portfolio: Portfolio) => void;
 }
 
 function PortfolioListRow({
@@ -82,8 +80,6 @@ function PortfolioListRow({
   peakPotentialValue,
   shouldBlurValues,
   restrictedAllocOnly,
-  loggedInAs,
-  onLoginClick,
 }: PortfolioListRowProps) {
   const { animatedValue, isRevealing, peakDelta, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -134,12 +130,15 @@ function PortfolioListRow({
           </div>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but the owner has allocation_public ON.
-          // Show day-change % only — dollar total stays hidden.
+          // Mirror the accessible-row layout: a bold white masked value (the
+          // dollar total stays hidden) above the day-change % at normal size.
           <div>
-            <p className={`text-lg font-semibold ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
-              {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}% today
+            <span className="text-lg font-semibold text-text-primary select-none">
+              $•••••
+            </span>
+            <p className={`text-sm ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
+              {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%
             </p>
-            <p className="text-xs text-text-secondary">Allocation only</p>
           </div>
         ) : (
           <div
@@ -166,10 +165,9 @@ function PortfolioListRow({
         )}
       </div>
 
-      {/* Right: Action buttons.
-          View is always rendered now — restricted viewers land on the
-          allocation-only detail page when allocation_public is on, or hit
-          the password prompt when it's off. */}
+      {/* Right: View button. Always "View" — restricted viewers land on the
+          allocation-only detail page (with a notice up top) when
+          allocation_public is on, or hit the password prompt when it's off. */}
       <div className="flex flex-col items-end gap-0.5 shrink-0">
         <Link
           to={`/${portfolio.id}`}
@@ -178,15 +176,6 @@ function PortfolioListRow({
           <Eye className="w-3.5 h-3.5" />
           View
         </Link>
-        {!loggedInAs && (
-          <button
-            onClick={() => onLoginClick(portfolio)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-text-secondary hover:text-accent hover:bg-accent/10 rounded-lg transition-colors text-sm"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            Login
-          </button>
-        )}
       </div>
     </div>
   );
@@ -196,7 +185,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   const { showExtendedHours } = useExtendedHours();
-  const [loginTarget, setLoginTarget] = useState<Portfolio | null>(null);
+  const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
 
   // Use TanStack Query for auto-refresh
@@ -237,15 +226,13 @@ export function LandingPage() {
     }, null as Date | null);
   }, [portfolios]);
 
-  const handleLogin = async (password: string) => {
-    if (!loginTarget) return;
+  const handleSignIn = async (userId: string, password: string) => {
+    // Verify credentials via login endpoint — get token back
+    const result = await loginToPortfolio(userId, password);
 
-    // Verify password via login endpoint — get token back
-    const result = await loginToPortfolio(loginTarget.id, password);
-
-    // Token received, log in
-    login(loginTarget.id, result.token, result.expiresAt);
-    setLoginTarget(null);
+    // Token received, log in (use the canonical id the server returns)
+    login(result.portfolioId, result.token, result.expiresAt);
+    setShowSignIn(false);
   };
 
   return (
@@ -262,7 +249,7 @@ export function LandingPage() {
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
               <h1 className="text-xl font-semibold text-text-primary whitespace-nowrap">
-                Folio Tracker
+                FolioTracker
               </h1>
             </button>
             <div className="flex items-center gap-1.5 md:gap-3">
@@ -342,8 +329,6 @@ export function LandingPage() {
                         peakPotentialValue={peakPotentialValue}
                         shouldBlurValues={shouldBlurValues}
                         restrictedAllocOnly={restrictedAllocOnly}
-                        loggedInAs={loggedInAs}
-                        onLoginClick={setLoginTarget}
                       />
                     );
                   })}
@@ -351,15 +336,34 @@ export function LandingPage() {
               )}
             </div>
 
-            {/* Create Button */}
-            {data?.canCreate && (
-              <Link
-                to="/create"
-                className="flex items-center justify-center gap-2 w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 px-4 rounded-xl transition-colors mt-6"
+            {/* Auth actions */}
+            {loggedInAs ? (
+              <button
+                onClick={logout}
+                className="flex items-center justify-center gap-2 w-full bg-background hover:bg-card-hover border border-border text-text-primary font-medium py-3 px-4 rounded-xl transition-colors mt-6"
               >
-                <Plus className="w-5 h-5" />
-                Add Your Portfolio
-              </Link>
+                <LogOut className="w-5 h-5" />
+                Log out
+              </button>
+            ) : (
+              <div className="flex gap-3 mt-6">
+                {data?.canCreate && (
+                  <Link
+                    to="/create"
+                    className="flex items-center justify-center gap-2 flex-1 bg-background hover:bg-card-hover border border-border text-text-primary font-medium py-3 px-4 rounded-xl transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Sign up
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowSignIn(true)}
+                  className="flex items-center justify-center gap-2 flex-1 bg-background hover:bg-card-hover border border-border text-text-primary font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  <LogIn className="w-5 h-5" />
+                  Sign in
+                </button>
+              </div>
             )}
           </div>
 
@@ -384,14 +388,12 @@ export function LandingPage() {
         </div>
       </main>
 
-      {/* Login Modal */}
-      {loginTarget && (
-        <PasswordModal
-          title="Login"
-          description={`Enter the password for "${loginTarget.id.toUpperCase()}" to log in.`}
-          confirmLabel="Login"
-          onConfirm={handleLogin}
-          onCancel={() => setLoginTarget(null)}
+      {/* Sign In Modal */}
+      {showSignIn && (
+        <SignInModal
+          userIds={portfolios.map((p) => p.id)}
+          onConfirm={handleSignIn}
+          onCancel={() => setShowSignIn(false)}
         />
       )}
 

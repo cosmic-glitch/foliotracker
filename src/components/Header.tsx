@@ -26,7 +26,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
             </Link>
             <h1 className="text-xl font-semibold text-text-primary flex items-center gap-2">
               <Link to="/" className="hover:text-accent transition-colors hidden sm:inline">
-                Folio Tracker
+                FolioTracker
               </Link>
               {portfolioId && (
                 <>

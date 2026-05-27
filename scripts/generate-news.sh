@@ -1,7 +1,7 @@
 #!/bin/bash
 # Daily Claude-Code-driven news summary generator.
 #
-# Runs on the Digital Ocean VM via cron. Enumerates unique single-stock tickers
+# Runs on the Hetzner VM via cron. Enumerates unique single-stock tickers
 # across all portfolios, then invokes a single `claude -p` agentic session that
 # researches each ticker and persists per-ticker summaries to Supabase.
 #

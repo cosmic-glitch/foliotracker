@@ -61,7 +61,7 @@ vercel --prod    # Deploy to production
 - `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, Money Market → Cash / Money Market, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
 - **Snapshot-based architecture**: Portfolio data is pre-computed in the background
-  - DigitalOcean VM cron fires `scripts/refresh-snapshots.sh` every minute; the wrapped tsx script calls `refreshAllSnapshots()` directly against Supabase (no Vercel round-trip). See `scripts/VM_SETUP.md` section 10.
+  - Hetzner VM cron fires `scripts/refresh-snapshots.sh` every minute; the wrapped tsx script calls `refreshAllSnapshots()` directly against Supabase (no Vercel round-trip). See `scripts/VM_SETUP.md` section 10.
   - Cadence is gated in TypeScript (`isLiveMarketSession`): every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), otherwise only at UTC minute `0` and `30`.
   - The `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` bearer auth) still exists as a manual fallback but is no longer triggered on a schedule — the VM cron handles all scheduled refreshes.
   - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
@@ -90,7 +90,7 @@ Copy `.env.example` to `.env.local` and fill in values. Required:
 
 **Local development:** All secrets stored in `.env.local` (gitignored). Use `source .env.local` before running local scripts.
 
-### Snapshot Refresh Cron (DigitalOcean VM)
+### Snapshot Refresh Cron (Hetzner VM)
 Snapshot refresh runs on the VM via cron — see `scripts/VM_SETUP.md` section 10 for install steps.
 - **Wrapper:** `scripts/refresh-snapshots.sh` (sources `.env.local`, `flock`s a lockfile, logs to `scripts/refresh-snapshots.log`)
 - **Script:** `scripts/refresh-snapshots.ts` (calls `refreshAllSnapshots()` + `deleteExpiredSessions()` directly against Supabase; pass `--force` to bypass off-hours gating)
@@ -147,7 +147,7 @@ source .env.local && bash scripts/backup-db.sh
 
 - Dumps roles, schema, and data to `backups/<date>/`
 - 30-day retention (auto-cleans old backups)
-- **Automated on the DigitalOcean VM** via cron at 06:30 UTC every 3rd day of the month (see `scripts/VM_SETUP.md`). Previously ran on the Mac via launchd but lid-closed sleep kept missing the schedule.
+- **Automated on the Hetzner VM** via cron at 06:30 UTC every 3rd day of the month (see `scripts/VM_SETUP.md`). Previously ran on the Mac via launchd but lid-closed sleep kept missing the schedule.
 - Logs to `backups/backup.log` on the VM
 
 ## Password Reset

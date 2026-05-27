@@ -1,6 +1,6 @@
 # Ubuntu VM setup for daily Claude-generated news
 
-The daily `generate-news.sh` job runs on the Digital Ocean Ubuntu VM, not on
+The daily `generate-news.sh` job runs on the Hetzner Ubuntu VM, not on
 the dev Mac. This is a one-time setup guide for that VM.
 
 ## 1. Clone the repo and install Node deps

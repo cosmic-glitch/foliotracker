@@ -130,11 +130,12 @@ function PortfolioListRow({
           </div>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but the owner has allocation_public ON.
-          // Mirror the accessible-row layout: a bold white masked value (the
-          // dollar total stays hidden) above the day-change % at normal size.
+          // Drop the dollar metaphor: a muted "Value hidden" lock cue above
+          // the day-change % (the only figure this viewer is allowed to see).
           <div>
-            <span className="text-lg font-semibold text-text-primary select-none">
-              $•••••
+            <span className="flex items-center justify-end gap-1.5 text-sm text-text-secondary">
+              <Lock className="w-3.5 h-3.5" />
+              Value hidden
             </span>
             <p className={`text-sm ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
               {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%

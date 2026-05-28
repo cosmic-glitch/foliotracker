@@ -91,7 +91,13 @@
       "mcp__plugin_supabase_supabase__apply_migration",
       "Skill(cp)",
       "mcp__plugin_supabase_supabase__list_projects",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(node *)",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_hover",
+      "Bash(VITE_API_URL=https://foliotracker.vercel.app npm run *)",
+      "mcp__plugin_vercel_vercel__get_runtime_logs"
     ]
   }
 }

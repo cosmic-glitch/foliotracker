@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { Analytics } from '@vercel/analytics/react'
 import { queryClient } from './lib/queryClient'
 import { ThemeProvider } from './context/ThemeContext'
 import { ExtendedHoursProvider } from './context/ExtendedHoursContext'
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
                 <Route path="/:portfolioId" element={<App />} />
               </Routes>
+              <Analytics />
             </BrowserRouter>
           </QueryClientProvider>
         </ToastProvider>

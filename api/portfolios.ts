@@ -493,6 +493,27 @@ export default async function handler(
             ? (regularDayChange / regularPreviousTotal) * 100
             : 0;
 
+          // 30D figures, anchored on the first datapoint of history_30d_json
+          // (the oldest day we have stored, ~30 trading days back). Null
+          // anchor → null change/% so the FE can render "—" instead of
+          // pretending zero. Two flavors mirror 1D: extended-hours-aware and
+          // regular-session-only.
+          const thirtyDayAnchor = snapshot?.history_30d_json?.[0]?.value ?? null;
+          const thirtyDayWindowStart = snapshot?.history_30d_json?.[0]?.date ?? null;
+          const hasThirtyDayAnchor = snapshot != null && thirtyDayAnchor != null && thirtyDayAnchor > 0;
+          const thirtyDayChange = hasThirtyDayAnchor
+            ? snapshot!.total_value - thirtyDayAnchor!
+            : null;
+          const thirtyDayChangePercent = hasThirtyDayAnchor
+            ? ((snapshot!.total_value - thirtyDayAnchor!) / thirtyDayAnchor!) * 100
+            : null;
+          const regularThirtyDayChange = hasThirtyDayAnchor
+            ? regularTotalValue - thirtyDayAnchor!
+            : null;
+          const regularThirtyDayChangePercent = hasThirtyDayAnchor
+            ? ((regularTotalValue - thirtyDayAnchor!) / thirtyDayAnchor!) * 100
+            : null;
+
           if (hideAllValues) {
             return {
               ...portfolio,
@@ -503,6 +524,11 @@ export default async function handler(
               regularDayChange: null,
               regularDayChangePercent: null,
               peakPotentialValue: null,
+              thirtyDayChange: null,
+              thirtyDayChangePercent: null,
+              regularThirtyDayChange: null,
+              regularThirtyDayChangePercent: null,
+              thirtyDayWindowStart: null,
             };
           }
 
@@ -520,6 +546,11 @@ export default async function handler(
               regularDayChange: null,
               regularDayChangePercent: snapshot ? regularDayChangePercent : 0,
               peakPotentialValue: null,
+              thirtyDayChange: null,
+              thirtyDayChangePercent,
+              regularThirtyDayChange: null,
+              regularThirtyDayChangePercent,
+              thirtyDayWindowStart,
               lastUpdated: snapshot?.updated_at,
             };
           }
@@ -534,6 +565,11 @@ export default async function handler(
               regularDayChange,
               regularDayChangePercent,
               peakPotentialValue,
+              thirtyDayChange,
+              thirtyDayChangePercent,
+              regularThirtyDayChange,
+              regularThirtyDayChangePercent,
+              thirtyDayWindowStart,
               lastUpdated: snapshot.updated_at,
             };
           }
@@ -548,6 +584,11 @@ export default async function handler(
             regularDayChange: 0,
             regularDayChangePercent: 0,
             peakPotentialValue: 0,
+            thirtyDayChange: null,
+            thirtyDayChangePercent: null,
+            regularThirtyDayChange: null,
+            regularThirtyDayChangePercent: null,
+            thirtyDayWindowStart: null,
           };
         })
       );

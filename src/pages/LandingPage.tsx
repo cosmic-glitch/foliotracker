@@ -25,12 +25,32 @@ interface Portfolio {
   regularDayChange: number | null;
   regularDayChangePercent: number | null;
   peakPotentialValue: number | null;
+  // 30D change against the oldest stored history point (~30 trading days back).
+  // null when no anchor exists (brand-new portfolio) or — for the
+  // dollar-denominated pair — when the viewer is allocation-only restricted.
+  thirtyDayChange: number | null;
+  thirtyDayChangePercent: number | null;
+  regularThirtyDayChange: number | null;
+  regularThirtyDayChangePercent: number | null;
+  thirtyDayWindowStart: string | null;
   is_private: boolean;
   visibility: 'public' | 'private' | 'selective';
   // When TRUE, restricted viewers still receive day-change % (no $ total).
   // The LP row uses this to pick the "Allocation only" render instead of blur.
   allocation_public: boolean;
   lastUpdated?: string;
+}
+
+type Timeframe = 'day' | '30d';
+const TIMEFRAME_STORAGE_KEY = 'landingTimeframe';
+
+function loadInitialTimeframe(): Timeframe {
+  if (typeof window === 'undefined') return 'day';
+  const stored = window.localStorage.getItem(TIMEFRAME_STORAGE_KEY);
+  if (stored === 'day' || stored === '30d') return stored;
+  // Default: 1D when the market is live (intraday context matters), 30D
+  // otherwise (1D is stale anyway when the market is closed).
+  return isLiveMarketSession() ? 'day' : '30d';
 }
 
 interface PortfoliosResponse {
@@ -63,8 +83,10 @@ function formatCompactValue(value: number): string {
 interface PortfolioListRowProps {
   portfolio: Portfolio;
   displayValue: number;
-  displayChange: number;
-  displayChangePercent: number;
+  // null when the chosen timeframe has no data (e.g., brand-new portfolio in
+  // 30D mode). Renders as "—" instead of a misleading "+$0.00 (+0.00%)".
+  displayChange: number | null;
+  displayChangePercent: number | null;
   peakPotentialValue: number;
   shouldBlurValues: boolean;
   // When true, the row is restricted but allocation_public is ON: show
@@ -85,7 +107,8 @@ function PortfolioListRow({
     displayValue,
     peakPotentialValue,
   );
-  const isPositive = displayChange >= 0;
+  const hasChange = displayChange !== null && displayChangePercent !== null;
+  const isPositive = hasChange && displayChange! >= 0;
   const changeColor = isPositive ? 'text-positive' : 'text-negative';
   const sign = isPositive ? '+' : '';
   const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
@@ -137,9 +160,13 @@ function PortfolioListRow({
               <Lock className="w-3.5 h-3.5" />
               Value hidden
             </span>
-            <p className={`text-sm ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
-              {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%
-            </p>
+            {displayChangePercent !== null ? (
+              <p className={`text-sm ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
+                {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%
+              </p>
+            ) : (
+              <p className="text-sm text-text-secondary">—</p>
+            )}
           </div>
         ) : (
           <div
@@ -153,9 +180,13 @@ function PortfolioListRow({
               ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
             {!isRevealing ? (
-              <p className={`text-sm ${changeColor}`}>
-                {sign}{formatCompactValue(Math.abs(displayChange))} ({sign}{displayChangePercent.toFixed(2)}%)
-              </p>
+              hasChange ? (
+                <p className={`text-sm ${changeColor}`}>
+                  {sign}{formatCompactValue(Math.abs(displayChange!))} ({sign}{displayChangePercent!.toFixed(2)}%)
+                </p>
+              ) : (
+                <p className="text-sm text-text-secondary">—</p>
+              )
             ) : (
               <p className="text-sm text-amber-400 flex items-center justify-end gap-1 animate-[fadeIn_0.2s_ease-out] whitespace-nowrap">
                 <Sparkles className="w-3 h-3" />
@@ -188,6 +219,13 @@ export function LandingPage() {
   const { showExtendedHours } = useExtendedHours();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
+  // Which timeframe drives the change column (1D vs 30D). Sticky via
+  // localStorage; first-load default depends on whether the market is live.
+  const [timeframe, setTimeframe] = useState<Timeframe>(loadInitialTimeframe);
+
+  useEffect(() => {
+    window.localStorage.setItem(TIMEFRAME_STORAGE_KEY, timeframe);
+  }, [timeframe]);
 
   // Use TanStack Query for auto-refresh
   const { data, isLoading, error, refetch: refetchPortfolios } = useQuery({
@@ -281,11 +319,45 @@ export function LandingPage() {
           <div className="md:flex-1 min-w-0">
             {/* Portfolios List */}
             <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-                <Users className="w-5 h-5 text-text-secondary" />
-                <h3 className="text-lg font-semibold text-text-primary">
-                  Users
-                </h3>
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Users className="w-5 h-5 text-text-secondary shrink-0" />
+                  <h3 className="text-lg font-semibold text-text-primary">
+                    Users
+                  </h3>
+                </div>
+                {/* 1D / 30D segmented toggle: swaps the change column without
+                    changing row density. Sticky per browser. */}
+                <div
+                  role="tablist"
+                  aria-label="Change timeframe"
+                  className="inline-flex items-center bg-background rounded-lg p-0.5 border border-border text-xs shrink-0"
+                >
+                  <button
+                    role="tab"
+                    aria-selected={timeframe === 'day'}
+                    onClick={() => setTimeframe('day')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      timeframe === 'day'
+                        ? 'bg-card-hover text-text-primary'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    1D
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={timeframe === '30d'}
+                    onClick={() => setTimeframe('30d')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      timeframe === '30d'
+                        ? 'bg-card-hover text-text-primary'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    30D
+                  </button>
+                </div>
               </div>
 
               {isLoading ? (
@@ -309,12 +381,27 @@ export function LandingPage() {
                     const displayValue = showExtendedHours
                       ? (portfolio.totalValue ?? 0)
                       : (portfolio.regularTotalValue ?? portfolio.totalValue ?? 0);
-                    const displayChange = showExtendedHours
-                      ? (portfolio.dayChange ?? 0)
-                      : (portfolio.regularDayChange ?? portfolio.dayChange ?? 0);
-                    const displayChangePercent = showExtendedHours
-                      ? (portfolio.dayChangePercent ?? 0)
-                      : (portfolio.regularDayChangePercent ?? portfolio.dayChangePercent ?? 0);
+                    // Resolve change values from the active timeframe. Each
+                    // pair has an extended-hours flavor and a regular-session
+                    // flavor; respect the same showExtendedHours rule as the
+                    // dollar total above. Nulls flow through so the row
+                    // renders "—" when 30D has no anchor yet.
+                    const displayChange =
+                      timeframe === '30d'
+                        ? (showExtendedHours
+                            ? portfolio.thirtyDayChange
+                            : portfolio.regularThirtyDayChange ?? portfolio.thirtyDayChange)
+                        : (showExtendedHours
+                            ? (portfolio.dayChange ?? 0)
+                            : (portfolio.regularDayChange ?? portfolio.dayChange ?? 0));
+                    const displayChangePercent =
+                      timeframe === '30d'
+                        ? (showExtendedHours
+                            ? portfolio.thirtyDayChangePercent
+                            : portfolio.regularThirtyDayChangePercent ?? portfolio.thirtyDayChangePercent)
+                        : (showExtendedHours
+                            ? (portfolio.dayChangePercent ?? 0)
+                            : (portfolio.regularDayChangePercent ?? portfolio.dayChangePercent ?? 0));
                     const peakPotentialValue = Math.max(
                       portfolio.peakPotentialValue ?? 0,
                       displayValue,

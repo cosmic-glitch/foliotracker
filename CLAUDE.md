@@ -36,10 +36,10 @@ vercel --prod    # Deploy to production
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE)
 - `api/history.ts` - Historical price data (reads from pre-computed snapshots)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
-- `api/lib/db.ts` - Supabase client and database operations
-- `api/lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
-- `api/lib/cache.ts` - Market hours detection utilities
-- `api/lib/snapshot.ts` - Snapshot computation logic for portfolios
+- `api/_lib/db.ts` - Supabase client and database operations
+- `api/_lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
+- `api/_lib/cache.ts` - Market hours detection utilities
+- `api/_lib/snapshot.ts` - Snapshot computation logic for portfolios
 - `api/_lib/prompts.ts` - Shared AI prompts (deep research report structure)
 - `scripts/generate-research.ts` - Generate AI research reports for portfolios
 - `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)

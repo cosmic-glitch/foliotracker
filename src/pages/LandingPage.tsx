@@ -253,7 +253,33 @@ export function LandingPage() {
     };
   }, [refetchPortfolios]);
 
-  const portfolios = useMemo(() => data?.portfolios ?? [], [data]);
+  const portfolios = useMemo(() => {
+    const raw = data?.portfolios ?? [];
+    if (raw.length === 0) return raw;
+
+    // Tier the list so the viewer sees what's most relevant first:
+    //   1 = your own portfolio
+    //   2 = full access (public, or selective where you're invited; for these
+    //       the API returns a real totalValue)
+    //   3 = allocation-only (hideDollarsOnly: "Value hidden" + %)
+    //   4 = fully blurred (hideAllValues). Empty in production today since
+    //       every portfolio has allocation_public=true, but kept for defense.
+    // Within a tier, fall back to the API's existing created_at ASC ordering
+    // so positions stay stable across visits and don't shuffle on the
+    // timeframe toggle or the extended-hours toggle.
+    const viewer = loggedInAs?.toLowerCase() ?? null;
+    const tierOf = (p: Portfolio): number => {
+      if (viewer && p.id.toLowerCase() === viewer) return 1;
+      const isRestricted = p.visibility !== 'public' && p.totalValue === null;
+      if (!isRestricted) return 2;
+      return p.allocation_public ? 3 : 4;
+    };
+
+    return [...raw]
+      .map((p, idx) => ({ p, idx, tier: tierOf(p) }))
+      .sort((a, b) => a.tier - b.tier || a.idx - b.idx)
+      .map((e) => e.p);
+  }, [data, loggedInAs]);
 
   // Get most recent lastUpdated from all portfolios
   const latestUpdate = useMemo(() => {

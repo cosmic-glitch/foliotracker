@@ -78,6 +78,19 @@ function mergeHoldings(holdings: Holding[], group: string[]): Holding {
       ? holdings.reduce((sum, h) => sum + h.dayChangePercent * h.value, 0) / totalValue
       : 0;
 
+  // 30D: sum the dollar deltas when every holding has data; value-weight the
+  // percent the same way. Same "all-or-nothing" rule as costBasis below — if
+  // any equivalent lacks 30D (brand-new ticker), the merged figure is null.
+  const allHaveThirtyDay = holdings.every(
+    (h) => h.thirtyDayChange !== null && h.thirtyDayChangePercent !== null,
+  );
+  const thirtyDayChange = allHaveThirtyDay
+    ? holdings.reduce((sum, h) => sum + (h.thirtyDayChange ?? 0), 0)
+    : null;
+  const thirtyDayChangePercent = allHaveThirtyDay && totalValue > 0
+    ? holdings.reduce((sum, h) => sum + (h.thirtyDayChangePercent ?? 0) * h.value, 0) / totalValue
+    : null;
+
   // Cost basis and profit/loss - sum if all non-null
   const allHaveCostBasis = holdings.every((h) => h.costBasis !== null);
   const costBasis = allHaveCostBasis
@@ -108,6 +121,12 @@ function mergeHoldings(holdings: Holding[], group: string[]): Holding {
     allocation,
     dayChange,
     dayChangePercent,
+    thirtyDayChange,
+    thirtyDayChangePercent,
+    // Merged anchor isn't well-defined for mixed-anchor groups. The hook's
+    // regular-hours recompute runs on the un-consolidated holdings list
+    // upstream, so this field isn't consumed downstream of consolidation.
+    thirtyDayAnchorPrice: null,
     isStatic: first.isStatic,
     instrumentType: first.instrumentType,
     costBasis,

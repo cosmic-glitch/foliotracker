@@ -3,6 +3,25 @@ import type { Holding } from '../types/portfolio';
 import { ArrowUpDown, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent, formatPrice, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
+import { useTimeframe } from '../context/TimeframeContext';
+
+// Resolve which change pair drives the "Chg %" / "Chg $" columns for the
+// active global timeframe. Returns null when the snapshot lacks 30D data
+// (older snapshots written before pass 2, or new tickers without history).
+// Static holdings get 0/0 from the snapshot — fine to render as empty since
+// the existing `!== 0` gate already collapses them.
+function activeChange(
+  holding: Holding,
+  timeframe: 'day' | '30d',
+): { change: number | null; percent: number | null } {
+  if (timeframe === '30d') {
+    return {
+      change: holding.thirtyDayChange,
+      percent: holding.thirtyDayChangePercent,
+    };
+  }
+  return { change: holding.dayChange, percent: holding.dayChangePercent };
+}
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -28,18 +47,25 @@ function getDefaultSortDirection(column: SortColumn): SortDirection {
   return column === 'ticker' ? 'asc' : 'desc';
 }
 
-function getSortValue(holding: Holding, column: SortColumn): string | number | null {
+// `dayChange` / `dayChangePercent` column keys are kept (no UI churn on the
+// sort enum) but read whichever timeframe's pair is active. Static holdings
+// always return null so they sort to the bottom regardless of timeframe.
+function getSortValue(
+  holding: Holding,
+  column: SortColumn,
+  timeframe: 'day' | '30d',
+): string | number | null {
   switch (column) {
     case 'ticker':
       return holding.ticker;
     case 'currentPrice':
       return holding.isStatic ? null : holding.currentPrice;
     case 'dayChangePercent':
-      return holding.isStatic ? null : holding.dayChangePercent;
+      return holding.isStatic ? null : activeChange(holding, timeframe).percent;
     case 'value':
       return holding.value;
     case 'dayChange':
-      return holding.isStatic ? null : holding.dayChange;
+      return holding.isStatic ? null : activeChange(holding, timeframe).change;
     case 'revenue':
       return holding.revenue;
     case 'earnings':
@@ -60,6 +86,7 @@ function getSortValue(holding: Holding, column: SortColumn): string | number | n
 }
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
+  const { timeframe } = useTimeframe();
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
   const maxTickerLength = useMemo(() => Math.max(...consolidatedHoldings.filter((h) => !h.isStatic).map((h) => h.ticker.length)), [consolidatedHoldings]);
   const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
@@ -90,8 +117,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const sortedHoldings = useMemo(() => {
     const sorted = [...consolidatedHoldings];
     sorted.sort((a, b) => {
-      const aValue = getSortValue(a, sortConfig.column);
-      const bValue = getSortValue(b, sortConfig.column);
+      const aValue = getSortValue(a, sortConfig.column, timeframe);
+      const bValue = getSortValue(b, sortConfig.column, timeframe);
 
       // Keep null/empty fundamental values at the bottom in both directions.
       if (aValue == null && bValue == null) return 0;
@@ -107,7 +134,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       return sortConfig.direction === 'asc' ? result : -result;
     });
     return sorted;
-  }, [consolidatedHoldings, sortConfig]);
+  }, [consolidatedHoldings, sortConfig, timeframe]);
 
   const hasAnyFundamentals = consolidatedHoldings.some(
     (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
@@ -211,7 +238,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             </tr>
           </thead>
           <tbody>
-            {sortedHoldings.map((holding) => (
+            {sortedHoldings.map((holding) => {
+              // Active change pair flips with the global timeframe.
+              // `change`/`percent` can be null when the snapshot lacks 30D
+              // data for this ticker — render empty (same fallback as 1D
+              // when the value is 0).
+              const { change, percent } = activeChange(holding, timeframe);
+              return (
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
                   <td className="w-[11ch] min-w-[11ch] max-w-[11ch] px-4 py-2 whitespace-nowrap">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -226,8 +259,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     )}
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
-                    {!holding.isStatic && holding.dayChangePercent !== 0 && (
-                      <span className={`text-sm ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(holding.dayChangePercent)}</span>
+                    {!holding.isStatic && percent !== null && percent !== 0 && (
+                      <span className={`text-sm ${percent >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(percent)}</span>
                     )}
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
@@ -236,9 +269,9 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </span>
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
-                    {!holding.isStatic && holding.dayChange !== 0 && (
-                      <span className={`text-sm ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}>
-                        {formatChange(holding.dayChange, true)}
+                    {!holding.isStatic && change !== null && change !== 0 && (
+                      <span className={`text-sm ${change >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        {formatChange(change, true)}
                       </span>
                     )}
                   </td>
@@ -254,7 +287,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </>
                   )}
                 </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -264,6 +298,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         {sortedHoldings.map((holding) => {
           const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
           const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
+          const { change, percent } = activeChange(holding, timeframe);
           return (
             <div key={holding.ticker} className="px-3 py-2">
               <div className="flex items-center gap-2">
@@ -288,12 +323,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                         <span className="text-accent text-xs">{sortArrow}</span>
                       )}
                     </span>
-                    {holding.dayChangePercent !== 0 && (
+                    {percent !== null && percent !== 0 && (
                       <span
                         onClick={() => handleSort('dayChangePercent')}
-                        className={`text-xs ml-1 cursor-pointer select-none ${holding.dayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}
+                        className={`text-xs ml-1 cursor-pointer select-none ${percent >= 0 ? 'text-positive' : 'text-negative'}`}
                       >
-                        {formatPercent(holding.dayChangePercent)}
+                        {formatPercent(percent)}
                         {sortConfig.column === 'dayChangePercent' && (
                           <span className="text-accent">{sortArrow}</span>
                         )}
@@ -314,12 +349,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <span className="text-accent text-xs">{sortArrow}</span>
                     )}
                   </span>
-                  {!holding.isStatic && holding.dayChange !== 0 && (
+                  {!holding.isStatic && change !== null && change !== 0 && (
                     <span
                       onClick={() => handleSort('dayChange')}
-                      className={`text-xs ml-1 cursor-pointer select-none ${holding.dayChange >= 0 ? 'text-positive' : 'text-negative'}`}
+                      className={`text-xs ml-1 cursor-pointer select-none ${change >= 0 ? 'text-positive' : 'text-negative'}`}
                     >
-                      {formatChange(holding.dayChange, true)}
+                      {formatChange(change, true)}
                       {sortConfig.column === 'dayChange' && (
                         <span className="text-accent">{sortArrow}</span>
                       )}

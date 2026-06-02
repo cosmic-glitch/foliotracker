@@ -8,6 +8,12 @@ export interface Holding {
   allocation: number;
   dayChange: number;
   dayChangePercent: number;
+  // Per-holding 30D figures. Null for tickers that lack historical data yet
+  // (brand-new addition) — HoldingsTable renders these as empty cells when
+  // the global timeframe is set to 30d. Static holdings: 0/0/null.
+  thirtyDayChange: number | null;
+  thirtyDayChangePercent: number | null;
+  thirtyDayAnchorPrice: number | null;
   isStatic: boolean;
   instrumentType: string;
   costBasis: number | null;

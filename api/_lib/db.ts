@@ -764,6 +764,16 @@ export interface SnapshotHolding {
   allocation: number;
   dayChange: number;
   dayChangePercent: number;
+  // Per-holding 30D change drives HoldingsTable's Chg % / Chg $ columns when
+  // the global timeframe is set to 30d. Anchor = oldest close in the
+  // ticker's 30D historical series (same source as the portfolio's 30D
+  // chart). Static holdings: 0/0/null — their value doesn't move and there's
+  // no per-share anchor.
+  // Optional: snapshots written before this field was introduced lack it.
+  // Frontend treats absent as null/0 gracefully.
+  thirtyDayChange?: number | null;
+  thirtyDayChangePercent?: number | null;
+  thirtyDayAnchorPrice?: number | null;
   isStatic: boolean;
   instrumentType: string;
   costBasis: number | null;

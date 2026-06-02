@@ -45,6 +45,11 @@ interface ApiPortfolioResponse {
     allocation: number;
     dayChange: number;
     dayChangePercent: number;
+    // Per-holding 30D fields are absent on snapshots written before pass 2
+    // shipped — the transform below defaults to null in that case.
+    thirtyDayChange?: number | null;
+    thirtyDayChangePercent?: number | null;
+    thirtyDayAnchorPrice?: number | null;
     isStatic: boolean;
     instrumentType: string;
     costBasis: number | null;
@@ -264,6 +269,9 @@ export function usePortfolioData(
     // Build holdings with potential regular-hours overrides
     let holdings = p.holdings.map(h => ({
       ...h,
+      thirtyDayChange: h.thirtyDayChange ?? null,
+      thirtyDayChangePercent: h.thirtyDayChangePercent ?? null,
+      thirtyDayAnchorPrice: h.thirtyDayAnchorPrice ?? null,
       revenue: h.revenue ?? null,
       earnings: h.earnings ?? null,
       forwardPE: h.forwardPE ?? null,
@@ -325,6 +333,17 @@ export function usePortfolioData(
         const previousValue = h.shares * h.previousClose;
         const dayChange = value - previousValue;
         const dayChangePercent = previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
+        // Recompute 30D off the regular-hours close, using the per-ticker
+        // anchor the server included. Without this, 30D figures would still
+        // reflect the extended-hours endpoint and disagree slightly with
+        // the regular-hours dollar total above.
+        const anchor = h.thirtyDayAnchorPrice;
+        const thirtyDayChange = anchor != null && anchor > 0
+          ? h.shares * (regPrice - anchor)
+          : null;
+        const thirtyDayChangePercent = anchor != null && anchor > 0
+          ? ((regPrice - anchor) / anchor) * 100
+          : null;
         regularTotal += value;
         regularPreviousTotal += previousValue;
         return {
@@ -333,6 +352,8 @@ export function usePortfolioData(
           value,
           dayChange,
           dayChangePercent,
+          thirtyDayChange,
+          thirtyDayChangePercent,
           allocation: 0, // will be recomputed below
           profitLoss: h.costBasis !== null ? value - h.costBasis : null,
           profitLossPercent: h.costBasis !== null && h.costBasis > 0

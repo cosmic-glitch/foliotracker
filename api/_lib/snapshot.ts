@@ -100,6 +100,23 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
   return cached;
 }
 
+// Resolve the oldest available close for a ticker — the 30D anchor used to
+// compute per-holding 30D change in HoldingsTable. The 30D portfolio chart
+// uses the same dataset (history_30d_json[0].value), so anchors are aligned.
+function resolveThirtyDayAnchor(
+  ticker: string,
+  historicalPrices: Map<string, Map<string, number>>,
+): number | null {
+  const tickerPrices = historicalPrices.get(ticker);
+  if (!tickerPrices || tickerPrices.size === 0) return null;
+  // Map iteration order isn't guaranteed for date strings inserted in
+  // arbitrary order; sort to find the oldest.
+  const sortedDates = Array.from(tickerPrices.keys()).sort();
+  const oldest = sortedDates[0];
+  const price = tickerPrices.get(oldest);
+  return price != null && price > 0 ? price : null;
+}
+
 // Compute holdings with current values from price cache
 function computeHoldings(
   dbHoldings: DbHolding[],
@@ -109,7 +126,10 @@ function computeHoldings(
   // Split-adjusted 52w highs from Yahoo. Preferred over
   // fundamentals.week_52_high (companiesmarketcap.org), which has been observed
   // to return pre-split values that wildly inflate peak-potential totals.
-  yahoo52WeekHighs: Map<string, number> = new Map()
+  yahoo52WeekHighs: Map<string, number> = new Map(),
+  // 30D close-price history per ticker; oldest entry is each ticker's 30D
+  // anchor. Empty map → 30D fields fall to null on each holding.
+  historicalPrices: Map<string, Map<string, number>> = new Map(),
 ): { holdings: SnapshotHolding[]; totalValue: number; totalDayChange: number; totalGain: number | null; totalGainPercent: number | null } {
   const holdings: SnapshotHolding[] = [];
   let totalValue = 0;
@@ -136,6 +156,11 @@ function computeHoldings(
         allocation: 0,
         dayChange: 0,
         dayChangePercent: 0,
+        // Static holdings don't move — neither 1D nor 30D have meaningful
+        // change. No per-share anchor either.
+        thirtyDayChange: 0,
+        thirtyDayChangePercent: 0,
+        thirtyDayAnchorPrice: null,
         isStatic: true,
         instrumentType: holding.instrument_type || 'Other',
         costBasis,
@@ -188,6 +213,18 @@ function computeHoldings(
         : null;
 
       const regPrice = regularPrices?.get(holding.ticker);
+
+      // 30D per-holding figures. Anchor = oldest close in this ticker's 30D
+      // series. Null when the ticker has no historical data yet (brand-new
+      // addition); HoldingsTable renders "—" in that case.
+      const thirtyDayAnchorPrice = resolveThirtyDayAnchor(holding.ticker, historicalPrices);
+      const thirtyDayChange = thirtyDayAnchorPrice != null
+        ? holding.shares * (price.currentPrice - thirtyDayAnchorPrice)
+        : null;
+      const thirtyDayChangePercent = thirtyDayAnchorPrice != null
+        ? ((price.currentPrice - thirtyDayAnchorPrice) / thirtyDayAnchorPrice) * 100
+        : null;
+
       holdings.push({
         ticker: holding.ticker,
         name: holding.name,
@@ -198,6 +235,9 @@ function computeHoldings(
         allocation: 0,
         dayChange,
         dayChangePercent,
+        thirtyDayChange,
+        thirtyDayChangePercent,
+        thirtyDayAnchorPrice,
         isStatic: false,
         instrumentType: holding.instrument_type || 'Other',
         costBasis,
@@ -639,7 +679,7 @@ export async function refreshAllSnapshots(): Promise<void> {
   for (const portfolio of portfolios) {
     const holdings = allHoldingsMap.get(portfolio.id) || [];
 
-    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap);
+    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices);
     const previousTotalValue = totalValue - totalDayChange;
     const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 
@@ -847,7 +887,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const benchmarkHistory = computeBenchmarkHistory(spyPrices);
 
   // Compute snapshot
-  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap);
+  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices);
   const previousTotalValue = totalValue - totalDayChange;
   const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
 

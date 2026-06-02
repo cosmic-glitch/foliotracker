@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { isLiveMarketSession } from '../lib/market-hours';
 
 // Global 1D/30D view setting. Mirrors ExtendedHoursContext in shape and is
 // surfaced from the same place (UserMenu's check rows). One source of truth
@@ -29,9 +28,9 @@ function loadInitial(): Timeframe {
   if (typeof window === 'undefined') return 'day';
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === 'day' || stored === '30d') return stored;
-  // First visit: 1D when the market is live (intraday context matters), 30D
-  // otherwise (1D is stale anyway when the market is closed).
-  return isLiveMarketSession() ? 'day' : '30d';
+  // First visit: always 1D. The "30-Day View" menu row is treated as an
+  // off-by-default opt-in, mirroring how Extended Hours behaves.
+  return 'day';
 }
 
 export function TimeframeProvider({ children }: { children: ReactNode }) {

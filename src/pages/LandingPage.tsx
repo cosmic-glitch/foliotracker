@@ -13,6 +13,11 @@ import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
 import { formatChange } from '../utils/formatters';
+import {
+  type Timeframe,
+  TIMEFRAME_STORAGE_KEY,
+  loadInitialTimeframe,
+} from '../lib/timeframe';
 
 interface Portfolio {
   id: string;
@@ -39,18 +44,6 @@ interface Portfolio {
   // The LP row uses this to pick the "Allocation only" render instead of blur.
   allocation_public: boolean;
   lastUpdated?: string;
-}
-
-type Timeframe = 'day' | '30d';
-const TIMEFRAME_STORAGE_KEY = 'landingTimeframe';
-
-function loadInitialTimeframe(): Timeframe {
-  if (typeof window === 'undefined') return 'day';
-  const stored = window.localStorage.getItem(TIMEFRAME_STORAGE_KEY);
-  if (stored === 'day' || stored === '30d') return stored;
-  // Default: 1D when the market is live (intraday context matters), 30D
-  // otherwise (1D is stale anyway when the market is closed).
-  return isLiveMarketSession() ? 'day' : '30d';
 }
 
 interface PortfoliosResponse {

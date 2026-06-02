@@ -172,6 +172,8 @@ export function getMockPortfolioData(): PortfolioData {
     totalValue,
     totalDayChange,
     totalDayChangePercent,
+    totalThirtyDayChange: null,
+    totalThirtyDayChangePercent: null,
     totalGain: null, // Mock data doesn't have cost basis
     totalGainPercent: null,
     holdings,

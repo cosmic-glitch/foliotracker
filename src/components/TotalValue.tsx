@@ -1,25 +1,44 @@
 import { TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 import { usePeakReveal } from '../hooks/usePeakReveal';
+import type { Timeframe } from '../lib/timeframe';
 
 interface TotalValueProps {
   totalValue: number;
   dayChange: number;
   dayChangePercent: number;
+  // 30D-window equivalents of dayChange/dayChangePercent. Null while the 30D
+  // history is still loading after a fresh toggle to 30D, or when the
+  // portfolio has no historical anchor yet.
+  thirtyDayChange: number | null;
+  thirtyDayChangePercent: number | null;
   totalGain: number | null;
   totalGainPercent: number | null;
   peakPotentialValue: number;
+  // Drives which change pair (today vs past 30 days) drives the right-hand card.
+  timeframe: Timeframe;
 }
 
 export function TotalValue({
   totalValue,
   dayChange,
   dayChangePercent,
+  thirtyDayChange,
+  thirtyDayChangePercent,
   totalGain,
   totalGainPercent,
   peakPotentialValue,
+  timeframe,
 }: TotalValueProps) {
-  const isPositive = dayChange >= 0;
+  // Pick the active change figures. 30D may be null mid-load → render as a
+  // muted dash card so the layout doesn't jump.
+  const activeChange = timeframe === '30d' ? thirtyDayChange : dayChange;
+  const activeChangePercent =
+    timeframe === '30d' ? thirtyDayChangePercent : dayChangePercent;
+  const activeLabel = timeframe === '30d' ? 'past 30 days' : 'today';
+  const hasActiveChange = activeChange !== null && activeChangePercent !== null;
+
+  const isPositive = hasActiveChange ? activeChange! >= 0 : true;
   const DayIcon = isPositive ? TrendingUp : TrendingDown;
   const dayChangeColor = isPositive ? 'text-positive' : 'text-negative';
   const dayBgColor = isPositive ? 'bg-positive/10' : 'bg-negative/10';
@@ -50,17 +69,33 @@ export function TotalValue({
         </div>
         {!isRevealing ? (
           <div className="flex flex-row items-stretch gap-1.5 sm:gap-2 md:gap-3">
-            <div className={`flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl ${dayBgColor}`}>
-              <DayIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 ${dayChangeColor}`} />
-              <div className="flex flex-col">
-                <span className={`text-xs sm:text-sm md:text-lg font-semibold ${dayChangeColor}`}>
-                  {formatChange(dayChange, true)}
-                </span>
-                <span className={`text-[10px] sm:text-[11px] md:text-sm ${dayChangeColor}`}>
-                  {formatPercent(dayChangePercent)} today
-                </span>
+            {hasActiveChange ? (
+              <div className={`flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl ${dayBgColor}`}>
+                <DayIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 ${dayChangeColor}`} />
+                <div className="flex flex-col">
+                  <span className={`text-xs sm:text-sm md:text-lg font-semibold ${dayChangeColor}`}>
+                    {formatChange(activeChange!, true)}
+                  </span>
+                  <span className={`text-[10px] sm:text-[11px] md:text-sm ${dayChangeColor}`}>
+                    {formatPercent(activeChangePercent!)} {activeLabel}
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 30D anchor not yet available (still loading the history series
+              // for a fresh toggle, or no historical data at all). Reserve the
+              // slot so the layout doesn't shift when the figure resolves.
+              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl bg-text-secondary/5">
+                <div className="flex flex-col">
+                  <span className="text-xs sm:text-sm md:text-lg font-semibold text-text-secondary">
+                    —
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] md:text-sm text-text-secondary">
+                    {activeLabel}
+                  </span>
+                </div>
+              </div>
+            )}
             {totalGain !== null && totalGainPercent !== null && (
                 <div className={`hidden md:flex items-center gap-1 sm:gap-1.5 md:gap-3 px-1.5 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-3 rounded-xl ${gainBgColor}`}>
                   <GainIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-5 md:h-5 ${gainColor}`} />

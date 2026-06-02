@@ -64,7 +64,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return () => mediaQuery.removeEventListener('change', onChange);
   }, []);
 
-  // Swipe gesture for mobile chart view toggle
+  // Swipe gesture kept as a secondary affordance on mobile. The primary
+  // control is now the page-level TimeframeToggle pill in App.tsx (which also
+  // drives the TotalValue headline), so the old dots and the desktop top-right
+  // toggle have been removed from this component.
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -80,23 +83,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     }
     touchStartRef.current = null;
   };
-
-  const renderDots = () => (
-    <div className="flex md:hidden justify-center gap-1.5 pb-1">
-      {(['1D', '30D'] as const).map((view) => (
-        <button
-          key={view}
-          onClick={() => onViewChange(view)}
-          className={`w-1.5 h-1.5 rounded-full transition-all ${
-            chartView === view
-              ? 'bg-accent scale-125'
-              : 'bg-text-secondary/30'
-          }`}
-          aria-label={`Switch to ${view} view`}
-        />
-      ))}
-    </div>
-  );
 
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
@@ -160,31 +146,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return points;
   }, [data, chartView, currentValue]);
 
-  const renderToggle = () => (
-    <div className="flex flex-col rounded-lg overflow-hidden border border-border bg-card/90 backdrop-blur-sm">
-      <button
-        onClick={() => onViewChange('1D')}
-        className={`px-2 py-0.5 text-xs font-medium transition-colors ${
-          chartView === '1D'
-            ? 'bg-accent text-white'
-            : 'text-text-secondary hover:bg-background'
-        }`}
-      >
-        1D
-      </button>
-      <button
-        onClick={() => onViewChange('30D')}
-        className={`px-2 py-0.5 text-xs font-medium transition-colors ${
-          chartView === '30D'
-            ? 'bg-accent text-white'
-            : 'text-text-secondary hover:bg-background'
-        }`}
-      >
-        30D
-      </button>
-    </div>
-  );
-
   // Show loading state
   if (isLoading) {
     return (
@@ -195,12 +156,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               <span className="text-text-secondary text-sm">Loading chart data...</span>
             </div>
-            <div className="hidden md:block absolute top-2 right-0 z-10">
-              {renderToggle()}
-            </div>
           </div>
         </div>
-        {renderDots()}
       </div>
     );
   }
@@ -211,12 +168,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
-            <div className="hidden md:block absolute top-2 right-0 z-10">
-              {renderToggle()}
-            </div>
           </div>
         </div>
-        {renderDots()}
       </div>
     );
   }
@@ -358,9 +311,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="hidden md:block absolute top-2 right-0 z-10">
-            {renderToggle()}
-          </div>
           {chartView === '1D' && sessionBoundaries && showExtendedHours && (
             <div className="hidden md:flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
               <span className="inline-flex items-center gap-1">
@@ -379,7 +329,6 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
           )}
         </div>
       </div>
-      {renderDots()}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   PermissionsModal,
   ShareModal,
   AIResearchSection,
+  TimeframeToggle,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
@@ -238,13 +239,28 @@ function App() {
                   totalValue={data.totalValue}
                   dayChange={data.totalDayChange}
                   dayChangePercent={data.totalDayChangePercent}
+                  thirtyDayChange={data.totalThirtyDayChange}
+                  thirtyDayChangePercent={data.totalThirtyDayChangePercent}
                   totalGain={data.totalGain}
                   totalGainPercent={data.totalGainPercent}
                   peakPotentialValue={Math.max(
                     computePeakPotentialTotal(data.holdings),
                     data.totalValue,
                   )}
+                  timeframe={chartView === '30D' ? '30d' : 'day'}
                 />
+                {/* 1D/30D pill governs BOTH the headline change above and the
+                    chart below. Replaces the chart's old undiscoverable mobile
+                    swipe + dots and desktop top-right toggle (those are gone
+                    from PerformanceChart). Right-aligned strip sits between
+                    the two so the linkage to both is visible. */}
+                <div className="flex justify-end -mb-1 md:-mb-2">
+                  <TimeframeToggle
+                    timeframe={chartView === '30D' ? '30d' : 'day'}
+                    onChange={(next) => setChartView(next === '30d' ? '30D' : '1D')}
+                    ariaLabel="Performance timeframe"
+                  />
+                </div>
                 <div className="mb-1 md:mb-3">
                   <PerformanceChart
                     data={data.historicalData}

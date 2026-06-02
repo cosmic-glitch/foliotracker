@@ -1,10 +1,25 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isLiveMarketSession } from '../lib/market-hours';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
+import {
+  type Timeframe,
+  loadInitialTimeframe,
+  persistTimeframe,
+} from '../lib/timeframe';
 
 export type ChartView = '1D' | '30D';
+
+// The hook keeps its `'1D' | '30D'` vocabulary (PerformanceChart and the rest
+// of the file use it everywhere), but localStorage is shared with the landing
+// page which writes `'day' | '30d'`. Map at the boundary.
+function timeframeToChartView(t: Timeframe): ChartView {
+  return t === 'day' ? '1D' : '30D';
+}
+function chartViewToTimeframe(c: ChartView): Timeframe {
+  return c === '1D' ? 'day' : '30d';
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -146,7 +161,14 @@ export function usePortfolioData(
   shareToken?: string | null
 ) {
   const queryClient = useQueryClient();
-  const [chartView, setChartView] = useState<ChartView>('1D');
+  // Seed from the shared landing-page key so the user's last 1D/30D pick
+  // carries across the two surfaces.
+  const [chartView, setChartView] = useState<ChartView>(() =>
+    timeframeToChartView(loadInitialTimeframe()),
+  );
+  useEffect(() => {
+    persistTimeframe(chartViewToTimeframe(chartView));
+  }, [chartView]);
   const { showExtendedHours } = useExtendedHours();
 
   // Portfolio query - needs frequent updates for live prices
@@ -265,6 +287,8 @@ export function usePortfolioData(
         totalValue: 0,
         totalDayChange: 0,
         totalDayChangePercent: p.totalDayChangePercent,
+        totalThirtyDayChange: null,
+        totalThirtyDayChangePercent: null,
         totalGain: null,
         totalGainPercent: p.totalGainPercent,
         holdings,
@@ -333,12 +357,27 @@ export function usePortfolioData(
       displayTotalValue = intradayData[intradayData.length - 1].value;
     }
 
+    // 30D headline figures, anchored on the oldest point in the 30D series.
+    // The history query is gated by `chartView === '30D'`, so this is null in
+    // 1D mode (the headline doesn't need it) and during the brief load when
+    // the user first flips to 30D. Mirrors api/portfolios.ts's anchor math.
+    const thirtyDayAnchor = historyQuery.data?.data?.[0]?.value ?? null;
+    const hasThirtyDayAnchor = thirtyDayAnchor != null && thirtyDayAnchor > 0;
+    const totalThirtyDayChange = hasThirtyDayAnchor
+      ? displayTotalValue - thirtyDayAnchor
+      : null;
+    const totalThirtyDayChangePercent = hasThirtyDayAnchor
+      ? ((displayTotalValue - thirtyDayAnchor) / thirtyDayAnchor) * 100
+      : null;
+
     return {
       portfolioId: p.portfolioId,
       displayName: p.displayName,
       totalValue: displayTotalValue,
       totalDayChange: displayDayChange,
       totalDayChangePercent: displayDayChangePercent,
+      totalThirtyDayChange,
+      totalThirtyDayChangePercent,
       totalGain: p.totalGain,
       totalGainPercent: p.totalGainPercent,
       holdings,
@@ -358,7 +397,7 @@ export function usePortfolioData(
       staleTickers: p.staleTickers ?? [],
       viewMode: p.viewMode ?? 'full',
     };
-  }, [portfolioQuery.data, chartData, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
+  }, [portfolioQuery.data, chartData, historyQuery.data?.data, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
 
   // Refresh only portfolio prices (not history - it rarely changes)
   const refresh = useCallback(() => {

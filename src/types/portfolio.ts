@@ -50,6 +50,12 @@ export interface PortfolioData {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  // 30D headline change against the oldest point in the active 30D series.
+  // Null while the 30D history is loading or when no anchor is available
+  // (brand-new portfolio with no historical data). Mirrors the per-portfolio
+  // figures the landing-page list endpoint computes off `history_30d_json[0]`.
+  totalThirtyDayChange: number | null;
+  totalThirtyDayChangePercent: number | null;
   totalGain: number | null;
   totalGainPercent: number | null;
   holdings: Holding[];

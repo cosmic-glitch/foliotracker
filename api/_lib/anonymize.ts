@@ -16,7 +16,10 @@ interface AnyHolding {
   profitLossPercent: number | null;
   instrumentType: string;
   isStatic: boolean;
-  // Anything else may be present on input — stripped on output.
+  // Anything else may be present on input — stripped on output. The strip
+  // helper also writes extra zero/null fields (shares, currentPrice, …) on
+  // output to defang any downstream reader; the index signature is what
+  // makes those writes typecheck.
   [k: string]: unknown;
 }
 

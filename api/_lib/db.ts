@@ -788,6 +788,11 @@ export interface SnapshotHolding {
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
   regularMarketPrice: number;
+  // JSONB-stored; the index signature lets future fields land in
+  // holdings_json without a type change, and keeps SnapshotHolding[]
+  // assignable to api/portfolio.ts's Holding[] (which has the same
+  // signature for the same reason).
+  [k: string]: unknown;
 }
 
 export interface HistoryDataPoint {

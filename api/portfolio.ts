@@ -23,6 +23,10 @@ interface Holding {
   costBasis: number | null;
   profitLoss: number | null;
   profitLossPercent: number | null;
+  // Tolerates extra fields the snapshot carries (revenue, earnings,
+  // forwardPE, 52w high, thirtyDayChange{,Percent}, etc.) without listing
+  // every one here, and satisfies AnyHolding's constraint in anonymize.ts.
+  [k: string]: unknown;
 }
 
 interface BenchmarkData {
@@ -63,6 +67,9 @@ interface PortfolioResponse {
   // 'share_link' = viewer arrived via a ?share=... token in allocation_only mode.
   // 'restricted' = viewer lacks owner-level permission on a portfolio that allows public allocation.
   viewSource?: 'share_link' | 'restricted';
+  // Satisfies PortfolioResponseLike's index signature (anonymize.ts) so this
+  // object can be passed to the generic stripPortfolioForAllocationOnly.
+  [k: string]: unknown;
 }
 
 // Helper to time async operations
@@ -457,13 +464,16 @@ export default async function handler(
     // turned on. `viewSource` lets the FE pick the right banner copy.
     const allocationOnly =
       shareLinkMode === 'allocation_only' || (restricted && allocationPublic);
-    const finalResponse: typeof response | (typeof response & { viewSource: 'share_link' | 'restricted' }) =
-      allocationOnly
-        ? {
-            ...stripPortfolioForAllocationOnly(response),
-            viewSource: shareLinkMode === 'allocation_only' ? 'share_link' : 'restricted',
-          }
-        : response;
+    // Earlier this had an explicit `typeof response | (typeof response & { viewSource })`
+    // annotation, but the spread of the generic stripPortfolioForAllocationOnly
+    // result widened the literal back to PortfolioResponseLike's structural
+    // shape (most fields optional), so TS reported PortfolioResponse fields
+    // as missing. Letting inference run produces the right union shape.
+    const viewSource: 'share_link' | 'restricted' =
+      shareLinkMode === 'allocation_only' ? 'share_link' : 'restricted';
+    const finalResponse = allocationOnly
+      ? { ...stripPortfolioForAllocationOnly(response), viewSource }
+      : response;
 
     console.log(`[TIMING] portfolio.ts total: ${Date.now() - requestStart}ms (id=${portfolioId})`);
     res.status(200).json(finalResponse);

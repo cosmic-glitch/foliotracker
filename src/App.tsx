@@ -14,7 +14,6 @@ import {
   PermissionsModal,
   ShareModal,
   AIResearchSection,
-  TimeframeToggle,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { usePortfolioData } from './hooks/usePortfolioData';
@@ -249,18 +248,10 @@ function App() {
                   )}
                   timeframe={chartView === '30D' ? '30d' : 'day'}
                 />
-                {/* 1D/30D pill governs BOTH the headline change above and the
-                    chart below. Replaces the chart's old undiscoverable mobile
-                    swipe + dots and desktop top-right toggle (those are gone
-                    from PerformanceChart). Right-aligned strip sits between
-                    the two so the linkage to both is visible. */}
-                <div className="flex justify-end -mb-1 md:-mb-2">
-                  <TimeframeToggle
-                    timeframe={chartView === '30D' ? '30d' : 'day'}
-                    onChange={(next) => setChartView(next === '30d' ? '30D' : '1D')}
-                    ariaLabel="Performance timeframe"
-                  />
-                </div>
+                {/* 1D/30D is a global setting toggled from UserMenu's
+                    "30-Day View" row; nothing inline above the chart. The
+                    chart still flips via PerformanceChart's swipe gesture
+                    (mobile bonus). */}
                 <div className="mb-1 md:mb-3">
                   <PerformanceChart
                     data={data.historicalData}

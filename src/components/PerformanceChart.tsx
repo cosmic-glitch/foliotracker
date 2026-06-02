@@ -65,9 +65,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   }, []);
 
   // Swipe gesture kept as a secondary affordance on mobile. The primary
-  // control is now the page-level TimeframeToggle pill in App.tsx (which also
-  // drives the TotalValue headline), so the old dots and the desktop top-right
-  // toggle have been removed from this component.
+  // control is the "30-Day View" row in UserMenu (TimeframeContext), which
+  // drives this chart, the TotalValue headline, and the landing list
+  // together. The old in-chart dots and desktop top-right toggle have been
+  // removed.
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const onTouchStart = (e: React.TouchEvent) => {

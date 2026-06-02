@@ -6,6 +6,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { queryClient } from './lib/queryClient'
 import { ThemeProvider } from './context/ThemeContext'
 import { ExtendedHoursProvider } from './context/ExtendedHoursContext'
+import { TimeframeProvider } from './context/TimeframeContext'
 import { ToastProvider } from './context/ToastContext'
 import './index.css'
 import App from './App.tsx'
@@ -18,20 +19,22 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <ExtendedHoursProvider>
-        <ToastProvider>
-          <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/create" element={<CreatePortfolio />} />
-                <Route path="/analytics" element={<AnalyticsDashboard />} />
-                <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
-                <Route path="/:portfolioId" element={<App />} />
-              </Routes>
-              <Analytics />
-            </BrowserRouter>
-          </QueryClientProvider>
-        </ToastProvider>
+        <TimeframeProvider>
+          <ToastProvider>
+            <QueryClientProvider client={queryClient}>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/create" element={<CreatePortfolio />} />
+                  <Route path="/analytics" element={<AnalyticsDashboard />} />
+                  <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
+                  <Route path="/:portfolioId" element={<App />} />
+                </Routes>
+                <Analytics />
+              </BrowserRouter>
+            </QueryClientProvider>
+          </ToastProvider>
+        </TimeframeProvider>
       </ExtendedHoursProvider>
     </ThemeProvider>
   </StrictMode>,

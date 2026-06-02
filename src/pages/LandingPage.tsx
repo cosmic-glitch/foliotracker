@@ -9,15 +9,11 @@ import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
+import { useTimeframe } from '../context/TimeframeContext';
 import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
 import { formatChange } from '../utils/formatters';
-import {
-  type Timeframe,
-  TIMEFRAME_STORAGE_KEY,
-  loadInitialTimeframe,
-} from '../lib/timeframe';
 
 interface Portfolio {
   id: string;
@@ -212,13 +208,9 @@ export function LandingPage() {
   const { showExtendedHours } = useExtendedHours();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
-  // Which timeframe drives the change column (1D vs 30D). Sticky via
-  // localStorage; first-load default depends on whether the market is live.
-  const [timeframe, setTimeframe] = useState<Timeframe>(loadInitialTimeframe);
-
-  useEffect(() => {
-    window.localStorage.setItem(TIMEFRAME_STORAGE_KEY, timeframe);
-  }, [timeframe]);
+  // Which timeframe drives the change column (1D vs 30D). Toggled from
+  // UserMenu's "30-Day View" row; persisted by TimeframeContext.
+  const { timeframe } = useTimeframe();
 
   // Use TanStack Query for auto-refresh
   const { data, isLoading, error, refetch: refetchPortfolios } = useQuery({
@@ -338,45 +330,13 @@ export function LandingPage() {
           <div className="md:flex-1 min-w-0">
             {/* Portfolios List */}
             <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Users className="w-5 h-5 text-text-secondary shrink-0" />
-                  <h3 className="text-lg font-semibold text-text-primary">
-                    Users
-                  </h3>
-                </div>
-                {/* 1D / 30D segmented toggle: swaps the change column without
-                    changing row density. Sticky per browser. */}
-                <div
-                  role="tablist"
-                  aria-label="Change timeframe"
-                  className="inline-flex items-center bg-background rounded-lg p-0.5 border border-border text-xs shrink-0"
-                >
-                  <button
-                    role="tab"
-                    aria-selected={timeframe === 'day'}
-                    onClick={() => setTimeframe('day')}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      timeframe === 'day'
-                        ? 'bg-card-hover text-text-primary'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    1D
-                  </button>
-                  <button
-                    role="tab"
-                    aria-selected={timeframe === '30d'}
-                    onClick={() => setTimeframe('30d')}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      timeframe === '30d'
-                        ? 'bg-card-hover text-text-primary'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    30D
-                  </button>
-                </div>
+              {/* Timeframe toggle moved to UserMenu's "30-Day View" row —
+                  same setting, just promoted to a global preference. */}
+              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                <Users className="w-5 h-5 text-text-secondary shrink-0" />
+                <h3 className="text-lg font-semibold text-text-primary">
+                  Users
+                </h3>
               </div>
 
               {isLoading ? (

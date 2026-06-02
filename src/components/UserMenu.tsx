@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2 } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
+import { useTimeframe } from '../context/TimeframeContext';
 
 interface UserMenuProps {
   loggedInAs: string;
@@ -17,6 +18,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { showExtendedHours, toggleExtendedHours } = useExtendedHours();
+  const { timeframe, toggleTimeframe } = useTimeframe();
 
   useEffect(() => {
     if (!open) return;
@@ -112,6 +114,23 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
                 : 'border-border'
             }`}>
               {showExtendedHours && '✓'}
+            </span>
+          </button>
+          {/* Global 1D/30D view — drives the landing list, the portfolio
+              page's TotalValue headline, and the chart together. Same
+              check-row pattern as Extended Hours above. */}
+          <button
+            onClick={toggleTimeframe}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            <CalendarRange className="w-4 h-4 text-text-secondary" />
+            30-Day View
+            <span className={`ml-auto w-4 h-4 rounded border flex items-center justify-center text-xs ${
+              timeframe === '30d'
+                ? 'bg-accent border-accent text-white'
+                : 'border-border'
+            }`}>
+              {timeframe === '30d' && '✓'}
             </span>
           </button>
           <div className="mx-3 my-1 border-t border-border" />

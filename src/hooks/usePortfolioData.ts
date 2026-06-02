@@ -1,19 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
 import { isLiveMarketSession } from '../lib/market-hours';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
-import {
-  type Timeframe,
-  loadInitialTimeframe,
-  persistTimeframe,
-} from '../lib/timeframe';
+import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
 
 export type ChartView = '1D' | '30D';
 
 // The hook keeps its `'1D' | '30D'` vocabulary (PerformanceChart and the rest
-// of the file use it everywhere), but localStorage is shared with the landing
-// page which writes `'day' | '30d'`. Map at the boundary.
+// of the file use it everywhere), but the global TimeframeContext speaks
+// `'day' | '30d'` (matching the UserMenu row and the legacy storage key). Map
+// at the boundary.
 function timeframeToChartView(t: Timeframe): ChartView {
   return t === 'day' ? '1D' : '30D';
 }
@@ -161,14 +158,15 @@ export function usePortfolioData(
   shareToken?: string | null
 ) {
   const queryClient = useQueryClient();
-  // Seed from the shared landing-page key so the user's last 1D/30D pick
-  // carries across the two surfaces.
-  const [chartView, setChartView] = useState<ChartView>(() =>
-    timeframeToChartView(loadInitialTimeframe()),
+  // Single source of truth for the 1D/30D pick lives in TimeframeContext
+  // (toggled from UserMenu). Translate to the chart's '1D'/'30D' vocab and
+  // expose setChartView so the chart's swipe gesture can still flip it.
+  const { timeframe, setTimeframe } = useTimeframe();
+  const chartView: ChartView = timeframeToChartView(timeframe);
+  const setChartView = useCallback(
+    (next: ChartView) => setTimeframe(chartViewToTimeframe(next)),
+    [setTimeframe],
   );
-  useEffect(() => {
-    persistTimeframe(chartViewToTimeframe(chartView));
-  }, [chartView]);
   const { showExtendedHours } = useExtendedHours();
 
   // Portfolio query - needs frequent updates for live prices

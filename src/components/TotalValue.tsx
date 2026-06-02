@@ -1,7 +1,7 @@
 import { TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent } from '../utils/formatters';
 import { usePeakReveal } from '../hooks/usePeakReveal';
-import type { Timeframe } from '../lib/timeframe';
+import type { Timeframe } from '../context/TimeframeContext';
 
 interface TotalValueProps {
   totalValue: number;

@@ -264,9 +264,24 @@ function computeHoldings(
     }
   }
 
-  // Set allocations
+  // Allocation is the regular-hours allocation, computed from the regular
+  // session close (or current price for static holdings). This is the stable
+  // baseline that allocation-only share-link viewers see — they can't
+  // recompute client-side because dollar fields are stripped — and matches
+  // what a logged-in viewer with Extended Hours off (the default) sees after
+  // `usePortfolioData` recomputes. Logged-in viewers with Extended Hours on
+  // recompute against the extended-hours `totalValue` in the hook.
+  let regularTotalValue = 0;
   for (const holding of holdings) {
-    holding.allocation = totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
+    regularTotalValue += holding.isStatic
+      ? holding.value
+      : holding.shares * holding.regularMarketPrice;
+  }
+  for (const holding of holdings) {
+    const regValue = holding.isStatic
+      ? holding.value
+      : holding.shares * holding.regularMarketPrice;
+    holding.allocation = regularTotalValue > 0 ? (regValue / regularTotalValue) * 100 : 0;
   }
 
   // Sort by value descending

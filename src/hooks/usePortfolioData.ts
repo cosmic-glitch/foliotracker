@@ -372,8 +372,20 @@ export function usePortfolioData(
       displayDayChangePercent = regularPreviousTotal > 0
         ? (displayDayChange / regularPreviousTotal) * 100
         : 0;
-    } else if (hasLiveMarketStatus && intradayData.length > 0) {
-      displayTotalValue = intradayData[intradayData.length - 1].value;
+    } else {
+      // Extended-hours view: the snapshot stores regular-hours allocations
+      // (the stable baseline used by allocation-only viewers), so recompute
+      // against the extended-hours totalValue here to keep the % in sync
+      // with the extended-hours dollar values we're about to display.
+      if (p.totalValue > 0) {
+        holdings = holdings.map(h => ({
+          ...h,
+          allocation: (h.value / p.totalValue) * 100,
+        }));
+      }
+      if (hasLiveMarketStatus && intradayData.length > 0) {
+        displayTotalValue = intradayData[intradayData.length - 1].value;
+      }
     }
 
     // 30D headline figures, anchored on the oldest point in the 30D series.

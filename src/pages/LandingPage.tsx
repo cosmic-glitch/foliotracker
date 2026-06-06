@@ -8,6 +8,7 @@ import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe } from '../context/TimeframeContext';
 import { usePeakReveal } from '../hooks/usePeakReveal';
@@ -205,6 +206,7 @@ function PortfolioListRow({
 export function LandingPage() {
   const navigate = useNavigate();
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
+  useLandingViewAnalytics(loggedInAs);
   const { showExtendedHours } = useExtendedHours();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);

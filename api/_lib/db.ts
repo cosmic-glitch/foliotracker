@@ -928,6 +928,11 @@ export interface AnalyticsAggregation {
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
+// Sentinel keys used in analytics aggregations when the underlying column is null.
+// Exported so the frontend can recognize them and render friendly labels.
+export const ANONYMOUS_VIEWER = '(anonymous)';
+export const LANDING_PORTFOLIO = '(landing)';
+
 function getDeviceType(userAgent: string | null): string {
   if (!userAgent) return 'Unknown';
   const ua = userAgent.toLowerCase();
@@ -1030,8 +1035,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   }
   const topLocations = Array.from(locationMap.entries())
     .map(([location, count]) => ({ location, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .sort((a, b) => b.count - a.count);
 
   // Viewer activity by day (last 5 days in Pacific timezone)
   // Build list of last 5 days in YYYY-MM-DD format (Pacific)
@@ -1046,28 +1050,29 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   const fiveDaysAgoStr = fiveDaysAgoPacific.toISOString();
 
   // Map: "viewer_id|portfolio_id" -> { date -> count }
+  // Null viewer_id collapses into a single ANONYMOUS_VIEWER bucket; null
+  // portfolio_id (landing-page views) is its own LANDING_PORTFOLIO bucket.
   const viewerActivityByDayMap = new Map<string, Record<string, number>>();
   const viewsAndLogins = allEvents.filter((e) => e.event_type === 'view' || e.event_type === 'login');
   for (const event of viewsAndLogins) {
-    if (event.viewer_id && event.portfolio_id && event.created_at >= fiveDaysAgoStr) {
-      const key = `${event.viewer_id}|${event.portfolio_id}`;
-      const date = getPacificDateString(event.created_at);
-      if (!viewerActivityByDayMap.has(key)) {
-        viewerActivityByDayMap.set(key, {});
-      }
-      const dailyCounts = viewerActivityByDayMap.get(key)!;
-      dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+    if (event.created_at < fiveDaysAgoStr) continue;
+    const viewer = event.viewer_id || ANONYMOUS_VIEWER;
+    const portfolio = event.portfolio_id || LANDING_PORTFOLIO;
+    const key = `${viewer}|${portfolio}`;
+    const date = getPacificDateString(event.created_at);
+    if (!viewerActivityByDayMap.has(key)) {
+      viewerActivityByDayMap.set(key, {});
     }
+    const dailyCounts = viewerActivityByDayMap.get(key)!;
+    dailyCounts[date] = (dailyCounts[date] || 0) + 1;
   }
 
-  // Convert to array, sort by viewer_id
   const viewerActivityByDay = Array.from(viewerActivityByDayMap.entries())
     .map(([key, dailyCounts]) => {
       const [viewer_id, portfolio_id] = key.split('|');
       return { viewer_id, portfolio_id, dailyCounts };
     })
-    .sort((a, b) => a.viewer_id.localeCompare(b.viewer_id) || a.portfolio_id.localeCompare(b.portfolio_id))
-    .slice(0, 15);
+    .sort((a, b) => a.viewer_id.localeCompare(b.viewer_id) || a.portfolio_id.localeCompare(b.portfolio_id));
 
   // Device type breakdown
   const deviceMap = new Map<string, number>();
@@ -1079,15 +1084,15 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .map(([device, count]) => ({ device, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Per-viewer device breakdown
+  // Per-viewer device breakdown. Null viewer_id is pooled into ANONYMOUS_VIEWER.
   const viewerDeviceMap = new Map<string, { desktop: number; mobile: number }>();
   for (const event of allEvents) {
-    if (!event.viewer_id) continue;
+    const viewer = event.viewer_id || ANONYMOUS_VIEWER;
     const device = getDeviceType(event.user_agent);
-    if (!viewerDeviceMap.has(event.viewer_id)) {
-      viewerDeviceMap.set(event.viewer_id, { desktop: 0, mobile: 0 });
+    if (!viewerDeviceMap.has(viewer)) {
+      viewerDeviceMap.set(viewer, { desktop: 0, mobile: 0 });
     }
-    const counts = viewerDeviceMap.get(event.viewer_id)!;
+    const counts = viewerDeviceMap.get(viewer)!;
     if (device === 'Desktop') {
       counts.desktop++;
     } else if (device === 'Mobile' || device === 'Tablet') {
@@ -1096,8 +1101,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   }
   const viewerDeviceBreakdown = Array.from(viewerDeviceMap.entries())
     .map(([viewer_id, counts]) => ({ viewer_id, ...counts }))
-    .sort((a, b) => (b.desktop + b.mobile) - (a.desktop + a.mobile))
-    .slice(0, 15);
+    .sort((a, b) => (b.desktop + b.mobile) - (a.desktop + a.mobile));
 
   return {
     totalViews: views.length,

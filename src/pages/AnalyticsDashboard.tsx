@@ -75,6 +75,10 @@ function StatCard({
   );
 }
 
+// Mirrors api/_lib/db.ts: sentinels used when the underlying column is null.
+const ANONYMOUS_VIEWER = '(anonymous)';
+const LANDING_PORTFOLIO = '(landing)';
+
 function ViewerActivityTable({
   data,
 }: {
@@ -108,21 +112,31 @@ function ViewerActivityTable({
           </tr>
         </thead>
         <tbody>
-          {data.map((row) => (
-            <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
-              <td className="py-2 text-text-primary">{row.viewer_id.toUpperCase()}</td>
-              <td className="py-2">
-                <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
-                  {row.portfolio_id.toUpperCase()}
-                </Link>
-              </td>
-              {last5Days.map(({ dateStr }) => (
-                <td key={dateStr} className="py-2 text-text-secondary text-center">
-                  {row.dailyCounts[dateStr] || '-'}
+          {data.map((row) => {
+            const isAnon = row.viewer_id === ANONYMOUS_VIEWER;
+            const isLanding = row.portfolio_id === LANDING_PORTFOLIO;
+            return (
+              <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
+                <td className="py-2 text-text-primary">
+                  {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
                 </td>
-              ))}
-            </tr>
-          ))}
+                <td className="py-2">
+                  {isLanding ? (
+                    <span className="text-text-secondary">{row.portfolio_id}</span>
+                  ) : (
+                    <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
+                      {row.portfolio_id.toUpperCase()}
+                    </Link>
+                  )}
+                </td>
+                {last5Days.map(({ dateStr }) => (
+                  <td key={dateStr} className="py-2 text-text-secondary text-center">
+                    {row.dailyCounts[dateStr] || '-'}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -403,13 +417,18 @@ export function AnalyticsDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.viewerDeviceBreakdown.map((row) => (
-                        <tr key={row.viewer_id} className="border-b border-border last:border-0">
-                          <td className="py-2 pr-4 text-text-primary">{row.viewer_id.toUpperCase()}</td>
-                          <td className="text-right py-2 px-4 text-text-secondary">{row.desktop}</td>
-                          <td className="text-right py-2 pl-4 text-text-secondary">{row.mobile}</td>
-                        </tr>
-                      ))}
+                      {data.viewerDeviceBreakdown.map((row) => {
+                        const isAnon = row.viewer_id === ANONYMOUS_VIEWER;
+                        return (
+                          <tr key={row.viewer_id} className="border-b border-border last:border-0">
+                            <td className="py-2 pr-4 text-text-primary">
+                              {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
+                            </td>
+                            <td className="text-right py-2 px-4 text-text-secondary">{row.desktop}</td>
+                            <td className="text-right py-2 pl-4 text-text-secondary">{row.mobile}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

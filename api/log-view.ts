@@ -23,25 +23,21 @@ export default async function handler(
   try {
     const { portfolio_id, logged_in_as } = req.body;
 
-    if (!portfolio_id) {
-      res.status(400).json({ error: 'Portfolio ID is required' });
-      return;
+    // Missing portfolio_id means a landing-page view — recorded with portfolio_id=null.
+    if (portfolio_id) {
+      const portfolio = await getPortfolio(portfolio_id);
+      if (!portfolio) {
+        res.status(404).json({ error: 'Portfolio not found' });
+        return;
+      }
     }
 
-    // Verify portfolio exists
-    const portfolio = await getPortfolio(portfolio_id);
-    if (!portfolio) {
-      res.status(404).json({ error: 'Portfolio not found' });
-      return;
-    }
-
-    // Log analytics event
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
     const geo = await getGeoFromIP(ip);
 
     await logAnalyticsEvent({
       event_type: 'view',
-      portfolio_id,
+      portfolio_id: portfolio_id || undefined,
       viewer_id: logged_in_as || undefined,
       ip_address: ip,
       country: geo?.country,

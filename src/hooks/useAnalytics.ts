@@ -71,3 +71,45 @@ export function useViewAnalytics(
   // Return logView for manual refresh button
   return { logView };
 }
+
+// Logs landing-page views (no portfolio_id). Same trigger pattern as
+// useViewAnalytics: once on mount, then on every visibilitychange→visible.
+export function useLandingViewAnalytics(loggedInAs: string | null) {
+  const hasLoggedInitial = useRef(false);
+  const loggedInAsRef = useRef(loggedInAs);
+
+  useEffect(() => {
+    loggedInAsRef.current = loggedInAs;
+  }, [loggedInAs]);
+
+  const logView = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/log-view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          logged_in_as: loggedInAsRef.current || undefined,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to log landing view:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoggedInitial.current) {
+      hasLoggedInitial.current = true;
+      logView();
+    }
+  }, [logView]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        logView();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [logView]);
+}

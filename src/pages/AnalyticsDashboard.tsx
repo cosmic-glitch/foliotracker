@@ -29,6 +29,12 @@ interface AnalyticsData {
     portfolio_id: string;
     dailyCounts: Record<string, number>;
   }[];
+  anonymousActivityByDay: {
+    identity: string;
+    label: string;
+    portfolio_id: string;
+    dailyCounts: Record<string, number>;
+  }[];
   deviceTypes: { device: string; count: number }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
@@ -120,6 +126,66 @@ function ViewerActivityTable({
                 <td className="py-2 text-text-primary">
                   {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
                 </td>
+                <td className="py-2">
+                  {isLanding ? (
+                    <span className="text-text-secondary">{row.portfolio_id}</span>
+                  ) : (
+                    <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
+                      {row.portfolio_id.toUpperCase()}
+                    </Link>
+                  )}
+                </td>
+                {last5Days.map(({ dateStr }) => (
+                  <td key={dateStr} className="py-2 text-text-secondary text-center">
+                    {row.dailyCounts[dateStr] || '-'}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AnonymousActivityTable({
+  data,
+}: {
+  data: { identity: string; label: string; portfolio_id: string; dailyCounts: Record<string, number> }[];
+}) {
+  const last5Days = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const displayStr = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short',
+      day: 'numeric',
+    });
+    return { dateStr, displayStr };
+  });
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-text-secondary border-b border-border">
+            <th className="pb-2 font-medium">Identity</th>
+            <th className="pb-2 font-medium">Portfolio</th>
+            {last5Days.map(({ dateStr, displayStr }) => (
+              <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
+                {displayStr}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row) => {
+            const isLanding = row.portfolio_id === LANDING_PORTFOLIO;
+            return (
+              <tr key={`${row.identity}-${row.portfolio_id}`} className="border-b border-border last:border-0">
+                <td className="py-2 text-text-primary">{row.label}</td>
                 <td className="py-2">
                   {isLanding ? (
                     <span className="text-text-secondary">{row.portfolio_id}</span>
@@ -437,16 +503,29 @@ export function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* Viewer Activity */}
+            {/* Viewer Activity (Logged In) */}
             <div className="bg-card rounded-2xl border border-border p-6 mt-8">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity</h2>
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Logged In)</h2>
               </div>
               {data.viewerActivityByDay.length > 0 ? (
                 <ViewerActivityTable data={data.viewerActivityByDay} />
               ) : (
-                <p className="text-text-secondary text-sm">No viewer activity yet</p>
+                <p className="text-text-secondary text-sm">No logged-in viewer activity yet</p>
+              )}
+            </div>
+
+            {/* Viewer Activity (Anonymous) */}
+            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Anonymous)</h2>
+              </div>
+              {data.anonymousActivityByDay.length > 0 ? (
+                <AnonymousActivityTable data={data.anonymousActivityByDay} />
+              ) : (
+                <p className="text-text-secondary text-sm">No anonymous viewer activity yet</p>
               )}
             </div>
           </>

@@ -924,6 +924,12 @@ export interface AnalyticsAggregation {
     portfolio_id: string;
     dailyCounts: Record<string, number>; // { "2026-01-27": 3, "2026-01-26": 1, ... }
   }[];
+  anonymousActivityByDay: {
+    identity: string;       // ip|ua hash key, stable per (ip, user_agent)
+    label: string;          // display: "Seattle • iPhone Safari • 172.56.108.x"
+    portfolio_id: string;
+    dailyCounts: Record<string, number>;
+  }[];
   deviceTypes: { device: string; count: number }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
@@ -932,6 +938,32 @@ export interface AnalyticsAggregation {
 // Exported so the frontend can recognize them and render friendly labels.
 export const ANONYMOUS_VIEWER = '(anonymous)';
 export const LANDING_PORTFOLIO = '(landing)';
+
+function extractBrowser(ua: string | null): string {
+  if (!ua) return 'Unknown';
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Safari\//.test(ua)) return 'Safari';
+  return 'Browser';
+}
+
+function maskIp(ip: string | null): string {
+  if (!ip || ip === 'unknown') return '?';
+  if (ip.includes('.')) {
+    const parts = ip.split('.');
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
+  }
+  return ip;
+}
+
+function buildAnonLabel(event: { city: string | null; region: string | null; user_agent: string | null; ip_address: string | null }): string {
+  const city = event.city || 'Unknown location';
+  const device = getDeviceType(event.user_agent);
+  const browser = extractBrowser(event.user_agent);
+  const deviceBrowser = device === 'Desktop' ? `${browser} desktop` : `${device} ${browser}`;
+  return `${city} • ${deviceBrowser} • ${maskIp(event.ip_address)}`;
+}
 
 function getDeviceType(userAgent: string | null): string {
   if (!userAgent) return 'Unknown';
@@ -1049,22 +1081,36 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
   const fiveDaysAgoPacific = new Date(getSeattleMidnightToday().getTime() - 5 * 24 * 60 * 60 * 1000);
   const fiveDaysAgoStr = fiveDaysAgoPacific.toISOString();
 
-  // Map: "viewer_id|portfolio_id" -> { date -> count }
-  // Null viewer_id collapses into a single ANONYMOUS_VIEWER bucket; null
-  // portfolio_id (landing-page views) is its own LANDING_PORTFOLIO bucket.
+  // Logged-in viewer activity: keyed by (viewer_id, portfolio_id). Null portfolio_id
+  // (landing-page views) becomes its own LANDING_PORTFOLIO bucket.
   const viewerActivityByDayMap = new Map<string, Record<string, number>>();
+  // Anonymous viewer activity: keyed by (ip|user_agent, portfolio_id). Each unique
+  // (IP, UA) pair counts as a distinct anonymous identity. Carries a representative
+  // label derived from the first event we see for that identity.
+  const anonActivityMap = new Map<string, Record<string, number>>();
+  const anonLabelMap = new Map<string, string>();
+
   const viewsAndLogins = allEvents.filter((e) => e.event_type === 'view' || e.event_type === 'login');
   for (const event of viewsAndLogins) {
     if (event.created_at < fiveDaysAgoStr) continue;
-    const viewer = event.viewer_id || ANONYMOUS_VIEWER;
     const portfolio = event.portfolio_id || LANDING_PORTFOLIO;
-    const key = `${viewer}|${portfolio}`;
     const date = getPacificDateString(event.created_at);
-    if (!viewerActivityByDayMap.has(key)) {
-      viewerActivityByDayMap.set(key, {});
+
+    if (event.viewer_id) {
+      const key = `${event.viewer_id}|${portfolio}`;
+      if (!viewerActivityByDayMap.has(key)) viewerActivityByDayMap.set(key, {});
+      const counts = viewerActivityByDayMap.get(key)!;
+      counts[date] = (counts[date] || 0) + 1;
+    } else {
+      const identity = `${event.ip_address || 'unknown'}|${event.user_agent || 'unknown'}`;
+      const key = `${identity}|${portfolio}`;
+      if (!anonActivityMap.has(key)) anonActivityMap.set(key, {});
+      const counts = anonActivityMap.get(key)!;
+      counts[date] = (counts[date] || 0) + 1;
+      if (!anonLabelMap.has(identity)) {
+        anonLabelMap.set(identity, buildAnonLabel(event));
+      }
     }
-    const dailyCounts = viewerActivityByDayMap.get(key)!;
-    dailyCounts[date] = (dailyCounts[date] || 0) + 1;
   }
 
   const viewerActivityByDay = Array.from(viewerActivityByDayMap.entries())
@@ -1073,6 +1119,21 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
       return { viewer_id, portfolio_id, dailyCounts };
     })
     .sort((a, b) => a.viewer_id.localeCompare(b.viewer_id) || a.portfolio_id.localeCompare(b.portfolio_id));
+
+  const anonymousActivityByDay = Array.from(anonActivityMap.entries())
+    .map(([key, dailyCounts]) => {
+      // key format: "<ip>|<ua>|<portfolio_id>" — portfolio is the trailing piece
+      const lastPipe = key.lastIndexOf('|');
+      const identity = key.slice(0, lastPipe);
+      const portfolio_id = key.slice(lastPipe + 1);
+      return {
+        identity,
+        label: anonLabelMap.get(identity) || identity,
+        portfolio_id,
+        dailyCounts,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label) || a.portfolio_id.localeCompare(b.portfolio_id));
 
   // Device type breakdown
   const deviceMap = new Map<string, number>();
@@ -1112,6 +1173,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     eventsByDay,
     topLocations,
     viewerActivityByDay,
+    anonymousActivityByDay,
     deviceTypes,
     viewerDeviceBreakdown,
   };

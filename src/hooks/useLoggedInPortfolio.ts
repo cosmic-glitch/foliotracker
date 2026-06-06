@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'foliotracker_logged_in';
 
@@ -25,32 +25,31 @@ function isLegacyState(state: unknown): state is LegacyLoginState {
   );
 }
 
-export function useLoggedInPortfolio() {
-  const [loggedInAs, setLoggedInAs] = useState<string | null>(null);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const state = JSON.parse(stored);
-        // Clear legacy format — user will need to re-login
-        if (isLegacyState(state)) {
-          localStorage.removeItem(STORAGE_KEY);
-          return;
-        }
-        // Check expiry
-        if (new Date(state.expiresAt) < new Date()) {
-          localStorage.removeItem(STORAGE_KEY);
-          return;
-        }
-        setLoggedInAs(state.portfolioId);
-      }
-    } catch {
-      // Invalid stored data, clear it
+// Synchronously read localStorage so first render already reflects login state.
+// Without this, consumers (analytics, data fetching) briefly see a logged-out
+// app on boot and fire events/requests without identity.
+function readInitialLoggedInAs(): string | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    const state = JSON.parse(stored);
+    if (isLegacyState(state)) {
       localStorage.removeItem(STORAGE_KEY);
+      return null;
     }
-  }, []);
+    if (new Date(state.expiresAt) < new Date()) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return state.portfolioId;
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
+
+export function useLoggedInPortfolio() {
+  const [loggedInAs, setLoggedInAs] = useState<string | null>(readInitialLoggedInAs);
 
   const login = useCallback((portfolioId: string, token: string, expiresAt: string) => {
     const state: LoginState = {

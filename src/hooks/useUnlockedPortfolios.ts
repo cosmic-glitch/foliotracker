@@ -8,30 +8,29 @@ interface UnlockedEntry {
   expiresAt: string;
 }
 
-export function useUnlockedPortfolios() {
-  const [unlocked, setUnlocked] = useState<Record<string, UnlockedEntry>>({});
-
-  // Load from sessionStorage on mount
-  useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Clear any legacy entries that have password instead of token
-        const cleaned: Record<string, UnlockedEntry> = {};
-        for (const [key, value] of Object.entries(parsed)) {
-          const entry = value as Record<string, unknown>;
-          if (entry.token && typeof entry.token === 'string') {
-            cleaned[key] = entry as unknown as UnlockedEntry;
-          }
-        }
-        setUnlocked(cleaned);
-      } catch {
-        // Invalid JSON, clear it
-        sessionStorage.removeItem(STORAGE_KEY);
+// Synchronously read sessionStorage so first render already reflects unlock state.
+// See useLoggedInPortfolio for the rationale.
+function readInitialUnlocked(): Record<string, UnlockedEntry> {
+  const stored = sessionStorage.getItem(STORAGE_KEY);
+  if (!stored) return {};
+  try {
+    const parsed = JSON.parse(stored);
+    const cleaned: Record<string, UnlockedEntry> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const entry = value as Record<string, unknown>;
+      if (entry.token && typeof entry.token === 'string') {
+        cleaned[key] = entry as unknown as UnlockedEntry;
       }
     }
-  }, []);
+    return cleaned;
+  } catch {
+    sessionStorage.removeItem(STORAGE_KEY);
+    return {};
+  }
+}
+
+export function useUnlockedPortfolios() {
+  const [unlocked, setUnlocked] = useState<Record<string, UnlockedEntry>>(readInitialUnlocked);
 
   // Save to sessionStorage on change
   useEffect(() => {

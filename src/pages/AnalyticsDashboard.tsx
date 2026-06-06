@@ -127,13 +127,12 @@ function ViewerActivityTable({
                   {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
                 </td>
                 <td className="py-2">
-                  {isLanding ? (
-                    <span className="text-text-secondary">{row.portfolio_id}</span>
-                  ) : (
-                    <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
-                      {row.portfolio_id.toUpperCase()}
-                    </Link>
-                  )}
+                  <Link
+                    to={isLanding ? '/' : `/${row.portfolio_id}`}
+                    className="text-accent hover:underline"
+                  >
+                    {isLanding ? '/' : `/${row.portfolio_id}`}
+                  </Link>
                 </td>
                 {last5Days.map(({ dateStr }) => (
                   <td key={dateStr} className="py-2 text-text-secondary text-center">
@@ -187,13 +186,12 @@ function AnonymousActivityTable({
               <tr key={`${row.identity}-${row.portfolio_id}`} className="border-b border-border last:border-0">
                 <td className="py-2 text-text-primary">{row.label}</td>
                 <td className="py-2">
-                  {isLanding ? (
-                    <span className="text-text-secondary">{row.portfolio_id}</span>
-                  ) : (
-                    <Link to={`/${row.portfolio_id}`} className="text-accent hover:underline">
-                      {row.portfolio_id.toUpperCase()}
-                    </Link>
-                  )}
+                  <Link
+                    to={isLanding ? '/' : `/${row.portfolio_id}`}
+                    className="text-accent hover:underline"
+                  >
+                    {isLanding ? '/' : `/${row.portfolio_id}`}
+                  </Link>
                 </td>
                 {last5Days.map(({ dateStr }) => (
                   <td key={dateStr} className="py-2 text-text-secondary text-center">
@@ -389,6 +387,32 @@ export function AnalyticsDashboard() {
               />
             </div>
 
+            {/* Viewer Activity (Logged In) */}
+            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Logged In)</h2>
+              </div>
+              {data.viewerActivityByDay.length > 0 ? (
+                <ViewerActivityTable data={data.viewerActivityByDay} />
+              ) : (
+                <p className="text-text-secondary text-sm">No logged-in viewer activity yet</p>
+              )}
+            </div>
+
+            {/* Viewer Activity (Anonymous) */}
+            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Anonymous)</h2>
+              </div>
+              {data.anonymousActivityByDay.length > 0 ? (
+                <AnonymousActivityTable data={data.anonymousActivityByDay} />
+              ) : (
+                <p className="text-text-secondary text-sm">No anonymous viewer activity yet</p>
+              )}
+            </div>
+
             {/* Two Column Layout */}
             <div className="grid md:grid-cols-2 gap-8">
               {/* Top Locations */}
@@ -503,31 +527,6 @@ export function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* Viewer Activity (Logged In) */}
-            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Logged In)</h2>
-              </div>
-              {data.viewerActivityByDay.length > 0 ? (
-                <ViewerActivityTable data={data.viewerActivityByDay} />
-              ) : (
-                <p className="text-text-secondary text-sm">No logged-in viewer activity yet</p>
-              )}
-            </div>
-
-            {/* Viewer Activity (Anonymous) */}
-            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Anonymous)</h2>
-              </div>
-              {data.anonymousActivityByDay.length > 0 ? (
-                <AnonymousActivityTable data={data.anonymousActivityByDay} />
-              ) : (
-                <p className="text-text-secondary text-sm">No anonymous viewer activity yet</p>
-              )}
-            </div>
           </>
         ) : null}
       </main>

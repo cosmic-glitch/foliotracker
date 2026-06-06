@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { getPortfolio, createSession } from './_lib/db.js';
+import { getPortfolio, createSession, logAnalyticsEvent, getGeoFromIP } from './_lib/db.js';
 
 const ADMIN_HASH = '$2b$10$PHYCpLb5/4zFCetogpu3G.U3oNv6M6z7hHoL/wzaWVxSk.kq8Uucm';
 
@@ -53,6 +53,20 @@ export default async function handler(
 
     // Password verified — create session token
     const { token, expiresAt } = await createSession(normalizedId, isAdmin);
+
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
+    const geo = await getGeoFromIP(ip);
+    await logAnalyticsEvent({
+      event_type: 'login',
+      portfolio_id: normalizedId,
+      viewer_id: isAdmin ? undefined : normalizedId,
+      ip_address: ip,
+      country: geo?.country,
+      city: geo?.city,
+      region: geo?.region,
+      user_agent: req.headers['user-agent'],
+      referer: req.headers['referer'] as string | undefined,
+    }).catch((err) => console.error('Failed to log login event:', err));
 
     res.status(200).json({
       token,

@@ -291,8 +291,8 @@ export function AnalyticsDashboard() {
             <div className="grid grid-cols-3 gap-4 mb-8">
               <StatCard
                 icon={Eye}
-                label="Total Events"
-                value={data.totalViews + data.totalLogins}
+                label="Total Views"
+                value={data.totalViews}
                 iconColor="bg-blue-500/10 text-blue-500"
               />
               <StatCard
@@ -303,8 +303,8 @@ export function AnalyticsDashboard() {
               />
               <StatCard
                 icon={CalendarDays}
-                label="Events Today"
-                value={data.todayViews + data.todayLogins}
+                label="Views Today"
+                value={data.todayViews}
                 iconColor="bg-amber-500/10 text-amber-500"
               />
             </div>

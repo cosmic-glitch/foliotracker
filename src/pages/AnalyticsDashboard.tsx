@@ -65,7 +65,6 @@ interface AnalyticsData {
     portfolio_id: string;
     dailyCounts: Record<string, number>;
   }[];
-  deviceTypes: { device: string; count: number }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
@@ -388,16 +387,6 @@ function AnonymousLocationsPanel({ data }: { data: LocationDistributionEntry[] }
   );
 }
 
-function getDeviceIcon(device: string): string {
-  const icons: Record<string, string> = {
-    'Desktop': '\u{1F5A5}',
-    'Mobile': '\u{1F4F1}',
-    'Tablet': '\u{1F4F1}',
-    'Unknown': '\u{2753}',
-  };
-  return icons[device] || '\u{2753}';
-}
-
 export function AnalyticsDashboard() {
   const [password, setPassword] = useState('');
   const [storedPassword, setStoredPassword] = useState(() => readStoredAdminPassword());
@@ -618,44 +607,8 @@ export function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Device Types */}
-            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Monitor className="w-5 h-5 text-text-secondary" />
-                <h2 className="text-lg font-semibold text-text-primary">Device Types</h2>
-              </div>
-              {data.deviceTypes.length > 0 ? (
-                <div className="space-y-3">
-                  {data.deviceTypes.map((item) => {
-                    const percentage = Math.round(
-                      (item.count / (data.totalViews + data.totalLogins)) * 100
-                    );
-                    return (
-                      <div key={item.device} className="flex items-center gap-3">
-                        <span className="text-lg">{getDeviceIcon(item.device)}</span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm text-text-primary">{item.device}</span>
-                            <span className="text-sm text-text-secondary">{percentage}%</span>
-                          </div>
-                          <div className="h-1.5 bg-background rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-accent rounded-full"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-text-secondary text-sm">No device data yet</p>
-              )}
-            </div>
-
             {/* Viewer Device Breakdown */}
-            <div className="bg-card rounded-2xl border border-border p-6 mt-8">
+            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
               <div className="flex items-center gap-2 mb-4">
                 <Monitor className="w-5 h-5 text-text-secondary" />
                 <h2 className="text-lg font-semibold text-text-primary">Viewer Devices</h2>
@@ -667,22 +620,44 @@ export function AnalyticsDashboard() {
                       <tr className="border-b border-border">
                         <th className="text-left py-2 pr-4 text-text-secondary font-medium">Viewer</th>
                         <th className="text-right py-2 px-4 text-text-secondary font-medium">🖥️ Desktop</th>
-                        <th className="text-right py-2 pl-4 text-text-secondary font-medium">📱 Mobile</th>
+                        <th className="text-right py-2 px-4 text-text-secondary font-medium">📱 Mobile</th>
+                        <th className="text-right py-2 pl-4 text-text-secondary font-medium">% Mobile</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.viewerDeviceBreakdown.map((row) => {
                         const isAnon = row.viewer_id === ANONYMOUS_VIEWER;
+                        const total = row.desktop + row.mobile;
+                        const pctMobile = total > 0 ? Math.round((row.mobile / total) * 100) : 0;
                         return (
                           <tr key={row.viewer_id} className="border-b border-border last:border-0">
                             <td className="py-2 pr-4 text-text-primary">
                               {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
                             </td>
                             <td className="text-right py-2 px-4 text-text-secondary">{row.desktop}</td>
-                            <td className="text-right py-2 pl-4 text-text-secondary">{row.mobile}</td>
+                            <td className="text-right py-2 px-4 text-text-secondary">{row.mobile}</td>
+                            <td className="text-right py-2 pl-4 text-text-secondary">
+                              {total > 0 ? `${pctMobile}%` : '—'}
+                            </td>
                           </tr>
                         );
                       })}
+                      {(() => {
+                        const totalDesktop = data.viewerDeviceBreakdown.reduce((s, r) => s + r.desktop, 0);
+                        const totalMobile = data.viewerDeviceBreakdown.reduce((s, r) => s + r.mobile, 0);
+                        const grand = totalDesktop + totalMobile;
+                        const pctMobile = grand > 0 ? Math.round((totalMobile / grand) * 100) : 0;
+                        return (
+                          <tr className="border-t-2 border-border">
+                            <td className="py-2 pr-4 text-text-primary font-semibold">Total</td>
+                            <td className="text-right py-2 px-4 text-text-primary font-semibold">{totalDesktop}</td>
+                            <td className="text-right py-2 px-4 text-text-primary font-semibold">{totalMobile}</td>
+                            <td className="text-right py-2 pl-4 text-text-primary font-semibold">
+                              {grand > 0 ? `${pctMobile}%` : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>

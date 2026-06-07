@@ -931,7 +931,6 @@ export interface AnalyticsAggregation {
     portfolio_id: string;
     dailyCounts: Record<string, number>;
   }[];
-  deviceTypes: { device: string; count: number }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
@@ -1271,16 +1270,6 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     })
     .sort((a, b) => a.label.localeCompare(b.label) || a.portfolio_id.localeCompare(b.portfolio_id));
 
-  // Device type breakdown
-  const deviceMap = new Map<string, number>();
-  for (const event of allEvents) {
-    const device = getDeviceType(event.user_agent);
-    deviceMap.set(device, (deviceMap.get(device) || 0) + 1);
-  }
-  const deviceTypes = Array.from(deviceMap.entries())
-    .map(([device, count]) => ({ device, count }))
-    .sort((a, b) => b.count - a.count);
-
   // Per-viewer device breakdown. Null viewer_id is pooled into ANONYMOUS_VIEWER.
   const viewerDeviceMap = new Map<string, { desktop: number; mobile: number }>();
   for (const event of allEvents) {
@@ -1311,7 +1300,6 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     anonymousLocations,
     viewerActivityByDay,
     anonymousActivityByDay,
-    deviceTypes,
     viewerDeviceBreakdown,
   };
 }

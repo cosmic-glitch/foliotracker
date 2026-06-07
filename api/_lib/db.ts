@@ -935,19 +935,10 @@ export interface AnalyticsAggregation {
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
 }
 
-// Per-occurrence location row carrying both raw fields and pre-formatted display
-// strings at country/region/city granularity. The frontend picks one display
-// field as a group key to roll up to the chosen granularity.
-export interface LocationEntry {
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  displayCity: string;
-  displayRegion: string;
-  displayCountry: string;
-}
-
-export interface ViewerLocationOccurrence extends LocationEntry {
+// Single pre-formatted display string per location: "Seattle, WA" for US
+// (state abbreviation), "Bangalore, India" for non-US (full country name).
+export interface ViewerLocationOccurrence {
+  display: string;
   count: number;
   lastSeenAt: string; // ISO timestamp
 }
@@ -957,7 +948,8 @@ export interface ViewerLocationGroup {
   locations: ViewerLocationOccurrence[];
 }
 
-export interface LocationDistributionEntry extends LocationEntry {
+export interface LocationDistributionEntry {
+  display: string;
   uniqueIdentities: number;
   totalViews: number;
 }
@@ -1025,31 +1017,20 @@ function formatCityLocation(city: string, region: string | null, country: string
   return city;
 }
 
-function buildLocationDisplays(
+// "Seattle, WA" for US (state abbreviation), "Bangalore, India" for non-US
+// (full country name). Distinct from formatCityLocation, which uses ISO codes
+// for non-US to keep the anonymous activity labels compact.
+function formatLocationLong(
   city: string | null,
   region: string | null,
   country: string | null
-): { displayCity: string; displayRegion: string; displayCountry: string } {
-  const displayCountry = country || 'Unknown';
-
-  let displayRegion: string;
-  if (!country) {
-    displayRegion = 'Unknown';
-  } else if (country === 'United States') {
+): string {
+  if (!city) return country || 'Unknown';
+  if (country === 'United States') {
     const abbr = region ? US_STATE_ABBR[region] : null;
-    displayRegion = abbr ? `${abbr}, US` : region ? `${region}, US` : 'United States';
-  } else {
-    const iso = COUNTRY_ISO[country] || country;
-    displayRegion = region ? `${region}, ${iso}` : country;
+    return abbr ? `${city}, ${abbr}` : city;
   }
-
-  const displayCity = city
-    ? formatCityLocation(city, region, country)
-    : country
-      ? country
-      : 'Unknown';
-
-  return { displayCity, displayRegion, displayCountry };
+  return country ? `${city}, ${country}` : city;
 }
 
 function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; user_agent: string | null; ip_address: string | null }): string {
@@ -1202,10 +1183,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .map(([viewer_id, locMap]) => {
       const locations = Array.from(locMap.values())
         .map((v) => ({
-          city: v.city,
-          region: v.region,
-          country: v.country,
-          ...buildLocationDisplays(v.city, v.region, v.country),
+          display: formatLocationLong(v.city, v.region, v.country),
           count: v.count,
           lastSeenAt: v.lastSeenAt,
         }))
@@ -1221,10 +1199,7 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
 
   const anonymousLocations: LocationDistributionEntry[] = Array.from(anonLocMap.values())
     .map((v) => ({
-      city: v.city,
-      region: v.region,
-      country: v.country,
-      ...buildLocationDisplays(v.city, v.region, v.country),
+      display: formatLocationLong(v.city, v.region, v.country),
       uniqueIdentities: v.identities.size,
       totalViews: v.totalViews,
     }))

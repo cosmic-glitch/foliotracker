@@ -957,8 +957,50 @@ function maskIp(ip: string | null): string {
   return ip;
 }
 
-function buildAnonLabel(event: { city: string | null; region: string | null; user_agent: string | null; ip_address: string | null }): string {
-  const city = event.city || 'Unknown location';
+const US_STATE_ABBR: Record<string, string> = {
+  Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA',
+  Colorado: 'CO', Connecticut: 'CT', Delaware: 'DE', 'District of Columbia': 'DC',
+  Florida: 'FL', Georgia: 'GA', Hawaii: 'HI', Idaho: 'ID', Illinois: 'IL',
+  Indiana: 'IN', Iowa: 'IA', Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA',
+  Maine: 'ME', Maryland: 'MD', Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN',
+  Mississippi: 'MS', Missouri: 'MO', Montana: 'MT', Nebraska: 'NE', Nevada: 'NV',
+  'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+  'North Carolina': 'NC', 'North Dakota': 'ND', Ohio: 'OH', Oklahoma: 'OK',
+  Oregon: 'OR', Pennsylvania: 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+  'South Dakota': 'SD', Tennessee: 'TN', Texas: 'TX', Utah: 'UT', Vermont: 'VT',
+  Virginia: 'VA', Washington: 'WA', 'West Virginia': 'WV', Wisconsin: 'WI', Wyoming: 'WY',
+  'Puerto Rico': 'PR',
+};
+
+const COUNTRY_ISO: Record<string, string> = {
+  'United States': 'US', 'United Kingdom': 'GB', Canada: 'CA', Australia: 'AU',
+  India: 'IN', Germany: 'DE', France: 'FR', Japan: 'JP', Singapore: 'SG',
+  Brazil: 'BR', China: 'CN', Mexico: 'MX', Spain: 'ES', Italy: 'IT',
+  Netherlands: 'NL', Sweden: 'SE', Norway: 'NO', Denmark: 'DK', Finland: 'FI',
+  Ireland: 'IE', Switzerland: 'CH', Austria: 'AT', Belgium: 'BE', Poland: 'PL',
+  Portugal: 'PT', Russia: 'RU', Ukraine: 'UA', Turkey: 'TR', Israel: 'IL',
+  'United Arab Emirates': 'AE', 'Saudi Arabia': 'SA', 'South Africa': 'ZA',
+  'New Zealand': 'NZ', 'Hong Kong': 'HK', 'South Korea': 'KR', Taiwan: 'TW',
+  Thailand: 'TH', Indonesia: 'ID', Philippines: 'PH', Vietnam: 'VN', Malaysia: 'MY',
+  Argentina: 'AR', Chile: 'CL', Colombia: 'CO',
+};
+
+function formatCityLocation(city: string, region: string | null, country: string | null): string {
+  if (country === 'United States') {
+    const abbr = region ? US_STATE_ABBR[region] : null;
+    return abbr ? `${city}, ${abbr}` : city;
+  }
+  if (country) {
+    const iso = COUNTRY_ISO[country];
+    return `${city}, ${iso || country}`;
+  }
+  return city;
+}
+
+function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; user_agent: string | null; ip_address: string | null }): string {
+  const city = event.city
+    ? formatCityLocation(event.city, event.region, event.country)
+    : 'Unknown location';
   const device = getDeviceType(event.user_agent);
   const browser = extractBrowser(event.user_agent);
   const deviceBrowser = device === 'Desktop' ? `${browser} desktop` : `${device} ${browser}`;

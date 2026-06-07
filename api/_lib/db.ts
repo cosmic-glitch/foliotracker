@@ -918,7 +918,8 @@ export interface AnalyticsAggregation {
   todayViews: number;
   todayLogins: number;
   eventsByDay: { date: string; views: number; logins: number }[];
-  topLocations: { location: string; count: number }[];
+  viewerLocations: ViewerLocationGroup[];
+  anonymousLocations: LocationDistributionEntry[];
   viewerActivityByDay: {
     viewer_id: string;
     portfolio_id: string;
@@ -932,6 +933,33 @@ export interface AnalyticsAggregation {
   }[];
   deviceTypes: { device: string; count: number }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
+}
+
+// Per-occurrence location row carrying both raw fields and pre-formatted display
+// strings at country/region/city granularity. The frontend picks one display
+// field as a group key to roll up to the chosen granularity.
+export interface LocationEntry {
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  displayCity: string;
+  displayRegion: string;
+  displayCountry: string;
+}
+
+export interface ViewerLocationOccurrence extends LocationEntry {
+  count: number;
+  lastSeenAt: string; // ISO timestamp
+}
+
+export interface ViewerLocationGroup {
+  viewer_id: string;
+  locations: ViewerLocationOccurrence[];
+}
+
+export interface LocationDistributionEntry extends LocationEntry {
+  uniqueIdentities: number;
+  totalViews: number;
 }
 
 // Sentinel keys used in analytics aggregations when the underlying column is null.
@@ -995,6 +1023,33 @@ function formatCityLocation(city: string, region: string | null, country: string
     return `${city}, ${iso || country}`;
   }
   return city;
+}
+
+function buildLocationDisplays(
+  city: string | null,
+  region: string | null,
+  country: string | null
+): { displayCity: string; displayRegion: string; displayCountry: string } {
+  const displayCountry = country || 'Unknown';
+
+  let displayRegion: string;
+  if (!country) {
+    displayRegion = 'Unknown';
+  } else if (country === 'United States') {
+    const abbr = region ? US_STATE_ABBR[region] : null;
+    displayRegion = abbr ? `${abbr}, US` : region ? `${region}, US` : 'United States';
+  } else {
+    const iso = COUNTRY_ISO[country] || country;
+    displayRegion = region ? `${region}, ${iso}` : country;
+  }
+
+  const displayCity = city
+    ? formatCityLocation(city, region, country)
+    : country
+      ? country
+      : 'Unknown';
+
+  return { displayCity, displayRegion, displayCountry };
 }
 
 function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; user_agent: string | null; ip_address: string | null }): string {
@@ -1097,19 +1152,83 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     .map(([date, counts]) => ({ date, ...counts }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Top locations (city-level)
-  const locationMap = new Map<string, number>();
+  // Per-viewer location history (logged-in viewers) and anonymous location
+  // distribution. Both are built off views + logins so login-only sightings
+  // still register a location.
+  const viewerLocationMap = new Map<
+    string,
+    Map<string, { city: string | null; region: string | null; country: string | null; count: number; lastSeenAt: string }>
+  >();
+  type AnonLocAgg = {
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    totalViews: number;
+    identities: Set<string>;
+  };
+  const anonLocMap = new Map<string, AnonLocAgg>();
+
   for (const event of allEvents) {
-    if (event.city && event.country) {
-      const key = event.region
-        ? `${event.city}, ${event.region}, ${event.country}`
-        : `${event.city}, ${event.country}`;
-      locationMap.set(key, (locationMap.get(key) || 0) + 1);
+    if (event.event_type !== 'view' && event.event_type !== 'login') continue;
+    const city = event.city || null;
+    const region = event.region || null;
+    const country = event.country || null;
+    const locKey = `${city ?? ''}|${region ?? ''}|${country ?? ''}`;
+
+    if (event.viewer_id) {
+      if (!viewerLocationMap.has(event.viewer_id)) {
+        viewerLocationMap.set(event.viewer_id, new Map());
+      }
+      const m = viewerLocationMap.get(event.viewer_id)!;
+      const existing = m.get(locKey);
+      if (existing) {
+        existing.count++;
+        if (event.created_at > existing.lastSeenAt) existing.lastSeenAt = event.created_at;
+      } else {
+        m.set(locKey, { city, region, country, count: 1, lastSeenAt: event.created_at });
+      }
+    } else {
+      let agg = anonLocMap.get(locKey);
+      if (!agg) {
+        agg = { city, region, country, totalViews: 0, identities: new Set() };
+        anonLocMap.set(locKey, agg);
+      }
+      agg.totalViews++;
+      agg.identities.add(`${event.ip_address || ''}|${event.user_agent || ''}`);
     }
   }
-  const topLocations = Array.from(locationMap.entries())
-    .map(([location, count]) => ({ location, count }))
-    .sort((a, b) => b.count - a.count);
+
+  const viewerLocations: ViewerLocationGroup[] = Array.from(viewerLocationMap.entries())
+    .map(([viewer_id, locMap]) => {
+      const locations = Array.from(locMap.values())
+        .map((v) => ({
+          city: v.city,
+          region: v.region,
+          country: v.country,
+          ...buildLocationDisplays(v.city, v.region, v.country),
+          count: v.count,
+          lastSeenAt: v.lastSeenAt,
+        }))
+        .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
+      return { viewer_id, locations };
+    })
+    // Most-recently-seen viewers float to the top.
+    .sort((a, b) => {
+      const aMax = a.locations[0]?.lastSeenAt || '';
+      const bMax = b.locations[0]?.lastSeenAt || '';
+      return bMax.localeCompare(aMax);
+    });
+
+  const anonymousLocations: LocationDistributionEntry[] = Array.from(anonLocMap.values())
+    .map((v) => ({
+      city: v.city,
+      region: v.region,
+      country: v.country,
+      ...buildLocationDisplays(v.city, v.region, v.country),
+      uniqueIdentities: v.identities.size,
+      totalViews: v.totalViews,
+    }))
+    .sort((a, b) => b.uniqueIdentities - a.uniqueIdentities || b.totalViews - a.totalViews);
 
   // Viewer activity by day (last 5 days in Pacific timezone)
   // Build list of last 5 days in YYYY-MM-DD format (Pacific)
@@ -1213,7 +1332,8 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
     todayViews: todayViews.length,
     todayLogins: todayLogins.length,
     eventsByDay,
-    topLocations,
+    viewerLocations,
+    anonymousLocations,
     viewerActivityByDay,
     anonymousActivityByDay,
     deviceTypes,

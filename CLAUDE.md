@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Keep this file in sync.** After any change that adds, removes, or meaningfully alters a file path, table, endpoint, hook, env var, workflow, or architectural pattern, reassess whether `CLAUDE.md` still accurately describes the codebase and update it in the same commit. Don't wait to be asked — out-of-date guidance silently misleads future work.
+
 ## Project Overview
 
 FolioTracker is a multi-portfolio stock tracker built with React + Vite frontend and Vercel serverless API backend. It displays real-time portfolio values with holdings breakdown by type.
@@ -23,20 +25,26 @@ vercel --prod    # Deploy to production
 ## Architecture
 
 ### Frontend (React + Vite + Tailwind)
-- `src/main.tsx` - Router setup with routes: `/`, `/create`, `/:portfolioId`, `/:portfolioId/edit`
+- `src/main.tsx` - Router setup with routes: `/`, `/create`, `/:portfolioId`, `/:portfolioId/edit`, `/analytics`
 - `src/App.tsx` - Main portfolio view page
-- `src/pages/` - LandingPage, CreatePortfolio, EditPortfolio
+- `src/pages/` - LandingPage, CreatePortfolio, EditPortfolio, AnalyticsDashboard
 - `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, etc.)
 - `src/hooks/usePortfolioData.ts` - Data fetching hook for portfolio API
-- `src/hooks/useLoggedInPortfolio.ts` - Manages portfolio login state (localStorage)
+- `src/hooks/useLoggedInPortfolio.ts` - Manages portfolio login state (localStorage, synchronous hydration)
+- `src/hooks/useUnlockedPortfolios.ts` - Tracks portfolios unlocked this tab (sessionStorage, synchronous hydration)
+- `src/hooks/useAnalytics.ts` - `useViewAnalytics` (portfolio routes) and `useLandingViewAnalytics` (landing page) fire `POST /api/log-view` on mount and on tab visibility change
 - `src/types/portfolio.ts` - TypeScript interfaces for Holding, PortfolioData
 
 ### Backend (Vercel Serverless Functions)
 - `api/portfolio.ts` - GET single portfolio (reads from pre-computed snapshots)
-- `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE)
+- `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE); also serves the analytics dashboard data
 - `api/history.ts` - Historical price data (reads from pre-computed snapshots)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
-- `api/_lib/db.ts` - Supabase client and database operations
+- `api/login.ts` - Password verification + session token issuance. Emits the `login` analytics event.
+- `api/log-view.ts` - Emits `view` analytics events. Missing `portfolio_id` means a landing-page view (recorded with `portfolio_id = null`).
+- `api/permissions.ts` - Portfolio viewer permissions (selective visibility)
+- `api/share-links.ts` - Generate and resolve shareable view links
+- `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations)
 - `api/_lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
 - `api/_lib/cache.ts` - Market hours detection utilities
 - `api/_lib/snapshot.ts` - Snapshot computation logic for portfolios
@@ -51,6 +59,8 @@ vercel --prod    # Deploy to production
 - `price_cache` table: ticker, current_price, previous_close, change_percent, updated_at
 - `daily_prices` table: ticker, date, close_price (historical daily closing prices)
 - `portfolio_snapshots` table: Pre-computed portfolio data with holdings, history, and benchmark (JSONB)
+- `sessions` table: token, portfolio_id, is_admin, expires_at, created_at (issued by `api/login.ts`)
+- `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), ip_address, user_agent, country/city/region, referer, created_at
 
 ### External APIs
 - **Yahoo Finance** - Sole source for real-time quotes, historical data, and symbol info (free, no API key)
@@ -69,6 +79,12 @@ vercel --prod    # Deploy to production
   - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
 - Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
 - Unrealized gain shown as both absolute value and percentage
+- **Analytics events:**
+  - Every page open fires `POST /api/log-view`. Portfolio routes use `useViewAnalytics` (mounted in `App.tsx`); the landing page uses `useLandingViewAnalytics` (mounted in `LandingPage.tsx`). Both fire on initial mount and on `visibilitychange → visible`.
+  - `log-view` writes `event_type = 'view'` only. The `login` event type is emitted exclusively by `api/login.ts` at password verification — do not write `'login'` from anywhere else.
+  - `portfolio_id = null` ⇒ landing-page view. `viewer_id = null` ⇒ anonymous visitor. In analytics aggregations, anonymous visitors are clustered by `(ip_address, user_agent)` so each unique device/network pair shows up as its own identity in the Viewer Activity (Anonymous) panel.
+  - The Analytics Dashboard at `/analytics` is gated by `ADMIN_PASSWORD`.
+- **Storage-backed hooks must hydrate synchronously.** Hooks that read from `localStorage`/`sessionStorage` (`useLoggedInPortfolio`, `useUnlockedPortfolios`) must initialize state via `useState(() => readStorage())` — **not** in a post-mount `useEffect`. Otherwise the first render sees a logged-out app, and any side effects firing in that window (analytics events, identified data fetches) carry no identity. This bug silently broke view-event attribution for weeks; don't reintroduce the pattern when adding new storage-backed hooks.
 
 ## Authentication & Permissions
 

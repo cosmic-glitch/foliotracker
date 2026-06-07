@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -15,6 +15,16 @@ import {
 import { Footer } from '../components/Footer';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const ADMIN_PASSWORD_STORAGE_KEY = 'foliotracker_analytics_admin_password';
+
+function readStoredAdminPassword(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(ADMIN_PASSWORD_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
 
 interface AnalyticsData {
   totalViews: number;
@@ -235,17 +245,29 @@ function getCountryFlag(country: string): string {
 
 export function AnalyticsDashboard() {
   const [password, setPassword] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [storedPassword, setStoredPassword] = useState(() => readStoredAdminPassword());
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!readStoredAdminPassword());
   const [authError, setAuthError] = useState<string | null>(null);
   const [days] = useState(30);
-  const [storedPassword, setStoredPassword] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['analytics', storedPassword, days],
     queryFn: () => fetchAnalytics(storedPassword, days),
     enabled: isAuthenticated && !!storedPassword,
     refetchInterval: 60000, // Refresh every minute
+    retry: false,
   });
+
+  // If a persisted password becomes invalid (e.g., ADMIN_PASSWORD changed server-side),
+  // drop it and surface the login screen with the error.
+  useEffect(() => {
+    if (error instanceof Error && error.message === 'Invalid admin password') {
+      try { window.localStorage.removeItem(ADMIN_PASSWORD_STORAGE_KEY); } catch { /* ignore */ }
+      setStoredPassword('');
+      setIsAuthenticated(false);
+      setAuthError('Saved password no longer works. Please log in again.');
+    }
+  }, [error]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,6 +275,7 @@ export function AnalyticsDashboard() {
 
     try {
       await fetchAnalytics(password, days);
+      try { window.localStorage.setItem(ADMIN_PASSWORD_STORAGE_KEY, password); } catch { /* ignore */ }
       setStoredPassword(password);
       setIsAuthenticated(true);
     } catch (err) {
@@ -261,6 +284,7 @@ export function AnalyticsDashboard() {
   };
 
   const handleLogout = () => {
+    try { window.localStorage.removeItem(ADMIN_PASSWORD_STORAGE_KEY); } catch { /* ignore */ }
     setIsAuthenticated(false);
     setStoredPassword('');
     setPassword('');

@@ -1128,10 +1128,11 @@ export async function getAnalyticsData(
   const todayLogins = logins.filter((e) => e.created_at >= todayStartStr);
   const uniqueIPs = new Set(allEvents.map((e) => e.ip_address).filter(Boolean));
 
-  // Events by day
+  // Events by day, bucketed in Pacific time so dates match what the dashboard
+  // displays (and what the Viewer Activity panels already use).
   const eventsByDayMap = new Map<string, { views: number; logins: number }>();
   for (const event of allEvents) {
-    const date = event.created_at.split('T')[0];
+    const date = getPacificDateString(event.created_at);
     const existing = eventsByDayMap.get(date) || { views: 0, logins: 0 };
     if (event.event_type === 'view') existing.views++;
     if (event.event_type === 'login') existing.logins++;

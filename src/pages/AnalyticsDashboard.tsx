@@ -121,6 +121,90 @@ async function fetchAnalytics(
   return response.json();
 }
 
+function ViewsPerDayPanel({ data }: { data: { date: string; views: number; logins: number }[] }) {
+  const [range, setRange] = useState<7 | 30>(7);
+
+  // Pad the last `range` Pacific days so days with zero views still appear.
+  const today = new Date();
+  const days = Array.from({ length: range }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const displayStr = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+    return { dateStr, displayStr };
+  });
+  const byDate = new Map(data.map((r) => [r.date, r]));
+  const rows = days.map(({ dateStr, displayStr }) => ({
+    dateStr,
+    displayStr,
+    views: byDate.get(dateStr)?.views ?? 0,
+  }));
+  const maxViews = Math.max(1, ...rows.map((r) => r.views));
+  const total = rows.reduce((sum, r) => sum + r.views, 0);
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-6 mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="w-5 h-5 text-text-secondary" />
+          <h2 className="text-lg font-semibold text-text-primary">Views per Day</h2>
+          <span className="text-sm text-text-secondary">· {total.toLocaleString()} total</span>
+        </div>
+        <div className="inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
+          {([7, 30] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRange(r)}
+              className={`px-3 py-1 rounded-md transition-colors ${
+                range === r
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {r === 7 ? '1w' : '30d'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-text-secondary border-b border-border">
+              <th className="pb-2 font-medium">Date</th>
+              <th className="pb-2 font-medium w-full">Views</th>
+              <th className="pb-2 font-medium text-right">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.dateStr} className="border-b border-border last:border-0">
+                <td className="py-2 pr-4 text-text-primary whitespace-nowrap">{row.displayStr}</td>
+                <td className="py-2 pr-4">
+                  <div className="h-2 rounded-full bg-background overflow-hidden">
+                    <div
+                      className="h-full bg-accent/60"
+                      style={{ width: `${(row.views / maxViews) * 100}%` }}
+                    />
+                  </div>
+                </td>
+                <td className="py-2 pl-4 text-right text-text-primary tabular-nums">
+                  {row.views.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -608,7 +692,7 @@ export function AnalyticsDashboard() {
               />
               <StatCard
                 icon={Users}
-                label="Unique Visitors"
+                label="Unique IPs"
                 value={data.uniqueVisitors}
                 iconColor="bg-purple-500/10 text-purple-500"
               />
@@ -619,6 +703,8 @@ export function AnalyticsDashboard() {
                 iconColor="bg-amber-500/10 text-amber-500"
               />
             </div>
+
+            <ViewsPerDayPanel data={data.eventsByDay} />
 
             {/* Viewer Activity (Logged In) */}
             <div className="bg-card rounded-2xl border border-border p-6 mb-8">

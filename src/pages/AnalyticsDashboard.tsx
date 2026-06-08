@@ -121,6 +121,14 @@ async function fetchAnalytics(
   return response.json();
 }
 
+function niceCeil(value: number): number {
+  if (value <= 1) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  const norm = value / magnitude;
+  const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return nice * magnitude;
+}
+
 function ViewsPerDayPanel({ data }: { data: { date: string; views: number; logins: number }[] }) {
   const [range, setRange] = useState<7 | 30>(7);
 
@@ -128,24 +136,31 @@ function ViewsPerDayPanel({ data }: { data: { date: string; views: number; login
   const today = new Date();
   const days = Array.from({ length: range }, (_, i) => {
     const d = new Date(today);
-    d.setDate(d.getDate() - i);
+    d.setDate(d.getDate() - (range - 1 - i)); // oldest -> newest (left -> right)
     const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-    const displayStr = d.toLocaleDateString('en-US', {
+    const weekday = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      weekday: 'short',
+    });
+    const dayNum = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      day: 'numeric',
+    });
+    const tooltip = d.toLocaleDateString('en-US', {
       timeZone: 'America/Los_Angeles',
       weekday: 'short',
       month: 'short',
       day: 'numeric',
     });
-    return { dateStr, displayStr };
+    return { dateStr, weekday, dayNum, tooltip };
   });
   const byDate = new Map(data.map((r) => [r.date, r]));
-  const rows = days.map(({ dateStr, displayStr }) => ({
-    dateStr,
-    displayStr,
-    views: byDate.get(dateStr)?.views ?? 0,
-  }));
-  const maxViews = Math.max(1, ...rows.map((r) => r.views));
+  const rows = days.map((d) => ({ ...d, views: byDate.get(d.dateStr)?.views ?? 0 }));
+  const max = Math.max(...rows.map((r) => r.views), 0);
+  const yMax = niceCeil(max);
   const total = rows.reduce((sum, r) => sum + r.views, 0);
+
+  const ticks = [yMax, Math.round((yMax * 3) / 4), Math.round(yMax / 2), Math.round(yMax / 4), 0];
 
   return (
     <div className="bg-card rounded-2xl border border-border p-6 mb-8">
@@ -172,34 +187,70 @@ function ViewsPerDayPanel({ data }: { data: { date: string; views: number; login
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-text-secondary border-b border-border">
-              <th className="pb-2 font-medium">Date</th>
-              <th className="pb-2 font-medium w-full">Views</th>
-              <th className="pb-2 font-medium text-right">Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.dateStr} className="border-b border-border last:border-0">
-                <td className="py-2 pr-4 text-text-primary whitespace-nowrap">{row.displayStr}</td>
-                <td className="py-2 pr-4">
-                  <div className="h-2 rounded-full bg-background overflow-hidden">
-                    <div
-                      className="h-full bg-accent/60"
-                      style={{ width: `${(row.views / maxViews) * 100}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-2 pl-4 text-right text-text-primary tabular-nums">
-                  {row.views.toLocaleString()}
-                </td>
-              </tr>
+
+      <div className="flex">
+        {/* Y-axis */}
+        <div
+          className="flex flex-col justify-between text-xs text-text-secondary tabular-nums pr-2 text-right"
+          style={{ height: '12rem' }}
+        >
+          {ticks.map((t) => (
+            <div key={t} className="leading-none">{t.toLocaleString()}</div>
+          ))}
+        </div>
+
+        {/* Chart area */}
+        <div className="flex-1 min-w-0">
+          <div
+            className="relative flex items-end gap-1 border-l border-b border-border pl-1"
+            style={{ height: '12rem' }}
+          >
+            {/* Horizontal gridlines aligned to y-axis ticks */}
+            {ticks.map((_, i) => (
+              <div
+                key={i}
+                className="absolute left-0 right-0 border-t border-border/40 pointer-events-none"
+                style={{ top: `${(i / (ticks.length - 1)) * 100}%` }}
+              />
             ))}
-          </tbody>
-        </table>
+            {rows.map((row) => (
+              <div
+                key={row.dateStr}
+                title={`${row.tooltip}: ${row.views.toLocaleString()} view${row.views === 1 ? '' : 's'}`}
+                className="flex-1 min-w-0 flex items-end justify-center relative z-10"
+                style={{ height: '100%' }}
+              >
+                <div
+                  className="w-full bg-accent/70 hover:bg-accent transition-colors rounded-t"
+                  style={{ height: `${yMax > 0 ? (row.views / yMax) * 100 : 0}%` }}
+                />
+              </div>
+            ))}
+          </div>
+          {/* X-axis labels */}
+          <div className="flex gap-1 pl-1 mt-1 text-[10px] text-text-secondary tabular-nums">
+            {rows.map((row, i) => {
+              // For 30d, only show every 5th label so they don't collide.
+              const showLabel = range === 7 || i % 5 === 0 || i === rows.length - 1;
+              return (
+                <div key={row.dateStr} className="flex-1 min-w-0 text-center leading-tight">
+                  {showLabel ? (
+                    range === 7 ? (
+                      <>
+                        <div>{row.weekday}</div>
+                        <div className="text-text-secondary/60">{row.dayNum}</div>
+                      </>
+                    ) : (
+                      <div>{row.dayNum}</div>
+                    )
+                  ) : (
+                    <>&nbsp;</>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

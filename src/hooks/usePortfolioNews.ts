@@ -52,12 +52,16 @@ async function fetchNews(tickers: string[]): Promise<NewsResponse> {
 export function usePortfolioNews(holdings: Holding[]) {
   // Consolidate equivalent tickers (e.g. GOOG/GOOGL) before fetching news so we
   // don't request duplicate summaries; the canonical ticker is used as the key.
+  // ETF and Mutual Fund tickers are included so pilot portfolios (currently
+  // baxter) render the ETF-prompt summaries when present.
   const tickers = consolidateHoldings(holdings)
     .filter(
       (h) =>
         !h.isStatic &&
         (h.instrumentType === 'Common Stock' ||
-          h.instrumentType === 'American Depositary Receipt')
+          h.instrumentType === 'American Depositary Receipt' ||
+          h.instrumentType === 'ETF' ||
+          h.instrumentType === 'Mutual Fund')
     )
     .map((h) => h.ticker);
 

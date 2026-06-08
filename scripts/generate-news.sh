@@ -2,8 +2,9 @@
 # Daily Claude-Code-driven news summary generator.
 #
 # Runs on the Hetzner VM via cron. Enumerates unique single-stock tickers
-# across all portfolios, then invokes a single `claude -p` agentic session that
-# researches each ticker and persists per-ticker summaries to Supabase.
+# across all portfolios (and ETF/MF tickers for pilot portfolios), then
+# invokes one `claude -p` agentic session per asset class that researches
+# each ticker and persists per-ticker summaries to Supabase.
 #
 # Required env (from .env.local): SUPABASE_URL, SUPABASE_SERVICE_KEY.
 # Required on PATH: claude, npx, node.
@@ -25,6 +26,8 @@ set +a
 
 OUT_DIR="$PROJECT_DIR/scripts/news-output"
 LOG_FILE="$PROJECT_DIR/scripts/news.log"
+STOCK_TICKERS="$OUT_DIR/tickers.json"
+ETF_TICKERS="$OUT_DIR/etf-tickers.json"
 
 echo "[$(date -u +%FT%TZ)] generate-news: starting" >> "$LOG_FILE"
 
@@ -39,21 +42,44 @@ fi
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-# 1. Build the ticker input file.
-npx tsx "$PROJECT_DIR/scripts/prepare-news-input.ts" > "$OUT_DIR/tickers.json"
-TICKER_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).filter(t=>!t.already_generated_today).length)" "$OUT_DIR/tickers.json")
-TOTAL=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).length)" "$OUT_DIR/tickers.json")
-echo "[$(date -u +%FT%TZ)] generate-news: $TICKER_COUNT of $TOTAL tickers need generation" >> "$LOG_FILE"
+# 1. Build both ticker input files.
+npx tsx "$PROJECT_DIR/scripts/prepare-news-input.ts" \
+  --stocks-out "$STOCK_TICKERS" \
+  --etfs-out "$ETF_TICKERS" >> "$LOG_FILE" 2>&1
 
-if [ "$TICKER_COUNT" = "0" ]; then
-  echo "[$(date -u +%FT%TZ)] generate-news: nothing to do, exiting" >> "$LOG_FILE"
-  exit 0
+count_pending() {
+  node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).filter(t=>!t.already_generated_today).length)" "$1"
+}
+count_total() {
+  node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).length)" "$1"
+}
+
+STOCK_PENDING=$(count_pending "$STOCK_TICKERS")
+STOCK_TOTAL=$(count_total "$STOCK_TICKERS")
+ETF_PENDING=$(count_pending "$ETF_TICKERS")
+ETF_TOTAL=$(count_total "$ETF_TICKERS")
+echo "[$(date -u +%FT%TZ)] generate-news: stocks $STOCK_PENDING of $STOCK_TOTAL pending, etfs $ETF_PENDING of $ETF_TOTAL pending" >> "$LOG_FILE"
+
+# 2. Stock pass.
+if [ "$STOCK_PENDING" != "0" ]; then
+  STOCK_PROMPT=$(cat "$PROJECT_DIR/scripts/news-prompt.md")
+  claude -p "$STOCK_PROMPT" \
+    --dangerously-skip-permissions \
+    >> "$LOG_FILE" 2>&1
+  echo "[$(date -u +%FT%TZ)] generate-news: stock claude session exited" >> "$LOG_FILE"
+else
+  echo "[$(date -u +%FT%TZ)] generate-news: skipping stock pass (nothing pending)" >> "$LOG_FILE"
 fi
 
-# 2. Invoke Claude headless. A single session drives all tickers.
-PROMPT=$(cat "$PROJECT_DIR/scripts/news-prompt.md")
-claude -p "$PROMPT" \
-  --dangerously-skip-permissions \
-  >> "$LOG_FILE" 2>&1
+# 3. ETF pass (pilot — currently only `baxter` portfolio's ETFs/MFs).
+if [ "$ETF_PENDING" != "0" ]; then
+  ETF_PROMPT=$(cat "$PROJECT_DIR/scripts/news-prompt-etf.md")
+  claude -p "$ETF_PROMPT" \
+    --dangerously-skip-permissions \
+    >> "$LOG_FILE" 2>&1
+  echo "[$(date -u +%FT%TZ)] generate-news: etf claude session exited" >> "$LOG_FILE"
+else
+  echo "[$(date -u +%FT%TZ)] generate-news: skipping etf pass (nothing pending)" >> "$LOG_FILE"
+fi
 
-echo "[$(date -u +%FT%TZ)] generate-news: claude session exited" >> "$LOG_FILE"
+echo "[$(date -u +%FT%TZ)] generate-news: done" >> "$LOG_FILE"

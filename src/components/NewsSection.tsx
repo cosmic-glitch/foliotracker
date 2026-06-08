@@ -20,16 +20,24 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
   const tickerOrder = useMemo(
     () =>
       // Consolidate equivalent tickers (GOOG/GOOGL) so a split position renders
-      // as one news row, ordered by its true combined allocation.
+      // as one news row, ordered by its true combined allocation. ETFs and
+      // Mutual Funds are included so the pilot portfolio (baxter) renders
+      // ETF-prompt summaries; for other portfolios that hold the same tickers
+      // the row is suppressed below when no AI summary exists.
       consolidateHoldings(holdings)
         .filter(
           (h) =>
             !h.isStatic &&
             (h.instrumentType === 'Common Stock' ||
-              h.instrumentType === 'American Depositary Receipt')
+              h.instrumentType === 'American Depositary Receipt' ||
+              h.instrumentType === 'ETF' ||
+              h.instrumentType === 'Mutual Fund')
         )
         .sort((a, b) => b.allocation - a.allocation) // heaviest holdings first
-        .map((h) => h.ticker),
+        .map((h) => ({
+          ticker: h.ticker,
+          isEtfLike: h.instrumentType === 'ETF' || h.instrumentType === 'Mutual Fund',
+        })),
     [holdings]
   );
 
@@ -38,9 +46,14 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
   const renderedRows = useMemo(() => {
     if (!data?.news) return [];
     const rows: Array<{ ticker: string; kind: 'ai' | 'pending'; markdown?: string }> = [];
-    for (const ticker of tickerOrder) {
+    for (const { ticker, isEtfLike } of tickerOrder) {
       const entry = data.news[ticker];
+      // ETFs/MFs only render when a real AI summary exists. We don't show
+      // "summary pending" for them because generation is currently gated
+      // to a pilot portfolio — other holders of the same ticker shouldn't
+      // see pending placeholders that may never resolve.
       if (!entry) {
+        if (isEtfLike) continue;
         rows.push({ ticker, kind: 'pending' });
         continue;
       }
@@ -49,6 +62,7 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
         if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
         rows.push({ ticker, kind: 'ai', markdown: body });
       } else {
+        if (isEtfLike) continue;
         rows.push({ ticker, kind: 'pending' });
       }
     }

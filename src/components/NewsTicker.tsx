@@ -33,7 +33,9 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
           (h) =>
             !h.isStatic &&
             (h.instrumentType === 'Common Stock' ||
-              h.instrumentType === 'American Depositary Receipt')
+              h.instrumentType === 'American Depositary Receipt' ||
+              h.instrumentType === 'ETF' ||
+              h.instrumentType === 'Mutual Fund')
         )
         .sort((a, b) => b.allocation - a.allocation) // heaviest holdings first
         .map((h) => h.ticker),

@@ -402,7 +402,12 @@ export default async function handler(
       }
 
       const days = parseInt(req.query.days as string) || 30;
-      const data = await getAnalyticsData(days);
+      const excludeViewersParam = (req.query.excludeViewers as string) || '';
+      const excludeViewerIds = excludeViewersParam
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+      const data = await getAnalyticsData(days, { excludeViewerIds });
       res.status(200).json(data);
       return;
     }

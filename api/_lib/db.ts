@@ -1093,7 +1093,10 @@ function getSeattleMidnightToday(): Date {
   return new Date(midnightUTC.getTime() + offsetHours * 60 * 60 * 1000);
 }
 
-export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggregation> {
+export async function getAnalyticsData(
+  days: number = 30,
+  options: { excludeViewerIds?: string[] } = {}
+): Promise<AnalyticsAggregation> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString();
@@ -1110,7 +1113,13 @@ export async function getAnalyticsData(days: number = 30): Promise<AnalyticsAggr
 
   if (error) throw error;
 
-  const allEvents = events || [];
+  // Drop events from excluded viewers (e.g. site owner's own test traffic) so
+  // every downstream aggregation — totals, by-day, locations, devices — is
+  // computed on the same filtered set.
+  const excluded = new Set((options.excludeViewerIds || []).map((v) => v.toLowerCase()));
+  const allEvents = (events || []).filter(
+    (e) => !(e.viewer_id && excluded.has(e.viewer_id.toLowerCase()))
+  );
 
   // Calculate aggregations
   const views = allEvents.filter((e) => e.event_type === 'view');

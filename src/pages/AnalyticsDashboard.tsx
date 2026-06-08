@@ -18,6 +18,19 @@ import { Footer } from '../components/Footer';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const ADMIN_PASSWORD_STORAGE_KEY = 'foliotracker_analytics_admin_password';
+const INCLUDE_SELF_STORAGE_KEY = 'foliotracker_analytics_include_self';
+// viewer_id of the site owner — excluded from analytics by default so AV's own
+// testing views don't skew the numbers.
+const SELF_VIEWER_ID = 'av';
+
+function readIncludeSelf(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(INCLUDE_SELF_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function readStoredAdminPassword(): string {
   if (typeof window === 'undefined') return '';
@@ -85,11 +98,18 @@ function formatRelativeTime(iso: string): string {
   return `${Math.floor(mo)}mo ago`;
 }
 
-async function fetchAnalytics(password: string, days: number): Promise<AnalyticsData> {
+async function fetchAnalytics(
+  password: string,
+  days: number,
+  includeSelf: boolean
+): Promise<AnalyticsData> {
   const url = new URL(`${API_BASE_URL}/api/portfolios`, window.location.origin);
   url.searchParams.set('action', 'analytics');
   url.searchParams.set('password', password);
   url.searchParams.set('days', days.toString());
+  if (!includeSelf) {
+    url.searchParams.set('excludeViewers', SELF_VIEWER_ID);
+  }
 
   const response = await fetch(url.toString());
   if (response.status === 401) {
@@ -393,10 +413,21 @@ export function AnalyticsDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!readStoredAdminPassword());
   const [authError, setAuthError] = useState<string | null>(null);
   const [days] = useState(30);
+  const [includeSelf, setIncludeSelf] = useState(() => readIncludeSelf());
+
+  const toggleIncludeSelf = () => {
+    setIncludeSelf((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(INCLUDE_SELF_STORAGE_KEY, next ? '1' : '0');
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['analytics', storedPassword, days],
-    queryFn: () => fetchAnalytics(storedPassword, days),
+    queryKey: ['analytics', storedPassword, days, includeSelf],
+    queryFn: () => fetchAnalytics(storedPassword, days, includeSelf),
     enabled: isAuthenticated && !!storedPassword,
     refetchInterval: 60000, // Refresh every minute
     retry: false,
@@ -418,7 +449,7 @@ export function AnalyticsDashboard() {
     setAuthError(null);
 
     try {
-      await fetchAnalytics(password, days);
+      await fetchAnalytics(password, days, includeSelf);
       try { window.localStorage.setItem(ADMIN_PASSWORD_STORAGE_KEY, password); } catch { /* ignore */ }
       setStoredPassword(password);
       setIsAuthenticated(true);
@@ -523,12 +554,35 @@ export function AnalyticsDashboard() {
               </button>
               <h1 className="text-xl font-semibold text-text-primary">Analytics Dashboard</h1>
             </div>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-text-secondary hover:text-negative transition-colors"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeSelf}
+                onClick={toggleIncludeSelf}
+                title={includeSelf ? 'AV views included in stats' : 'AV views excluded from stats'}
+                className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <span
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    includeSelf ? 'bg-accent' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+                      includeSelf ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+                <span>Include AV</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-text-secondary hover:text-negative transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>

@@ -932,6 +932,10 @@ export interface AnalyticsAggregation {
     dailyCounts: Record<string, number>;
   }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
+  portfolioActivityByDay: {
+    portfolio_id: string;
+    dailyCounts: Record<string, number>;
+  }[];
 }
 
 // Single pre-formatted display string per location: "Seattle, WA" for US
@@ -1299,6 +1303,26 @@ export async function getAnalyticsData(
     .map(([viewer_id, counts]) => ({ viewer_id, ...counts }))
     .sort((a, b) => (b.desktop + b.mobile) - (a.desktop + a.mobile));
 
+  // Views per portfolio per day (last 5 Pacific days). Null portfolio_id =>
+  // LANDING_PORTFOLIO bucket so the landing page ("/") shows up alongside
+  // portfolio paths.
+  const portfolioActivityMap = new Map<string, Record<string, number>>();
+  for (const event of views) {
+    if (event.created_at < fiveDaysAgoStr) continue;
+    const portfolio = event.portfolio_id || LANDING_PORTFOLIO;
+    const date = getPacificDateString(event.created_at);
+    if (!portfolioActivityMap.has(portfolio)) portfolioActivityMap.set(portfolio, {});
+    const counts = portfolioActivityMap.get(portfolio)!;
+    counts[date] = (counts[date] || 0) + 1;
+  }
+  const portfolioActivityByDay = Array.from(portfolioActivityMap.entries())
+    .map(([portfolio_id, dailyCounts]) => ({ portfolio_id, dailyCounts }))
+    .sort((a, b) => {
+      const aTotal = Object.values(a.dailyCounts).reduce((s, n) => s + n, 0);
+      const bTotal = Object.values(b.dailyCounts).reduce((s, n) => s + n, 0);
+      return bTotal - aTotal || a.portfolio_id.localeCompare(b.portfolio_id);
+    });
+
   return {
     totalViews: views.length,
     totalLogins: logins.length,
@@ -1311,6 +1335,7 @@ export async function getAnalyticsData(
     viewerActivityByDay,
     anonymousActivityByDay,
     viewerDeviceBreakdown,
+    portfolioActivityByDay,
   };
 }
 

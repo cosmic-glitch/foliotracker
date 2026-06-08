@@ -79,6 +79,10 @@ interface AnalyticsData {
     dailyCounts: Record<string, number>;
   }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
+  portfolioActivityByDay: {
+    portfolio_id: string;
+    dailyCounts: Record<string, number>;
+  }[];
 }
 
 function formatRelativeTime(iso: string): string {
@@ -136,7 +140,7 @@ function ViewsPerDayPanel({ data }: { data: { date: string; views: number; login
   const today = new Date();
   const days = Array.from({ length: range }, (_, i) => {
     const d = new Date(today);
-    d.setDate(d.getDate() - (range - 1 - i)); // oldest -> newest (left -> right)
+    d.setDate(d.getDate() - i); // newest -> oldest (left -> right)
     const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     const weekday = d.toLocaleDateString('en-US', {
       timeZone: 'America/Los_Angeles',
@@ -402,6 +406,89 @@ function AnonymousActivityTable({
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PortfolioActivityTable({
+  data,
+}: {
+  data: { portfolio_id: string; dailyCounts: Record<string, number> }[];
+}) {
+  const last5Days = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const displayStr = d.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short',
+      day: 'numeric',
+    });
+    return { dateStr, displayStr };
+  });
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-text-secondary border-b border-border">
+            <th className="pb-2 font-medium">Portfolio</th>
+            {last5Days.map(({ dateStr, displayStr }) => (
+              <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
+                {displayStr}
+              </th>
+            ))}
+            <th className="pb-2 font-medium text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row) => {
+            const isLanding = row.portfolio_id === LANDING_PORTFOLIO;
+            const total = last5Days.reduce(
+              (s, { dateStr }) => s + (row.dailyCounts[dateStr] || 0),
+              0
+            );
+            return (
+              <tr key={row.portfolio_id} className="border-b border-border last:border-0">
+                <td className="py-2">
+                  <Link
+                    to={isLanding ? '/' : `/${row.portfolio_id}`}
+                    className="text-accent hover:underline"
+                  >
+                    {isLanding ? '/' : `/${row.portfolio_id}`}
+                  </Link>
+                </td>
+                {last5Days.map(({ dateStr }) => (
+                  <td key={dateStr} className="py-2 text-text-secondary text-center">
+                    {row.dailyCounts[dateStr] || '-'}
+                  </td>
+                ))}
+                <td className="py-2 text-text-primary text-right font-medium">{total}</td>
+              </tr>
+            );
+          })}
+          {(() => {
+            const dailyTotals = last5Days.map(({ dateStr }) =>
+              data.reduce((s, r) => s + (r.dailyCounts[dateStr] || 0), 0)
+            );
+            const grand = dailyTotals.reduce((s, n) => s + n, 0);
+            return (
+              <tr className="border-t-2 border-border">
+                <td className="py-2 text-text-primary font-semibold">Total</td>
+                {last5Days.map(({ dateStr }, i) => (
+                  <td
+                    key={dateStr}
+                    className="py-2 text-text-primary text-center font-semibold"
+                  >
+                    {dailyTotals[i] || '-'}
+                  </td>
+                ))}
+                <td className="py-2 text-text-primary text-right font-semibold">{grand}</td>
+              </tr>
+            );
+          })()}
         </tbody>
       </table>
     </div>
@@ -807,6 +894,19 @@ export function AnalyticsDashboard() {
                   <AnonymousLocationsPanel data={data.anonymousLocations} />
                 </section>
               </div>
+            </div>
+
+            {/* Views by Portfolio */}
+            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Eye className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Views by Portfolio</h2>
+              </div>
+              {data.portfolioActivityByDay && data.portfolioActivityByDay.length > 0 ? (
+                <PortfolioActivityTable data={data.portfolioActivityByDay} />
+              ) : (
+                <p className="text-text-secondary text-sm">No portfolio views yet</p>
+              )}
             </div>
 
             {/* Viewer Device Breakdown */}

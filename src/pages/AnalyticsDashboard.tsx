@@ -394,7 +394,7 @@ export function AnalyticsDashboard() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [days] = useState(30);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['analytics', storedPassword, days],
     queryFn: () => fetchAnalytics(storedPassword, days),
     enabled: isAuthenticated && !!storedPassword,
@@ -507,9 +507,20 @@ export function AnalyticsDashboard() {
               >
                 <ArrowLeft className="w-5 h-5 text-text-secondary" />
               </Link>
-              <div className="p-2 bg-accent/10 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-accent" />
-              </div>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                aria-label="Refresh analytics"
+                title="Refresh analytics"
+                className="p-2 bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isFetching ? (
+                  <Loader2 className="w-6 h-6 text-accent animate-spin" />
+                ) : (
+                  <TrendingUp className="w-6 h-6 text-accent" />
+                )}
+              </button>
               <h1 className="text-xl font-semibold text-text-primary">Analytics Dashboard</h1>
             </div>
             <button

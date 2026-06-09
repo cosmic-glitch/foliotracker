@@ -70,12 +70,14 @@ interface AnalyticsData {
   viewerActivityByDay: {
     viewer_id: string;
     portfolio_id: string;
+    lastVisitAt: string;
     dailyCounts: Record<string, number>;
   }[];
   anonymousActivityByDay: {
     identity: string;
     label: string;
     portfolio_id: string;
+    lastVisitAt: string;
     dailyCounts: Record<string, number>;
   }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
@@ -293,7 +295,7 @@ const LANDING_PORTFOLIO = '(landing)';
 function ViewerActivityTable({
   data,
 }: {
-  data: { viewer_id: string; portfolio_id: string; dailyCounts: Record<string, number> }[];
+  data: { viewer_id: string; portfolio_id: string; lastVisitAt: string; dailyCounts: Record<string, number> }[];
 }) {
   // Generate last 5 days in Pacific timezone (YYYY-MM-DD format for lookup, MMM D for display)
   const last5Days = Array.from({ length: 5 }, (_, i) => {
@@ -315,6 +317,7 @@ function ViewerActivityTable({
           <tr className="text-left text-text-secondary border-b border-border">
             <th className="pb-2 font-medium">Viewer</th>
             <th className="pb-2 font-medium">Portfolio</th>
+            <th className="pb-2 font-medium">Last Visited</th>
             {last5Days.map(({ dateStr, displayStr }) => (
               <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
                 {displayStr}
@@ -339,6 +342,9 @@ function ViewerActivityTable({
                     {isLanding ? '/' : `/${row.portfolio_id}`}
                   </Link>
                 </td>
+                <td className="py-2 text-text-secondary whitespace-nowrap">
+                  {row.lastVisitAt ? formatRelativeTime(row.lastVisitAt) : '—'}
+                </td>
                 {last5Days.map(({ dateStr }) => (
                   <td key={dateStr} className="py-2 text-text-secondary text-center">
                     {row.dailyCounts[dateStr] || '-'}
@@ -356,7 +362,7 @@ function ViewerActivityTable({
 function AnonymousActivityTable({
   data,
 }: {
-  data: { identity: string; label: string; portfolio_id: string; dailyCounts: Record<string, number> }[];
+  data: { identity: string; label: string; portfolio_id: string; lastVisitAt: string; dailyCounts: Record<string, number> }[];
 }) {
   const last5Days = Array.from({ length: 5 }, (_, i) => {
     const d = new Date();
@@ -377,6 +383,7 @@ function AnonymousActivityTable({
           <tr className="text-left text-text-secondary border-b border-border">
             <th className="pb-2 font-medium">Identity</th>
             <th className="pb-2 font-medium">Portfolio</th>
+            <th className="pb-2 font-medium">Last Visited</th>
             {last5Days.map(({ dateStr, displayStr }) => (
               <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
                 {displayStr}
@@ -397,6 +404,9 @@ function AnonymousActivityTable({
                   >
                     {isLanding ? '/' : `/${row.portfolio_id}`}
                   </Link>
+                </td>
+                <td className="py-2 text-text-secondary whitespace-nowrap">
+                  {row.lastVisitAt ? formatRelativeTime(row.lastVisitAt) : '—'}
                 </td>
                 {last5Days.map(({ dateStr }) => (
                   <td key={dateStr} className="py-2 text-text-secondary text-center">

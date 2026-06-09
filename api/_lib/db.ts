@@ -923,12 +923,14 @@ export interface AnalyticsAggregation {
   viewerActivityByDay: {
     viewer_id: string;
     portfolio_id: string;
+    lastVisitAt: string;    // ISO timestamp of the most recent event in the window
     dailyCounts: Record<string, number>; // { "2026-01-27": 3, "2026-01-26": 1, ... }
   }[];
   anonymousActivityByDay: {
     identity: string;       // ip|ua hash key, stable per (ip, user_agent)
     label: string;          // display: "Seattle • iPhone Safari • 172.56.108.x"
     portfolio_id: string;
+    lastVisitAt: string;    // ISO timestamp of the most recent event in the window
     dailyCounts: Record<string, number>;
   }[];
   viewerDeviceBreakdown: { viewer_id: string; desktop: number; mobile: number }[];
@@ -1233,10 +1235,14 @@ export async function getAnalyticsData(
   // Logged-in viewer activity: keyed by (viewer_id, portfolio_id). Null portfolio_id
   // (landing-page views) becomes its own LANDING_PORTFOLIO bucket.
   const viewerActivityByDayMap = new Map<string, Record<string, number>>();
+  // Most-recent event timestamp per (viewer_id, portfolio_id) bucket, used for the
+  // "Last Visited" column.
+  const viewerLastVisitMap = new Map<string, string>();
   // Anonymous viewer activity: keyed by (ip|user_agent, portfolio_id). Each unique
   // (IP, UA) pair counts as a distinct anonymous identity. Carries a representative
   // label derived from the first event we see for that identity.
   const anonActivityMap = new Map<string, Record<string, number>>();
+  const anonLastVisitMap = new Map<string, string>();
   const anonLabelMap = new Map<string, string>();
 
   const viewsAndLogins = allEvents.filter((e) => e.event_type === 'view' || e.event_type === 'login');
@@ -1250,12 +1256,16 @@ export async function getAnalyticsData(
       if (!viewerActivityByDayMap.has(key)) viewerActivityByDayMap.set(key, {});
       const counts = viewerActivityByDayMap.get(key)!;
       counts[date] = (counts[date] || 0) + 1;
+      const prev = viewerLastVisitMap.get(key);
+      if (!prev || event.created_at > prev) viewerLastVisitMap.set(key, event.created_at);
     } else {
       const identity = `${event.ip_address || 'unknown'}|${event.user_agent || 'unknown'}`;
       const key = `${identity}|${portfolio}`;
       if (!anonActivityMap.has(key)) anonActivityMap.set(key, {});
       const counts = anonActivityMap.get(key)!;
       counts[date] = (counts[date] || 0) + 1;
+      const prevAnon = anonLastVisitMap.get(key);
+      if (!prevAnon || event.created_at > prevAnon) anonLastVisitMap.set(key, event.created_at);
       if (!anonLabelMap.has(identity)) {
         anonLabelMap.set(identity, buildAnonLabel(event));
       }
@@ -1265,7 +1275,7 @@ export async function getAnalyticsData(
   const viewerActivityByDay = Array.from(viewerActivityByDayMap.entries())
     .map(([key, dailyCounts]) => {
       const [viewer_id, portfolio_id] = key.split('|');
-      return { viewer_id, portfolio_id, dailyCounts };
+      return { viewer_id, portfolio_id, lastVisitAt: viewerLastVisitMap.get(key)!, dailyCounts };
     })
     .sort((a, b) => a.viewer_id.localeCompare(b.viewer_id) || a.portfolio_id.localeCompare(b.portfolio_id));
 
@@ -1279,6 +1289,7 @@ export async function getAnalyticsData(
         identity,
         label: anonLabelMap.get(identity) || identity,
         portfolio_id,
+        lastVisitAt: anonLastVisitMap.get(key)!,
         dailyCounts,
       };
     })

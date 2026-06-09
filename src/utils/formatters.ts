@@ -45,16 +45,6 @@ export function formatChange(value: number, compact = false): string {
   return `${sign}${formatCurrency(value, compact)}`;
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'short',
-  }).format(date);
-}
-
 export function formatChartDate(dateString: string): string {
   // Extract just the date part (handles both YYYY-MM-DD and ISO timestamps)
   const datePart = dateString.split('T')[0];

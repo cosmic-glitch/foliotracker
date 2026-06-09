@@ -102,13 +102,11 @@ function App() {
     data,
     isLoading,
     isHistoryLoading,
-    isRefreshing,
     error,
     requiresAuth,
     chartView,
     setChartView,
     showExtendedHours,
-    refresh,
   } = usePortfolioData(portfolioId || '', storedToken, loggedInAs, shareToken);
 
   // If the share token was rejected (server returned 401 → React Query threw "Invalid password"),
@@ -125,13 +123,8 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  // Analytics hook - logs views on initial load, tab visibility, and manual refresh
-  const { logView } = useViewAnalytics(portfolioId, storedToken, loggedInAs);
-
-  const handleRefresh = () => {
-    logView();
-    refresh();
-  };
+  // Analytics hook - logs views on initial load and tab visibility change
+  useViewAnalytics(portfolioId, storedToken, loggedInAs);
 
   const handleUnlock = async (password: string) => {
     if (!portfolioId) return;
@@ -340,11 +333,7 @@ function App() {
       </main>
 
       {data && (
-        <Footer
-          lastUpdated={data.lastUpdated}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
-        />
+        <Footer lastUpdated={data.lastUpdated} />
       )}
 
       {/* Password modal for private portfolios */}

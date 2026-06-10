@@ -324,8 +324,6 @@ export function LandingPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8">
-        <MoversStrip movers={data?.movers ?? []} />
-
         {error && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 text-accent text-sm mb-6">
             {error.message || 'Could not load portfolios'}
@@ -335,6 +333,8 @@ export function LandingPage() {
         <div className="md:flex md:gap-6">
           {/* Left column: Users table + Create button */}
           <div className="md:flex-1 min-w-0">
+            <MoversStrip movers={data?.movers ?? []} />
+
             {/* Portfolios List */}
             <div className="bg-card rounded-2xl border border-border overflow-hidden">
               {/* Timeframe toggle moved to UserMenu's "30-Day View" row —

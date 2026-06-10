@@ -360,11 +360,11 @@ function buildPreviewResponse(classification: ClassificationResult): {
 }
 
 // --- Market movers (landing-page ticker strip) ---
-// "The most-held names swinging the most today": single-name stocks held in
-// at least MOVER_MIN_HELD portfolios whose day move is at least
-// MOVER_MIN_ABS_CHANGE_PCT in either direction. Broad ETFs and mutual funds
-// are excluded — an index fund tracking the market isn't news, and mutual
-// funds only price once a day. Sorted by breadth × |move| so a 2% swing six
+// "The most-held names swinging the most today": names held in at least
+// MOVER_MIN_HELD portfolios whose day move clears the per-type threshold —
+// single-name stocks at ±2%, ETFs at ±1.5% (a diversified basket moves less,
+// so a smaller swing is already group news). Mutual funds are excluded —
+// they only price once a day. Sorted by breadth × |move| so a 2% swing six
 // people hold outranks a 3% swing three people hold.
 
 interface MarketMover {
@@ -375,10 +375,8 @@ interface MarketMover {
 
 // ≥ a third of the group, so the strip reports group news, not one person's position.
 const MOVER_MIN_HELD = 3;
-const MOVER_MIN_ABS_CHANGE_PCT = 2;
-// Single-asset ETFs that trade like single names stay eligible; add future
-// ones (e.g. GBTC, GLD) here. All other ETFs are treated as index trackers.
-const MOVER_ETF_ALLOWLIST = new Set(['IBIT']);
+const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
+const MOVER_ETF_MIN_ABS_CHANGE_PCT = 1.5;
 // Dual share classes count as one company for breadth; the canonical ticker
 // (value side) is what the strip displays.
 const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
@@ -389,7 +387,7 @@ function computeMarketMovers(
 ): MarketMover[] {
   const byTicker = new Map<
     string,
-    { holders: Set<string>; changePercent: number; fromCanonical: boolean }
+    { holders: Set<string>; changePercent: number; fromCanonical: boolean; isEtf: boolean }
   >();
 
   for (const portfolio of portfolios) {
@@ -404,15 +402,19 @@ function computeMarketMovers(
     for (const h of snapshot.holdings_json) {
       if (h.isStatic || !Number.isFinite(h.dayChangePercent)) continue;
       const eligible =
-        h.instrumentType === 'Common Stock' ||
-        (h.instrumentType === 'ETF' && MOVER_ETF_ALLOWLIST.has(h.ticker));
+        h.instrumentType === 'Common Stock' || h.instrumentType === 'ETF';
       if (!eligible) continue;
 
       const canonical = SHARE_CLASS_ALIASES[h.ticker] ?? h.ticker;
       const isCanonical = h.ticker === canonical;
       let entry = byTicker.get(canonical);
       if (!entry) {
-        entry = { holders: new Set(), changePercent: h.dayChangePercent, fromCanonical: isCanonical };
+        entry = {
+          holders: new Set(),
+          changePercent: h.dayChangePercent,
+          fromCanonical: isCanonical,
+          isEtf: h.instrumentType === 'ETF',
+        };
         byTicker.set(canonical, entry);
       }
       entry.holders.add(portfolio.id);
@@ -425,16 +427,17 @@ function computeMarketMovers(
   }
 
   return Array.from(byTicker.entries())
+    .filter(
+      ([, e]) =>
+        e.holders.size >= MOVER_MIN_HELD &&
+        Math.abs(e.changePercent) >=
+          (e.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
+    )
     .map(([ticker, e]) => ({
       ticker,
       changePercent: e.changePercent,
       numPortfolios: e.holders.size,
     }))
-    .filter(
-      (m) =>
-        m.numPortfolios >= MOVER_MIN_HELD &&
-        Math.abs(m.changePercent) >= MOVER_MIN_ABS_CHANGE_PCT
-    )
     .sort(
       (a, b) =>
         b.numPortfolios * Math.abs(b.changePercent) -

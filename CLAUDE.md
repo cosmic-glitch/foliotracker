@@ -178,9 +178,7 @@ This hashes the new password with bcrypt, updates the database, and invalidates 
 
 ## Workflow
 
-- **Build-only by default**: After making changes, run `npm run build` to verify no errors. Do **not** auto-deploy to Vercel preview — only deploy when the user explicitly asks.
-- **Preview-first deployment**: When deploying, always deploy to preview URL first, never directly to production
-  1. Deploy to preview: `vercel` (without --prod)
-  2. Provide preview URL to user and **wait for user guidance** before proceeding
-  3. Only after approval: `vercel --prod` to deploy to production
-  - **Build costs:** Vercel is configured with Standard build machine + on-demand concurrency disabled = $0/minute.
+- **Build-only by default**: After making changes, run `npm run build` to verify no errors. Do **not** deploy via the Vercel CLI — only deploy when the user explicitly asks.
+- **Deployment = git push**: The Vercel GitHub integration auto-deploys every push to `main` to production. The normal flow is: make changes → `npm run build` → commit + push when the user asks (e.g. `/cp`). No `vercel` CLI command is needed or expected — "commit and push" IS the deploy.
+- Manual CLI deploys (`vercel` for preview, `vercel --prod`) are a fallback for special cases only, e.g. testing a preview without pushing to `main`.
+- **Build costs:** Vercel is configured with Standard build machine + on-demand concurrency disabled = $0/minute.

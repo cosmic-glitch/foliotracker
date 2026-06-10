@@ -24,26 +24,30 @@ export function MoversStrip({ movers }: MoversStripProps) {
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1"
+      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex items-center gap-4"
       aria-label="Today's movers among tracked holdings"
     >
+      {/* Flame lives outside the wrap container so wrapped rows start at the
+          same x as the first row's text instead of under the icon. */}
       <Flame className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
-      {movers.map((mover) => {
-        const isPositive = mover.changePercent >= 0;
-        return (
-          <span
-            key={mover.ticker}
-            className="flex items-baseline gap-1.5 whitespace-nowrap text-sm"
-            title={`Held in ${mover.numPortfolios} portfolios`}
-          >
-            <span className="font-medium text-text-primary">{mover.ticker}</span>
-            <span className={isPositive ? 'text-positive' : 'text-negative'}>
-              {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {movers.map((mover) => {
+          const isPositive = mover.changePercent >= 0;
+          return (
+            <span
+              key={mover.ticker}
+              className="flex items-baseline gap-1.5 whitespace-nowrap text-sm"
+              title={`Held in ${mover.numPortfolios} portfolios`}
+            >
+              <span className="font-medium text-text-primary">{mover.ticker}</span>
+              <span className={isPositive ? 'text-positive' : 'text-negative'}>
+                {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
+              </span>
+              <span className="text-xs text-text-secondary">held by {mover.numPortfolios}</span>
             </span>
-            <span className="text-xs text-text-secondary">held by {mover.numPortfolios}</span>
-          </span>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

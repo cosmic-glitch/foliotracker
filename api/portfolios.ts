@@ -360,12 +360,17 @@ function buildPreviewResponse(classification: ClassificationResult): {
 }
 
 // --- Market movers (landing-page ticker strip) ---
-// "The most-held names swinging the most today": names held in at least
-// MOVER_MIN_HELD portfolios whose day move clears the per-type threshold —
-// single-name stocks at ±2%, ETFs at ±1.5% (a diversified basket moves less,
-// so a smaller swing is already group news). Mutual funds are excluded —
-// they only price once a day. Sorted by breadth × |move| so a 2% swing six
-// people hold outranks a 3% swing three people hold.
+// "The most-held names swinging the most today": among names held in at least
+// MOVER_MIN_HELD portfolios, the ones whose day move clears the per-type
+// threshold — single-name stocks at ±2%, ETFs at ±1.5% (a diversified basket
+// moves less, so a smaller swing is already group news). Mutual funds are
+// excluded — they only price once a day. Ranked by breadth × |move| so a 2%
+// swing six people hold outranks a 3% swing three people hold.
+//
+// To keep the strip's first row from coming up short, we always return at
+// least MOVER_MIN_COUNT names: when fewer than that clear the threshold, the
+// remaining slots are backfilled with the next-highest-ranked held-by-≥3 names
+// (still group names, just calmer ones). The genuine movers always lead.
 
 interface MarketMover {
   ticker: string;
@@ -377,6 +382,8 @@ interface MarketMover {
 const MOVER_MIN_HELD = 3;
 const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
 const MOVER_ETF_MIN_ABS_CHANGE_PCT = 1.5;
+// Floor on how many names the strip shows — matches the mobile pill's 2×2 grid.
+const MOVER_MIN_COUNT = 4;
 // Dual share classes count as one company for breadth; the canonical ticker
 // (value side) is what the strip displays.
 const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
@@ -426,23 +433,44 @@ function computeMarketMovers(
     }
   }
 
-  return Array.from(byTicker.entries())
-    .filter(
-      ([, e]) =>
-        e.holders.size >= MOVER_MIN_HELD &&
-        Math.abs(e.changePercent) >=
-          (e.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
-    )
+  // Candidate pool: every group-held name, ranked by breadth × |move|.
+  const candidates = Array.from(byTicker.entries())
+    .filter(([, e]) => e.holders.size >= MOVER_MIN_HELD)
     .map(([ticker, e]) => ({
       ticker,
       changePercent: e.changePercent,
       numPortfolios: e.holders.size,
+      isEtf: e.isEtf,
     }))
     .sort(
       (a, b) =>
         b.numPortfolios * Math.abs(b.changePercent) -
         a.numPortfolios * Math.abs(a.changePercent)
     );
+
+  // Names that clear the per-type "genuinely moving" threshold lead the strip.
+  const qualified = candidates.filter(
+    (c) =>
+      Math.abs(c.changePercent) >=
+      (c.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
+  );
+
+  // On busy days show every qualifier; on quiet days backfill (by rank) up to
+  // MOVER_MIN_COUNT so the strip never comes up short.
+  const result = [...qualified];
+  if (result.length < MOVER_MIN_COUNT) {
+    const chosen = new Set(qualified.map((c) => c.ticker));
+    for (const c of candidates) {
+      if (result.length >= MOVER_MIN_COUNT) break;
+      if (!chosen.has(c.ticker)) result.push(c);
+    }
+  }
+
+  return result.map(({ ticker, changePercent, numPortfolios }) => ({
+    ticker,
+    changePercent,
+    numPortfolios,
+  }));
 }
 
 export default async function handler(

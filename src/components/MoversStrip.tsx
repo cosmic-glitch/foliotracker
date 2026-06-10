@@ -33,7 +33,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex items-center gap-4"
+      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex items-center gap-2 md:gap-4"
       aria-label="Today's movers among tracked holdings"
     >
       {/* Flame lives outside the layout containers so wrapped rows start at the

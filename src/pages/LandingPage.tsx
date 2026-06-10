@@ -323,9 +323,9 @@ export function LandingPage() {
         </div>
       </header>
 
-      <MoversStrip movers={data?.movers ?? []} />
-
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8">
+        <MoversStrip movers={data?.movers ?? []} />
+
         {error && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 text-accent text-sm mb-6">
             {error.message || 'Could not load portfolios'}

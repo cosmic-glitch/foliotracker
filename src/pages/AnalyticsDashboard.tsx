@@ -292,11 +292,47 @@ function StatCard({
 const ANONYMOUS_VIEWER = '(anonymous)';
 const LANDING_PORTFOLIO = '(landing)';
 
-function ViewerActivityTable({
-  data,
+function PortfolioPathLink({ portfolioId }: { portfolioId: string }) {
+  const path = portfolioId === LANDING_PORTFOLIO ? '/' : `/${portfolioId}`;
+  return (
+    <Link
+      to={path}
+      className="text-accent hover:underline"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {path}
+    </Link>
+  );
+}
+
+interface ActivityEntry {
+  groupKey: string; // viewer_id or anonymous identity — the row's primary key
+  label: string;
+  portfolio_id: string;
+  lastVisitAt: string;
+  dailyCounts: Record<string, number>;
+}
+
+// One row per viewer/identity; viewers with multiple portfolios expand into
+// per-portfolio sub-rows, mirroring the Visitor Locations drill-down.
+function GroupedActivityTable({
+  entries,
+  groupColumnLabel,
 }: {
-  data: { viewer_id: string; portfolio_id: string; lastVisitAt: string; dailyCounts: Record<string, number> }[];
+  entries: ActivityEntry[];
+  groupColumnLabel: string;
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (groupKey: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  };
+
   // Generate last 5 days in Pacific timezone (YYYY-MM-DD format for lookup, MMM D for display)
   const last5Days = Array.from({ length: 5 }, (_, i) => {
     const d = new Date();
@@ -310,12 +346,47 @@ function ViewerActivityTable({
     return { dateStr, displayStr };
   });
 
+  // Group entries by viewer/identity, preserving the server's sort order.
+  // Parent rows carry the summed daily counts and the most recent visit.
+  interface ActivityGroup {
+    groupKey: string;
+    label: string;
+    portfolios: ActivityEntry[];
+    lastVisitAt: string;
+    dailyCounts: Record<string, number>;
+  }
+  const groups: ActivityGroup[] = [];
+  const byKey = new Map<string, ActivityGroup>();
+  for (const entry of entries) {
+    let group = byKey.get(entry.groupKey);
+    if (!group) {
+      group = {
+        groupKey: entry.groupKey,
+        label: entry.label,
+        portfolios: [],
+        lastVisitAt: entry.lastVisitAt,
+        dailyCounts: {},
+      };
+      byKey.set(entry.groupKey, group);
+      groups.push(group);
+    }
+    group.portfolios.push(entry);
+    if (entry.lastVisitAt > group.lastVisitAt) group.lastVisitAt = entry.lastVisitAt;
+    for (const [date, count] of Object.entries(entry.dailyCounts)) {
+      group.dailyCounts[date] = (group.dailyCounts[date] || 0) + count;
+    }
+  }
+  for (const group of groups) {
+    group.portfolios.sort((a, b) => b.lastVisitAt.localeCompare(a.lastVisitAt));
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-text-secondary border-b border-border">
-            <th className="pb-2 font-medium">Viewer</th>
+            <th className="pb-2 font-medium w-8"></th>
+            <th className="pb-2 font-medium">{groupColumnLabel}</th>
             <th className="pb-2 font-medium">Portfolio</th>
             <th className="pb-2 font-medium">Last Visited</th>
             {last5Days.map(({ dateStr, displayStr }) => (
@@ -326,94 +397,66 @@ function ViewerActivityTable({
           </tr>
         </thead>
         <tbody>
-          {data.map((row) => {
-            const isAnon = row.viewer_id === ANONYMOUS_VIEWER;
-            const isLanding = row.portfolio_id === LANDING_PORTFOLIO;
+          {groups.map((group) => {
+            const isOpen = expanded.has(group.groupKey);
+            const hasMultiple = group.portfolios.length > 1;
             return (
-              <tr key={`${row.viewer_id}-${row.portfolio_id}`} className="border-b border-border last:border-0">
-                <td className="py-2 text-text-primary">
-                  {isAnon ? row.viewer_id : row.viewer_id.toUpperCase()}
-                </td>
-                <td className="py-2">
-                  <Link
-                    to={isLanding ? '/' : `/${row.portfolio_id}`}
-                    className="text-accent hover:underline"
-                  >
-                    {isLanding ? '/' : `/${row.portfolio_id}`}
-                  </Link>
-                </td>
-                <td className="py-2 text-text-secondary whitespace-nowrap">
-                  {row.lastVisitAt ? formatRelativeTime(row.lastVisitAt) : '—'}
-                </td>
-                {last5Days.map(({ dateStr }) => (
-                  <td key={dateStr} className="py-2 text-text-secondary text-center">
-                    {row.dailyCounts[dateStr] || '-'}
+              <Fragment key={group.groupKey}>
+                <tr
+                  className={`border-b border-border last:border-0 ${hasMultiple ? 'cursor-pointer hover:bg-background/50' : ''}`}
+                  onClick={() => hasMultiple && toggle(group.groupKey)}
+                >
+                  <td className="py-2 text-text-secondary">
+                    {hasMultiple ? (
+                      isOpen ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )
+                    ) : null}
                   </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function AnonymousActivityTable({
-  data,
-}: {
-  data: { identity: string; label: string; portfolio_id: string; lastVisitAt: string; dailyCounts: Record<string, number> }[];
-}) {
-  const last5Days = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-    const displayStr = d.toLocaleDateString('en-US', {
-      timeZone: 'America/Los_Angeles',
-      month: 'short',
-      day: 'numeric',
-    });
-    return { dateStr, displayStr };
-  });
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-text-secondary border-b border-border">
-            <th className="pb-2 font-medium">Identity</th>
-            <th className="pb-2 font-medium">Portfolio</th>
-            <th className="pb-2 font-medium">Last Visited</th>
-            {last5Days.map(({ dateStr, displayStr }) => (
-              <th key={dateStr} className="pb-2 font-medium text-center min-w-[60px]">
-                {displayStr}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row) => {
-            const isLanding = row.portfolio_id === LANDING_PORTFOLIO;
-            return (
-              <tr key={`${row.identity}-${row.portfolio_id}`} className="border-b border-border last:border-0">
-                <td className="py-2 text-text-primary">{row.label}</td>
-                <td className="py-2">
-                  <Link
-                    to={isLanding ? '/' : `/${row.portfolio_id}`}
-                    className="text-accent hover:underline"
-                  >
-                    {isLanding ? '/' : `/${row.portfolio_id}`}
-                  </Link>
-                </td>
-                <td className="py-2 text-text-secondary whitespace-nowrap">
-                  {row.lastVisitAt ? formatRelativeTime(row.lastVisitAt) : '—'}
-                </td>
-                {last5Days.map(({ dateStr }) => (
-                  <td key={dateStr} className="py-2 text-text-secondary text-center">
-                    {row.dailyCounts[dateStr] || '-'}
+                  <td className="py-2 text-text-primary">{group.label}</td>
+                  <td className="py-2">
+                    {hasMultiple ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs">
+                        {group.portfolios.length} portfolios
+                      </span>
+                    ) : (
+                      <PortfolioPathLink portfolioId={group.portfolios[0].portfolio_id} />
+                    )}
                   </td>
-                ))}
-              </tr>
+                  <td className="py-2 text-text-secondary whitespace-nowrap">
+                    {group.lastVisitAt ? formatRelativeTime(group.lastVisitAt) : '—'}
+                  </td>
+                  {last5Days.map(({ dateStr }) => (
+                    <td key={dateStr} className="py-2 text-text-secondary text-center">
+                      {group.dailyCounts[dateStr] || '-'}
+                    </td>
+                  ))}
+                </tr>
+                {isOpen && hasMultiple
+                  ? group.portfolios.map((entry) => (
+                      <tr
+                        key={`${group.groupKey}|${entry.portfolio_id}`}
+                        className="border-b border-border last:border-0 bg-background/30"
+                      >
+                        <td></td>
+                        <td></td>
+                        <td className="py-2 text-xs">
+                          <PortfolioPathLink portfolioId={entry.portfolio_id} />
+                        </td>
+                        <td className="py-2 text-text-secondary text-xs whitespace-nowrap">
+                          {entry.lastVisitAt ? formatRelativeTime(entry.lastVisitAt) : '—'}
+                        </td>
+                        {last5Days.map(({ dateStr }) => (
+                          <td key={dateStr} className="py-2 text-text-secondary text-xs text-center">
+                            {entry.dailyCounts[dateStr] || '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  : null}
+              </Fragment>
             );
           })}
         </tbody>
@@ -861,7 +904,16 @@ export function AnalyticsDashboard() {
                 <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Logged In)</h2>
               </div>
               {data.viewerActivityByDay.length > 0 ? (
-                <ViewerActivityTable data={data.viewerActivityByDay} />
+                <GroupedActivityTable
+                  groupColumnLabel="Viewer"
+                  entries={data.viewerActivityByDay.map((row) => ({
+                    groupKey: row.viewer_id,
+                    label: row.viewer_id === ANONYMOUS_VIEWER ? row.viewer_id : row.viewer_id.toUpperCase(),
+                    portfolio_id: row.portfolio_id,
+                    lastVisitAt: row.lastVisitAt,
+                    dailyCounts: row.dailyCounts,
+                  }))}
+                />
               ) : (
                 <p className="text-text-secondary text-sm">No logged-in viewer activity yet</p>
               )}
@@ -874,7 +926,16 @@ export function AnalyticsDashboard() {
                 <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Anonymous)</h2>
               </div>
               {data.anonymousActivityByDay.length > 0 ? (
-                <AnonymousActivityTable data={data.anonymousActivityByDay} />
+                <GroupedActivityTable
+                  groupColumnLabel="Identity"
+                  entries={data.anonymousActivityByDay.map((row) => ({
+                    groupKey: row.identity,
+                    label: row.label,
+                    portfolio_id: row.portfolio_id,
+                    lastVisitAt: row.lastVisitAt,
+                    dailyCounts: row.dailyCounts,
+                  }))}
+                />
               ) : (
                 <p className="text-text-secondary text-sm">No anonymous viewer activity yet</p>
               )}

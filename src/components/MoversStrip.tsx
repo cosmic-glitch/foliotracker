@@ -24,12 +24,15 @@ interface MoversStripProps {
 //     entries (2 columns × 2 rows) so the pill never exceeds two lines. Movers
 //     arrive pre-sorted by significance (breadth × |move|), so slicing keeps the
 //     most important ones.
-//   • Desktop (md+): the original single-row flex-wrap of self-contained blobs —
-//     one row means there's nothing to align vertically — showing all movers.
+//   • Desktop (md+): a flex-wrap of self-contained blobs, capped at 6. At every
+//     width ≥ md roughly 3–4 entries fit per row, so 6 keeps the pill to at most
+//     two rows while showing everything on a normal day. The list is ranked, so
+//     a truncated tail drops the least significant names.
 export function MoversStrip({ movers }: MoversStripProps) {
   if (movers.length === 0) return null;
 
   const mobileMovers = movers.slice(0, 4);
+  const desktopMovers = movers.slice(0, 6);
 
   return (
     <div
@@ -62,9 +65,9 @@ export function MoversStrip({ movers }: MoversStripProps) {
         })}
       </div>
 
-      {/* Desktop: single-row flex-wrap of self-contained blobs. */}
+      {/* Desktop: flex-wrap of self-contained blobs, capped at 6 (≤2 rows). */}
       <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1">
-        {movers.map((mover) => {
+        {desktopMovers.map((mover) => {
           const isPositive = mover.changePercent >= 0;
           return (
             <span

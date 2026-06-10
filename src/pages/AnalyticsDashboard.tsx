@@ -704,7 +704,8 @@ export function AnalyticsDashboard() {
     queryKey: ['analytics', storedPassword, days, includeSelf],
     queryFn: () => fetchAnalytics(storedPassword, days, includeSelf),
     enabled: isAuthenticated && !!storedPassword,
-    refetchInterval: 60000, // Refresh every minute
+    // No background polling — refetch only when the tab becomes visible again
+    refetchOnWindowFocus: 'always',
     retry: false,
   });
 

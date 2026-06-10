@@ -5,6 +5,7 @@ import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, Globe, UserPlus, Bri
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
+import { MoversStrip, type MarketMover } from '../components/MoversStrip';
 import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
@@ -48,6 +49,8 @@ interface PortfoliosResponse {
   count: number;
   maxPortfolios: number;
   canCreate: boolean;
+  // Most-held tickers swinging ≥2% today; empty on quiet days.
+  movers?: MarketMover[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -319,6 +322,8 @@ export function LandingPage() {
           </div>
         </div>
       </header>
+
+      <MoversStrip movers={data?.movers ?? []} />
 
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8">
         {error && (

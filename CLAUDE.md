@@ -37,7 +37,7 @@ vercel --prod    # Deploy to production
 
 ### Backend (Vercel Serverless Functions)
 - `api/portfolio.ts` - GET single portfolio (reads from pre-computed snapshots)
-- `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE); also serves the analytics dashboard data
+- `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE); also serves the analytics dashboard data and computes the landing-page market movers (`movers` field on the GET list response)
 - `api/history.ts` - Historical price data (reads from pre-computed snapshots)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/login.ts` - Password verification + session token issuance. Emits the `login` analytics event.
@@ -79,6 +79,7 @@ vercel --prod    # Deploy to production
   - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
 - Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
 - Unrealized gain shown as both absolute value and percentage
+- **Movers strip**: The landing page renders `src/components/MoversStrip.tsx` (slim bar between header and Users card) showing the most-held tickers swinging the most today. Criteria live in `computeMarketMovers` in `api/portfolios.ts`: single-name stocks only (mutual funds and index ETFs excluded; single-asset ETFs like IBIT allowlisted), held in ≥3 portfolios, |day move| ≥ 2%, GOOG/GOOGL merged, sorted by breadth × |move|. Only portfolios with publicly visible tickers (`public` or `allocation_public`) contribute. Empty array on quiet days ⇒ strip hidden — don't add filler content to it.
 - **Analytics events:**
   - Every page open fires `POST /api/log-view`. Portfolio routes use `useViewAnalytics` (mounted in `App.tsx`); the landing page uses `useLandingViewAnalytics` (mounted in `LandingPage.tsx`). Both fire on initial mount and on `visibilitychange → visible`.
   - `log-view` writes `event_type = 'view'` only. The `login` event type is emitted exclusively by `api/login.ts` at password verification — do not write `'login'` from anywhere else.

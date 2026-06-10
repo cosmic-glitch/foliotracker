@@ -21,6 +21,8 @@ import {
   updateHotTake,
   clearChatHistory,
   type Visibility,
+  type DbPortfolioListItem,
+  type DbPortfolioSnapshot,
 } from './_lib/db.js';
 import { generateHotTake, type HoldingSummary } from './_lib/openai.js';
 import { getSymbolInfo, getQuote } from './_lib/yahoo.js';
@@ -357,6 +359,89 @@ function buildPreviewResponse(classification: ClassificationResult): {
   };
 }
 
+// --- Market movers (landing-page ticker strip) ---
+// "The most-held names swinging the most today": single-name stocks held in
+// at least MOVER_MIN_HELD portfolios whose day move is at least
+// MOVER_MIN_ABS_CHANGE_PCT in either direction. Broad ETFs and mutual funds
+// are excluded — an index fund tracking the market isn't news, and mutual
+// funds only price once a day. Sorted by breadth × |move| so a 2% swing six
+// people hold outranks a 3% swing three people hold.
+
+interface MarketMover {
+  ticker: string;
+  changePercent: number;
+  numPortfolios: number;
+}
+
+// ≥ a third of the group, so the strip reports group news, not one person's position.
+const MOVER_MIN_HELD = 3;
+const MOVER_MIN_ABS_CHANGE_PCT = 2;
+// Single-asset ETFs that trade like single names stay eligible; add future
+// ones (e.g. GBTC, GLD) here. All other ETFs are treated as index trackers.
+const MOVER_ETF_ALLOWLIST = new Set(['IBIT']);
+// Dual share classes count as one company for breadth; the canonical ticker
+// (value side) is what the strip displays.
+const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
+
+function computeMarketMovers(
+  portfolios: DbPortfolioListItem[],
+  snapshotMap: Map<string, DbPortfolioSnapshot>
+): MarketMover[] {
+  const byTicker = new Map<
+    string,
+    { holders: Set<string>; changePercent: number; fromCanonical: boolean }
+  >();
+
+  for (const portfolio of portfolios) {
+    // Only portfolios whose tickers are already visible to everyone may
+    // contribute (allocation_public=false keeps holdings private).
+    const allocationPublic = portfolio.allocation_public ?? true;
+    if (portfolio.visibility !== 'public' && !allocationPublic) continue;
+
+    const snapshot = snapshotMap.get(portfolio.id);
+    if (!snapshot) continue;
+
+    for (const h of snapshot.holdings_json) {
+      if (h.isStatic || !Number.isFinite(h.dayChangePercent)) continue;
+      const eligible =
+        h.instrumentType === 'Common Stock' ||
+        (h.instrumentType === 'ETF' && MOVER_ETF_ALLOWLIST.has(h.ticker));
+      if (!eligible) continue;
+
+      const canonical = SHARE_CLASS_ALIASES[h.ticker] ?? h.ticker;
+      const isCanonical = h.ticker === canonical;
+      let entry = byTicker.get(canonical);
+      if (!entry) {
+        entry = { holders: new Set(), changePercent: h.dayChangePercent, fromCanonical: isCanonical };
+        byTicker.set(canonical, entry);
+      }
+      entry.holders.add(portfolio.id);
+      // Share classes drift slightly; report the canonical ticker's own move.
+      if (isCanonical && !entry.fromCanonical) {
+        entry.changePercent = h.dayChangePercent;
+        entry.fromCanonical = true;
+      }
+    }
+  }
+
+  return Array.from(byTicker.entries())
+    .map(([ticker, e]) => ({
+      ticker,
+      changePercent: e.changePercent,
+      numPortfolios: e.holders.size,
+    }))
+    .filter(
+      (m) =>
+        m.numPortfolios >= MOVER_MIN_HELD &&
+        Math.abs(m.changePercent) >= MOVER_MIN_ABS_CHANGE_PCT
+    )
+    .sort(
+      (a, b) =>
+        b.numPortfolios * Math.abs(b.changePercent) -
+        a.numPortfolios * Math.abs(a.changePercent)
+    );
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -604,6 +689,7 @@ export default async function handler(
         count,
         maxPortfolios: MAX_PORTFOLIOS,
         canCreate: count < MAX_PORTFOLIOS,
+        movers: computeMarketMovers(portfolios, snapshotMap),
       });
       return;
     }

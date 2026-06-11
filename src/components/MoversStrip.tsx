@@ -13,7 +13,7 @@ interface MoversStripProps {
 // How many movers the pill shows (one per row). The server floors the list at
 // the same count (MOVER_MIN_COUNT in api/portfolios.ts) so the rows are never
 // short; keep the two in sync.
-const DISPLAY_COUNT = 3;
+const DISPLAY_COUNT = 4;
 
 // Rounded pill directly above the Users card (spans its width). A left rail —
 // the word "Top movers" under a flame — names the strip and frames the per-row
@@ -87,7 +87,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
                   {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
                 </span>
                 <span className="text-xs text-text-secondary whitespace-nowrap">
-                  (held by {mover.numPortfolios} users)
+                  (held by {mover.numPortfolios} {mover.numPortfolios === 1 ? 'user' : 'users'})
                 </span>
               </Fragment>
             );

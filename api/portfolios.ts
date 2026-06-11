@@ -360,17 +360,21 @@ function buildPreviewResponse(classification: ClassificationResult): {
 }
 
 // --- Market movers (landing-page ticker strip) ---
-// "The most-held names swinging the most today": among names held in at least
-// MOVER_MIN_HELD portfolios, the ones whose day move clears the per-type
-// threshold — single-name stocks at ±2%, ETFs at ±1.5% (a diversified basket
-// moves less, so a smaller swing is already group news). Mutual funds are
-// excluded — they only price once a day. Ranked by breadth × |move| so a 2%
-// swing six people hold outranks a 3% swing three people hold.
+// "The names swinging the most today, weighted by how widely they're held":
+// every live (non-static, market-priced) stock or ETF that anyone holds is a
+// candidate — there is no minimum-holders floor. Ranked by breadth × |move|,
+// the product we treat as overall "noteworthiness": a name one person holds can
+// outrank a widely-held one if its move is big enough (1 × 9% beats 3 × 2%),
+// while a calm name only surfaces when many hold it. Mutual funds are excluded —
+// they only price once a day.
 //
-// To keep the strip's first row from coming up short, we always return at
-// least MOVER_MIN_COUNT names: when fewer than that clear the threshold, the
-// remaining slots are backfilled with the next-highest-ranked held-by-≥3 names
-// (still group names, just calmer ones). The genuine movers always lead.
+// Names whose day move clears a per-type threshold — single-name stocks at ±2%,
+// ETFs at ±1.5% (a diversified basket moves less, so a smaller swing is already
+// notable) — are the "qualified" movers and lead the strip. To keep the first
+// rows from coming up short on quiet days, we always return at least
+// MOVER_MIN_COUNT names: when fewer than that qualify, the remaining slots are
+// backfilled with the next-highest-ranked names by the same product (calmer
+// ones). The genuine movers always lead.
 
 interface MarketMover {
   ticker: string;
@@ -378,13 +382,11 @@ interface MarketMover {
   numPortfolios: number;
 }
 
-// ≥ a third of the group, so the strip reports group news, not one person's position.
-const MOVER_MIN_HELD = 3;
 const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
 const MOVER_ETF_MIN_ABS_CHANGE_PCT = 1.5;
 // Floor on how many names the strip shows — one mover per row in the pill
 // (keep in sync with DISPLAY_COUNT in src/components/MoversStrip.tsx).
-const MOVER_MIN_COUNT = 3;
+const MOVER_MIN_COUNT = 4;
 // Dual share classes count as one company for breadth; the canonical ticker
 // (value side) is what the strip displays.
 const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
@@ -434,9 +436,9 @@ function computeMarketMovers(
     }
   }
 
-  // Candidate pool: every group-held name, ranked by breadth × |move|.
+  // Candidate pool: every held name (no minimum-holders floor), ranked by
+  // breadth × |move| — the noteworthiness product.
   const candidates = Array.from(byTicker.entries())
-    .filter(([, e]) => e.holders.size >= MOVER_MIN_HELD)
     .map(([ticker, e]) => ({
       ticker,
       changePercent: e.changePercent,

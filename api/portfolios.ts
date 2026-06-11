@@ -375,6 +375,16 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // MOVER_MIN_COUNT names: when fewer than that qualify, the remaining slots are
 // backfilled with the next-highest-ranked names by the same product (calmer
 // ones). The genuine movers always lead.
+//
+// Two parallel rankings are returned — `regular` and `extended` — one per price
+// basis. The extended move is the snapshot's `dayChangePercent` (its current
+// price already carries the latest pre/post-market print); the regular move is
+// recomputed from `regularMarketPrice` vs the same previous close, mirroring how
+// usePortfolioData recomputes day change when Extended Hours is off. The strip
+// renders whichever the viewer's Extended Hours toggle selects (default off ⇒
+// regular), so the movers stay consistent with the holdings table and totals.
+// Because the strip is ordered by |move|, the ranking — not just the displayed
+// percentage — switches with the basis.
 
 interface MarketMover {
   ticker: string;
@@ -394,10 +404,16 @@ const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
 function computeMarketMovers(
   portfolios: DbPortfolioListItem[],
   snapshotMap: Map<string, DbPortfolioSnapshot>
-): MarketMover[] {
+): { regular: MarketMover[]; extended: MarketMover[] } {
   const byTicker = new Map<
     string,
-    { holders: Set<string>; changePercent: number; fromCanonical: boolean; isEtf: boolean }
+    {
+      holders: Set<string>;
+      changeExtended: number;
+      changeRegular: number;
+      fromCanonical: boolean;
+      isEtf: boolean;
+    }
   >();
 
   for (const portfolio of portfolios) {
@@ -415,13 +431,26 @@ function computeMarketMovers(
         h.instrumentType === 'Common Stock' || h.instrumentType === 'ETF';
       if (!eligible) continue;
 
+      // Regular-hours move: regular-session close vs the same previous close
+      // the extended move uses. Falls back to the (extended) current price when
+      // a snapshot predates regularMarketPrice.
+      const regPrice =
+        Number.isFinite(h.regularMarketPrice) && h.regularMarketPrice > 0
+          ? h.regularMarketPrice
+          : h.currentPrice;
+      const changeRegular =
+        h.previousClose > 0
+          ? ((regPrice - h.previousClose) / h.previousClose) * 100
+          : 0;
+
       const canonical = SHARE_CLASS_ALIASES[h.ticker] ?? h.ticker;
       const isCanonical = h.ticker === canonical;
       let entry = byTicker.get(canonical);
       if (!entry) {
         entry = {
           holders: new Set(),
-          changePercent: h.dayChangePercent,
+          changeExtended: h.dayChangePercent,
+          changeRegular,
           fromCanonical: isCanonical,
           isEtf: h.instrumentType === 'ETF',
         };
@@ -430,50 +459,68 @@ function computeMarketMovers(
       entry.holders.add(portfolio.id);
       // Share classes drift slightly; report the canonical ticker's own move.
       if (isCanonical && !entry.fromCanonical) {
-        entry.changePercent = h.dayChangePercent;
+        entry.changeExtended = h.dayChangePercent;
+        entry.changeRegular = changeRegular;
         entry.fromCanonical = true;
       }
     }
   }
 
-  // Candidate pool: every held name (no minimum-holders floor), ranked by
-  // breadth × |move| — the noteworthiness product.
-  const candidates = Array.from(byTicker.entries())
-    .map(([ticker, e]) => ({
-      ticker,
-      changePercent: e.changePercent,
-      numPortfolios: e.holders.size,
-      isEtf: e.isEtf,
-    }))
-    .sort(
-      (a, b) =>
-        b.numPortfolios * Math.abs(b.changePercent) -
-        a.numPortfolios * Math.abs(a.changePercent)
+  // Candidate pool: every held name (no minimum-holders floor), carrying both
+  // price bases so each can be ranked independently.
+  const candidates = Array.from(byTicker.entries()).map(([ticker, e]) => ({
+    ticker,
+    changeExtended: e.changeExtended,
+    changeRegular: e.changeRegular,
+    numPortfolios: e.holders.size,
+    isEtf: e.isEtf,
+  }));
+
+  // Rank one price basis: breadth × |move| (the noteworthiness product). Names
+  // clearing the per-type threshold lead; quiet days backfill by rank up to
+  // MOVER_MIN_COUNT so the strip never comes up short.
+  const rankBy = (
+    pick: (c: (typeof candidates)[number]) => number
+  ): MarketMover[] => {
+    const scored = candidates
+      .map((c) => ({
+        ticker: c.ticker,
+        changePercent: pick(c),
+        numPortfolios: c.numPortfolios,
+        isEtf: c.isEtf,
+      }))
+      .sort(
+        (a, b) =>
+          b.numPortfolios * Math.abs(b.changePercent) -
+          a.numPortfolios * Math.abs(a.changePercent)
+      );
+
+    const qualified = scored.filter(
+      (c) =>
+        Math.abs(c.changePercent) >=
+        (c.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
     );
 
-  // Names that clear the per-type "genuinely moving" threshold lead the strip.
-  const qualified = candidates.filter(
-    (c) =>
-      Math.abs(c.changePercent) >=
-      (c.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
-  );
-
-  // On busy days show every qualifier; on quiet days backfill (by rank) up to
-  // MOVER_MIN_COUNT so the strip never comes up short.
-  const result = [...qualified];
-  if (result.length < MOVER_MIN_COUNT) {
-    const chosen = new Set(qualified.map((c) => c.ticker));
-    for (const c of candidates) {
-      if (result.length >= MOVER_MIN_COUNT) break;
-      if (!chosen.has(c.ticker)) result.push(c);
+    const result = [...qualified];
+    if (result.length < MOVER_MIN_COUNT) {
+      const chosen = new Set(qualified.map((c) => c.ticker));
+      for (const c of scored) {
+        if (result.length >= MOVER_MIN_COUNT) break;
+        if (!chosen.has(c.ticker)) result.push(c);
+      }
     }
-  }
 
-  return result.map(({ ticker, changePercent, numPortfolios }) => ({
-    ticker,
-    changePercent,
-    numPortfolios,
-  }));
+    return result.map(({ ticker, changePercent, numPortfolios }) => ({
+      ticker,
+      changePercent,
+      numPortfolios,
+    }));
+  };
+
+  return {
+    regular: rankBy((c) => c.changeRegular),
+    extended: rankBy((c) => c.changeExtended),
+  };
 }
 
 export default async function handler(

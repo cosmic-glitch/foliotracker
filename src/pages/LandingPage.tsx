@@ -49,8 +49,11 @@ interface PortfoliosResponse {
   count: number;
   maxPortfolios: number;
   canCreate: boolean;
-  // Most-held tickers swinging ≥2% today; empty on quiet days.
-  movers?: MarketMover[];
+  // Most-held tickers swinging ≥2% today; empty on quiet days. Two
+  // independently-ranked lists, one per price basis — the strip shows `extended`
+  // or `regular` depending on the Extended Hours toggle, matching the holdings
+  // table and totals.
+  movers?: { regular: MarketMover[]; extended: MarketMover[] };
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -333,7 +336,13 @@ export function LandingPage() {
         <div className="md:flex md:gap-6">
           {/* Left column: Users table + Create button */}
           <div className="md:flex-1 min-w-0">
-            <MoversStrip movers={data?.movers ?? []} />
+            <MoversStrip
+              movers={
+                (showExtendedHours
+                  ? data?.movers?.extended
+                  : data?.movers?.regular) ?? []
+              }
+            />
 
             {/* Portfolios List */}
             <div className="bg-card rounded-2xl border border-border overflow-hidden">

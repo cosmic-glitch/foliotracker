@@ -382,8 +382,9 @@ interface MarketMover {
 const MOVER_MIN_HELD = 3;
 const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
 const MOVER_ETF_MIN_ABS_CHANGE_PCT = 1.5;
-// Floor on how many names the strip shows — matches the mobile pill's 2×2 grid.
-const MOVER_MIN_COUNT = 4;
+// Floor on how many names the strip shows — one mover per row in the pill
+// (keep in sync with DISPLAY_COUNT in src/components/MoversStrip.tsx).
+const MOVER_MIN_COUNT = 3;
 // Dual share classes count as one company for breadth; the canonical ticker
 // (value side) is what the strip displays.
 const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };

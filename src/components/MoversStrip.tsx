@@ -1,5 +1,4 @@
 import { Fragment } from 'react';
-import { Flame } from 'lucide-react';
 
 export interface MarketMover {
   ticker: string;
@@ -11,82 +10,68 @@ interface MoversStripProps {
   movers: MarketMover[];
 }
 
-// Rounded pill directly above the Users card (same width as the card).
-// Shows the most-held names swinging the most today (criteria computed
-// server-side in api/portfolios.ts). Renders nothing on quiet days — an empty
-// strip beats training users that it's filler.
+// How many movers the pill shows (one per row). The server floors the list at
+// the same count (MOVER_MIN_COUNT in api/portfolios.ts) so the rows are never
+// short; keep the two in sync.
+const DISPLAY_COUNT = 3;
+
+// Rounded pill directly above the Users card (spans its width). A left rail —
+// the word "Top movers" under a filled flame — names the strip and frames the
+// per-row counts as "users here," which the old icon-only version left users
+// guessing at. To its right, one mover per row: ticker | day move | "(held by
+// N users)", three aligned columns.
 //
-// Both layouts are CSS grids of N entry-columns, each split into three tracks
-// (ticker | % | held-by). Entries flow row-major into those tracks, so within
-// each column the tickers, percentages, and "held by" counts line up
-// independently — far easier to scan than the ragged flex-wrap this replaced.
-// Movers arrive pre-sorted by significance (breadth × |move|), so slicing keeps
-// the most important ones. The breakpoint is `lg`, not `md`, because three
-// entry-columns only fit once the left column is wide enough (~518px of strip
-// space at lg+, where `max-w-4xl` has capped the container):
-//   • Below lg (mobile + tablet): two entry-columns, capped at 4 (2×2). The
-//     two-column grid is ~309px, which fits even the ~392px md tablet width.
-//   • lg+: three entry-columns, capped at 6 (3×2). The three-column grid is
-//     ~480px for typical 1–4-char tickers, comfortably inside the ~518px the
-//     strip gets once the page hits its max width. A truncated tail drops the
-//     least significant names.
+// Same layout at every width. Stacking the flame ABOVE the label (rather than
+// beside it) shrinks the rail to the label's width, which is what lets a single
+// row — ticker + move + the fully spelled-out "(held by N users)" — fit even a
+// 360px phone. Two tickers per row never fit that text, so we don't try; the
+// desktop pill simply has spare room to the right of the rows.
+//
+// Renders nothing on quiet days — an empty strip beats training users that it's
+// filler. The server keeps the list populated (see computeMarketMovers).
 export function MoversStrip({ movers }: MoversStripProps) {
   if (movers.length === 0) return null;
 
-  const narrowMovers = movers.slice(0, 4);
-  const wideMovers = movers.slice(0, 6);
+  const shown = movers.slice(0, DISPLAY_COUNT);
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex items-center gap-2 md:gap-4"
+      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2 flex items-center gap-3"
       aria-label="Today's movers among tracked holdings"
     >
-      {/* Flame lives outside the layout containers so wrapped rows start at the
-          same x as the first row's text instead of under the icon. */}
-      <Flame className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
-
-      {/* Below lg: aligned two-column grid (ticker | % | held-by per column). */}
-      <div className="lg:hidden grid grid-cols-[auto_auto_auto_auto_auto_auto] items-baseline gap-x-1.5 gap-y-1">
-        {narrowMovers.map((mover, i) => {
-          const isPositive = mover.changePercent >= 0;
-          const newColumn = i % 2 !== 0;
-          return (
-            <Fragment key={mover.ticker}>
-              <span
-                className={`font-medium text-text-primary text-sm whitespace-nowrap ${newColumn ? 'pl-4' : ''}`}
-                title={`Held in ${mover.numPortfolios} portfolios`}
-              >
-                {mover.ticker}
-              </span>
-              <span className={`text-sm whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
-              </span>
-              <span className="text-xs text-text-secondary whitespace-nowrap">held by {mover.numPortfolios}</span>
-            </Fragment>
-          );
-        })}
+      {/* Left rail: filled flame above the label, vertically centered. The
+          13px label keeps the rail narrow enough for the 360px fit. */}
+      <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="currentColor"
+          className="text-orange-500"
+          aria-hidden
+        >
+          <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+        </svg>
+        <span className="text-[13px] font-semibold text-text-primary whitespace-nowrap">
+          Top movers
+        </span>
       </div>
 
-      {/* lg+: aligned three-column grid (ticker | % | held-by per column). Same
-          row-major-into-tracks scheme as the narrow layout, just three columns
-          (9 tracks) instead of two. pl-5 on every entry past the first in its
-          row gives the columns breathing room between them. */}
-      <div className="hidden lg:grid grid-cols-[auto_auto_auto_auto_auto_auto_auto_auto_auto] items-baseline gap-x-1.5 gap-y-1">
-        {wideMovers.map((mover, i) => {
+      {/* One mover per row: three aligned columns (ticker | % | held-by). */}
+      <div className="grid grid-cols-[auto_auto_auto] justify-start items-baseline gap-x-2 gap-y-1">
+        {shown.map((mover) => {
           const isPositive = mover.changePercent >= 0;
-          const newColumn = i % 3 !== 0;
           return (
             <Fragment key={mover.ticker}>
-              <span
-                className={`font-medium text-text-primary text-sm whitespace-nowrap ${newColumn ? 'pl-5' : ''}`}
-                title={`Held in ${mover.numPortfolios} portfolios`}
-              >
+              <span className="font-medium text-text-primary text-sm whitespace-nowrap">
                 {mover.ticker}
               </span>
               <span className={`text-sm whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                 {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
               </span>
-              <span className="text-xs text-text-secondary whitespace-nowrap">held by {mover.numPortfolios}</span>
+              <span className="text-xs text-text-secondary whitespace-nowrap">
+                (held by {mover.numPortfolios} users)
+              </span>
             </Fragment>
           );
         })}

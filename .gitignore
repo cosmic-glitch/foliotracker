@@ -47,3 +47,6 @@ scripts/refresh-snapshots.lock
 
 # Local Supabase CLI temp metadata
 supabase/.temp/
+
+# Playwright MCP screenshots/snapshots (local verification artifacts)
+.playwright-mcp/

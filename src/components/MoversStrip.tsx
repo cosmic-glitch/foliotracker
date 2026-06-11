@@ -62,7 +62,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
             renders as the vivid Apple Color Emoji art they wanted. The trade-off
             is platform-dependent rendering (Android/Windows show their own
             flame); an SVG was the cross-platform-consistent alternative. */}
-        <span className="text-xl leading-none" aria-hidden>
+        <span className="text-base leading-none" aria-hidden>
           🔥
         </span>
         <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">

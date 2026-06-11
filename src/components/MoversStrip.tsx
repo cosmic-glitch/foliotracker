@@ -18,14 +18,19 @@ const DISPLAY_COUNT = 3;
 // Rounded pill directly above the Users card (spans its width). A left rail —
 // the word "Top movers" under a filled flame — names the strip and frames the
 // per-row counts as "users here," which the old icon-only version left users
-// guessing at. To its right, one mover per row: ticker | day move | "(held by
-// N users)", three aligned columns.
+// guessing at. To its right, one mover per row: ticker + day move grouped on
+// the left, "(held by N users)" anchored to the pill's right edge.
+//
+// The mover grid takes the rail's leftover width (flex-1) and a flexible final
+// column (`auto auto 1fr`) pushes the held-by context to the far right, so each
+// row spans the full pill rather than clumping on the left and leaving the
+// right half empty. ticker+move read together as the headline; the count reads
+// as right-aligned context, like a leaderboard.
 //
 // Same layout at every width. Stacking the flame ABOVE the label (rather than
 // beside it) shrinks the rail to the label's width, which is what lets a single
 // row — ticker + move + the fully spelled-out "(held by N users)" — fit even a
-// 360px phone. Two tickers per row never fit that text, so we don't try; the
-// desktop pill simply has spare room to the right of the rows.
+// 360px phone. Two tickers per row never fit that text, so we don't try.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers).
@@ -57,8 +62,10 @@ export function MoversStrip({ movers }: MoversStripProps) {
         </span>
       </div>
 
-      {/* One mover per row: three aligned columns (ticker | % | held-by). */}
-      <div className="grid grid-cols-[auto_auto_auto] justify-start items-baseline gap-x-2 gap-y-1">
+      {/* One mover per row: ticker + move grouped on the left, the held-by
+          context anchored to the right edge by a flexible final column, so each
+          row spans the full pill instead of clumping on the left. */}
+      <div className="grid flex-1 min-w-0 grid-cols-[auto_auto_1fr] items-baseline gap-x-3 gap-y-1">
         {shown.map((mover) => {
           const isPositive = mover.changePercent >= 0;
           return (
@@ -66,10 +73,10 @@ export function MoversStrip({ movers }: MoversStripProps) {
               <span className="font-medium text-text-primary text-sm whitespace-nowrap">
                 {mover.ticker}
               </span>
-              <span className={`text-sm whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
+              <span className={`text-sm tabular-nums whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                 {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
               </span>
-              <span className="text-xs text-text-secondary whitespace-nowrap">
+              <span className="text-xs text-text-secondary whitespace-nowrap justify-self-end">
                 (held by {mover.numPortfolios} users)
               </span>
             </Fragment>

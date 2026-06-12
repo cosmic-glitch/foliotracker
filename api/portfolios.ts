@@ -389,7 +389,11 @@ function buildPreviewResponse(classification: ClassificationResult): {
 interface MarketMover {
   ticker: string;
   changePercent: number;
-  numPortfolios: number;
+  // The handles (portfolio ids) holding this name, in creation order — the same
+  // order and identity the landing-page Users list shows. The strip lists them
+  // verbatim ("held by AB, CD") when they fit a row, and falls back to a count
+  // ("held by 3 users") when they don't; either way holders.length is the count.
+  holders: string[];
 }
 
 const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
@@ -473,6 +477,8 @@ function computeMarketMovers(
     changeExtended: e.changeExtended,
     changeRegular: e.changeRegular,
     numPortfolios: e.holders.size,
+    // Holder handles in insertion (creation) order — matches the Users list.
+    holders: Array.from(e.holders),
     isEtf: e.isEtf,
   }));
 
@@ -487,6 +493,7 @@ function computeMarketMovers(
         ticker: c.ticker,
         changePercent: pick(c),
         numPortfolios: c.numPortfolios,
+        holders: c.holders,
         isEtf: c.isEtf,
       }))
       .sort(
@@ -510,10 +517,10 @@ function computeMarketMovers(
       }
     }
 
-    return result.map(({ ticker, changePercent, numPortfolios }) => ({
+    return result.map(({ ticker, changePercent, holders }) => ({
       ticker,
       changePercent,
-      numPortfolios,
+      holders,
     }));
   };
 

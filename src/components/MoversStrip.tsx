@@ -1,10 +1,12 @@
-import { Fragment } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { Flame } from 'lucide-react';
 
 export interface MarketMover {
   ticker: string;
   changePercent: number;
-  numPortfolios: number;
+  // Handles (portfolio ids) holding this name, in the same order the Users list
+  // shows them. See the held-by note below for how they're rendered.
+  holders: string[];
 }
 
 interface MoversStripProps {
@@ -16,20 +18,50 @@ interface MoversStripProps {
 // short; keep the two in sync.
 const DISPLAY_COUNT = 4;
 
+// Slack (px) required beyond the measured text width before we commit to the
+// names variant — covers the gap between canvas measureText and real layout
+// (letter-spacing, sub-pixel rounding) so a row that "just barely" fits doesn't
+// clip a character.
+const FIT_SLACK_PX = 4;
+
+// The per-row "who holds this" label. We prefer naming the holders outright —
+// "held by AB, CD" — over a bare count, because the names are the same handles
+// the Users list shows, so a viewer can recognize themselves and others. But a
+// widely-held name's full list won't fit one row, so each row independently
+// falls back to a count ("held by 3 users") when the names would overflow (see
+// the fit measurement in the component). The handles are uppercased to match
+// the Users list, which renders portfolio.id.toUpperCase().
+function namesLabel(m: MarketMover): string {
+  return `held by ${m.holders.map((h) => h.toUpperCase()).join(', ')}`;
+}
+function countLabel(m: MarketMover): string {
+  const n = m.holders.length;
+  return `held by ${n} ${n === 1 ? 'user' : 'users'}`;
+}
+
 // Rounded pill directly above the Users card (spans its width). A left rail —
 // the word "Top movers" under a flame — names the strip and frames the per-row
-// counts as "users here," which the old icon-only version left users guessing
+// holders as "users here," which the old icon-only version left users guessing
 // at. The rail is anchored to the pill's LEFT edge (a label, echoing the
-// left-aligned Users heading below); the movers sit centered in its leftover
-// width. Each mover is one row: ticker | day move | "(held by N users)", three
-// TIGHTLY grouped columns.
+// left-aligned Users heading below); the movers are LEFT-aligned right beside
+// it (justify-start), shifted hard left to use the empty space that an earlier
+// centered layout left between the rail and the data. Each mover is one row:
+// ticker | day move | "held by …", three TIGHTLY grouped columns.
 //
 // The three columns are kept adjacent (no flexible spacer between them) so the
-// move sits right next to its ticker and the count right next to the move — a
-// version that pushed the count to the pill's far right opened an awkward gap
-// between a stock and its own "held by" text. The movers block then centers in
-// the rail's leftover space (flex-1 + justify-center), which keeps a row's own
-// pieces together while filling the pill.
+// move sits right next to its ticker and the holders right next to the move — a
+// version that pushed the holders to the pill's far right opened an awkward gap
+// between a stock and its own "held by" text.
+//
+// Holders column — names when they fit, else a count. We measure (canvas
+// measureText against the column's real available width) whether a row's full
+// "held by AB, CD" string fits; if it does we list the handles, otherwise that
+// row alone falls back to "held by N users". The decision is per-row and
+// width-driven, so it adapts to viewport width and to how many people hold a
+// given name. Measuring happens in a layout effect (before paint, so no flash)
+// and re-runs on container resize. The available width is the column's leftover
+// after the ticker + move columns, which left-alignment makes a clean
+// container-left-to-cell-left span.
 //
 // The flame is the lucide-react Flame icon — a single-color, thin-stroke line
 // flame in amber (text-amber-500), monochromatic with no second shade. This is
@@ -38,18 +70,67 @@ const DISPLAY_COUNT = 4;
 // art). A native emoji and a two-tone SVG are both kept in git history.
 //
 // Stacking the flame ABOVE the label (rather than beside it) shrinks the rail
-// to the label's width, which is what lets a single row — ticker + move + the
-// fully spelled-out "(held by N users)" — fit even a 360px phone. Type is a
-// notch smaller on mobile (text-sm/[15px]) than desktop (text-[15px]/base) to
-// hold that fit; the gap also tightens on mobile (gap-3 vs gap-5). Two tickers
-// per row never fit that text, so we don't try.
+// to the label's width, which is what lets a single row fit even a 360px phone.
+// Type is a notch smaller on mobile (text-sm/[15px]) than desktop
+// (text-[15px]/base) to hold that fit; the gap also tightens on mobile (gap-3
+// vs gap-5). Two tickers per row never fit, so we don't try.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers).
 export function MoversStrip({ movers }: MoversStripProps) {
-  if (movers.length === 0) return null;
-
   const shown = movers.slice(0, DISPLAY_COUNT);
+
+  // Per-row: does the full holder-names string fit its column? Default false
+  // (count) so the pre-measurement render never overflows; the layout effect
+  // upgrades rows that fit before the browser paints.
+  const [fitNames, setFitNames] = useState<boolean[]>([]);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // One held-by cell per row; cell 0 also tells us where the holders column
+  // starts (its left edge), which is the same for every row (shared grid track).
+  const heldByRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const container = containerRef.current;
+      const firstCell = heldByRefs.current[0];
+      if (!container || !firstCell) return;
+
+      // Holders column starts after the ticker + move columns (and their gaps);
+      // left-alignment means the grid sits at the container's left edge, so the
+      // cell's offset from the container left is exactly that prefix width.
+      const containerLeft = container.getBoundingClientRect().left;
+      const columnLeft = firstCell.getBoundingClientRect().left;
+      const available = container.clientWidth - (columnLeft - containerLeft);
+
+      const canvas = (canvasRef.current ??= document.createElement('canvas'));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const cs = getComputedStyle(firstCell);
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+
+      const next = shown.map(
+        (m) => ctx.measureText(namesLabel(m)).width + FIT_SLACK_PX <= available
+      );
+      setFitNames((prev) =>
+        prev.length === next.length && prev.every((v, i) => v === next[i])
+          ? prev
+          : next
+      );
+    };
+
+    measure();
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+    // shown is derived from movers; re-measure whenever the movers change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movers]);
+
+  if (shown.length === 0) return null;
 
   return (
     <div
@@ -68,14 +149,15 @@ export function MoversStrip({ movers }: MoversStripProps) {
         </span>
       </div>
 
-      {/* Movers grouped tightly (ticker | move | held-by adjacent) and centered
-          in the rail's leftover width (flex-1 + justify-center), so the rail
-          sits to the left as a label while the data centers in the pill and a
-          row's own pieces never separate. */}
-      <div className="flex-1 flex justify-center min-w-0">
+      {/* Movers grouped tightly (ticker | move | held-by adjacent) and
+          left-aligned beside the rail (justify-start), shifted hard left to use
+          the space a centered layout wasted, while a row's own pieces never
+          separate. */}
+      <div ref={containerRef} className="flex-1 flex justify-start min-w-0">
         <div className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-3 gap-y-1">
-          {shown.map((mover) => {
+          {shown.map((mover, i) => {
             const isPositive = mover.changePercent >= 0;
+            const useNames = fitNames[i] ?? false;
             return (
               <Fragment key={mover.ticker}>
                 <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
@@ -84,8 +166,13 @@ export function MoversStrip({ movers }: MoversStripProps) {
                 <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                   {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
                 </span>
-                <span className="text-xs text-text-secondary whitespace-nowrap">
-                  (held by {mover.numPortfolios} {mover.numPortfolios === 1 ? 'user' : 'users'})
+                <span
+                  ref={(el) => {
+                    heldByRefs.current[i] = el;
+                  }}
+                  className="text-xs text-text-secondary whitespace-nowrap"
+                >
+                  {useNames ? namesLabel(mover) : countLabel(mover)}
                 </span>
               </Fragment>
             );

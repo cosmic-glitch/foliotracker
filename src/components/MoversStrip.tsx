@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { Flame } from 'lucide-react';
 
 export interface MarketMover {
   ticker: string;
@@ -30,11 +31,11 @@ const DISPLAY_COUNT = 4;
 // the rail's leftover space (flex-1 + justify-center), which keeps a row's own
 // pieces together while filling the pill.
 //
-// The flame is the native 🔥 emoji, NOT an SVG: rendered as the platform's own
-// emoji art (vivid Apple Color Emoji on the user's devices) — the look the user
-// asked for. The trade-off is platform-dependent rendering; a two-tone SVG
-// (orange body + amber inner flame) was the cross-platform-consistent version,
-// kept in git history if we ever need it back.
+// The flame is the lucide-react Flame icon — a single-color, thin-stroke line
+// flame in amber (text-amber-500), monochromatic with no second shade. This is
+// the original look the user preferred; it renders identically across platforms
+// (unlike the native 🔥 emoji, which the platform paints in its own multi-shaded
+// art). A native emoji and a two-tone SVG are both kept in git history.
 //
 // Stacking the flame ABOVE the label (rather than beside it) shrinks the rail
 // to the label's width, which is what lets a single row — ticker + move + the
@@ -58,13 +59,10 @@ export function MoversStrip({ movers }: MoversStripProps) {
       {/* Left rail: flame above the label, anchored to the pill's left edge so
           it reads as a label (echoing the left-aligned Users heading below). */}
       <div className="flex flex-col items-center gap-0.5 shrink-0">
-        {/* The native 🔥 emoji, not an SVG: on the user's Apple devices it
-            renders as the vivid Apple Color Emoji art they wanted. The trade-off
-            is platform-dependent rendering (Android/Windows show their own
-            flame); an SVG was the cross-platform-consistent alternative. */}
-        <span className="text-base leading-none" aria-hidden>
-          🔥
-        </span>
+        {/* The lucide Flame icon: a single-color, thin-stroke flame in amber —
+            monochromatic (no second shade), and identical across platforms. This
+            is the original look the user preferred over the native 🔥 emoji. */}
+        <Flame className="w-4 h-4 text-amber-500" aria-hidden />
         <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">
           Top movers
         </span>

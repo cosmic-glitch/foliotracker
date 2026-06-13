@@ -75,8 +75,6 @@ vercel --prod    # Deploy to production
 - `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), ip_address, user_agent, country/city/region, referer, created_at
 - `ticker_news_summaries` table: ticker, AI summary markdown, sources (JSONB), summary_date — AI-generated per-ticker news, written by `scripts/generate-news.sh` and served by `api/news.ts`
 
-> **Orphaned schema (no live code).** The retired "AI hot takes / personas / chat" feature was removed in code only — its `portfolios.hot_take`, `buffett_comment`, `munger_comment` columns (each with a `_at` sibling) and the `portfolio_chats` table (+ its indexes, created by `scripts/migrate-ai-chat.sql`) are intentionally **kept** but referenced by nothing. Safe to drop in a future migration; don't treat them as load-bearing. (The live AI feature is **deep research** — `deep_research` column, `generateDeepResearch`, `AIResearchSection`.)
-
 ### External APIs
 - **Yahoo Finance** - Sole source for real-time quotes, historical data, and symbol info (free, no API key)
 

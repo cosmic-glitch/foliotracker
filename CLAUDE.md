@@ -25,31 +25,43 @@ vercel --prod    # Deploy to production
 ## Architecture
 
 ### Frontend (React + Vite + Tailwind)
-- `src/main.tsx` - Router setup with routes: `/`, `/create`, `/:portfolioId`, `/:portfolioId/edit`, `/analytics`
+- `src/main.tsx` - Router (`/`, `/create`, `/:portfolioId`, `/:portfolioId/edit`, `/analytics`) wrapped in the React Query `QueryClientProvider` and the context providers below
 - `src/App.tsx` - Main portfolio view page
 - `src/pages/` - LandingPage, CreatePortfolio, EditPortfolio, AnalyticsDashboard
-- `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, etc.)
-- `src/hooks/usePortfolioData.ts` - Data fetching hook for portfolio API
-- `src/hooks/useLoggedInPortfolio.ts` - Manages portfolio login state (localStorage, synchronous hydration)
-- `src/hooks/useUnlockedPortfolios.ts` - Tracks portfolios unlocked this tab (sessionStorage, synchronous hydration)
+- `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, MoversStrip, NewsSection/NewsTicker, AIResearchSection, etc.)
+- `src/context/` - Context providers: `ThemeContext` (dark/light), `ExtendedHoursContext` (regular vs extended-hours price basis), `TimeframeContext` (`day`/`30d` chart range), `ToastContext` (transient toasts)
+- `src/lib/` - Frontend helpers: `queryClient.ts` (React Query config), `supabase.ts`, `auth.ts`, `market-hours.ts`, `parseHoldingsCsv.ts` (CSV holdings import), `newsHeadline.ts`, `mockData.ts`
+- `src/utils/` - `formatters.ts`, `equivalentTickers.ts` (GOOG/GOOGL consolidation for display)
+- **Data fetching is React Query** (`@tanstack/react-query`); the data hooks wrap `useQuery` against the API:
+  - `src/hooks/usePortfolioData.ts` - Portfolio data for a route
+  - `src/hooks/usePortfolioNews.ts` - Per-ticker news from `GET /api/news`
+- `src/hooks/useLoggedInPortfolio.ts` - Portfolio login state (localStorage, synchronous hydration)
+- `src/hooks/useUnlockedPortfolios.ts` - Portfolios unlocked this tab (sessionStorage, synchronous hydration)
+- `src/hooks/useHoldingsCsvUpload.ts` - CSV holdings import flow (Create/Edit portfolio)
+- `src/hooks/usePeakReveal.ts` - Count-up/hold animation for the headline total value
 - `src/hooks/useAnalytics.ts` - `useViewAnalytics` (portfolio routes) and `useLandingViewAnalytics` (landing page) fire `POST /api/log-view` on mount and on tab visibility change
 - `src/types/portfolio.ts` - TypeScript interfaces for Holding, PortfolioData
 
 ### Backend (Vercel Serverless Functions)
-- `api/portfolio.ts` - GET single portfolio (reads from pre-computed snapshots)
+- `api/portfolio.ts` - GET single portfolio (Redis → snapshot fallback)
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE); also serves the analytics dashboard data and computes the landing-page market movers (`movers` field on the GET list response — `{ regular, extended }`, one ranked list per price basis)
-- `api/history.ts` - Historical price data (reads from pre-computed snapshots)
+- `api/history.ts` - Historical price data (Redis → snapshot fallback)
+- `api/news.ts` - `GET /api/news?tickers=…` returns per-ticker news: AI summaries from `ticker_news_summaries` when fresh, else a Yahoo-article fallback
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/login.ts` - Password verification + session token issuance. Emits the `login` analytics event.
 - `api/log-view.ts` - Emits `view` analytics events. Missing `portfolio_id` means a landing-page view (recorded with `portfolio_id = null`).
 - `api/permissions.ts` - Portfolio viewer permissions (selective visibility)
 - `api/share-links.ts` - Generate and resolve shareable view links
-- `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations)
-- `api/_lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, and symbol info
-- `api/_lib/cache.ts` - Market hours detection utilities
-- `api/_lib/snapshot.ts` - Snapshot computation logic for portfolios
+- `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations + `ticker_news_summaries`)
+- `api/_lib/redis.ts` - Upstash Redis read-through cache for snapshots, portfolio metadata, the portfolios list/count, and prices. Read endpoints (`portfolio`/`portfolios`/`history`/`permissions`) try Redis first and fall back to Supabase, backfilling the cache; the snapshot refresh writes through it.
+- `api/_lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, symbol info, and news
+- `api/_lib/cache.ts` - Market hours / live-session detection utilities
+- `api/_lib/snapshot.ts` - Snapshot computation logic for portfolios (incl. 1D intraday history)
+- `api/_lib/anonymize.ts` - Strips dollar-denominated fields for the `allocation_only` share-link mode (keeps allocation %)
+- `api/_lib/openai.ts` - OpenAI client + `generateDeepResearch` (deep research report generation)
 - `api/_lib/prompts.ts` - Shared AI prompts (deep research report structure)
-- `scripts/generate-research.ts` - Generate AI research reports for portfolios
+- `scripts/generate-research.ts` - Generate AI deep-research reports for portfolios
+- `scripts/generate-news.sh` - VM-cron news generator: runs `claude -p` per asset class to research held tickers and persist per-ticker summaries (helpers: `prepare-news-input.ts`, `save-news-summary.ts`, `fetch-news.ts`; prompts in `news-prompt*.md`)
 - `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)
 
 ### Database (Supabase PostgreSQL)
@@ -61,6 +73,7 @@ vercel --prod    # Deploy to production
 - `portfolio_snapshots` table: Pre-computed portfolio data with holdings, history, and benchmark (JSONB)
 - `sessions` table: token, portfolio_id, is_admin, expires_at, created_at (issued by `api/login.ts`)
 - `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), ip_address, user_agent, country/city/region, referer, created_at
+- `ticker_news_summaries` table: ticker, AI summary markdown, sources (JSONB), summary_date — AI-generated per-ticker news, written by `scripts/generate-news.sh` and served by `api/news.ts`
 
 > **Orphaned schema (no live code).** The retired "AI hot takes / personas / chat" feature was removed in code only — its `portfolios.hot_take`, `buffett_comment`, `munger_comment` columns (each with a `_at` sibling) and the `portfolio_chats` table (+ its indexes, created by `scripts/migrate-ai-chat.sql`) are intentionally **kept** but referenced by nothing. Safe to drop in a future migration; don't treat them as load-bearing. (The live AI feature is **deep research** — `deep_research` column, `generateDeepResearch`, `AIResearchSection`.)
 
@@ -72,16 +85,13 @@ vercel --prod    # Deploy to production
 - Holdings are either "tradeable" (shares × price) or "static" (fixed value for non-market assets like real estate)
 - `instrument_type` field categorizes holdings for the "By Type" panel (Common Stock → Stocks, ETF/Mutual Fund → Funds, Money Market → Cash / Money Market, etc.)
 - Passwords are bcrypt hashed; portfolio CRUD requires password verification
-- **Snapshot-based architecture**: Portfolio data is pre-computed in the background
-  - Hetzner VM cron fires `scripts/refresh-snapshots.sh` every minute; the wrapped tsx script calls `refreshAllSnapshots()` directly against Supabase (no Vercel round-trip). See `scripts/VM_SETUP.md` section 10.
-  - Cadence is gated in TypeScript (`isLiveMarketSession`): every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), otherwise only at UTC minute `0` and `30`.
-  - The `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` bearer auth) still exists as a manual fallback but is no longer triggered on a schedule — the VM cron handles all scheduled refreshes.
-  - All portfolio/history API endpoints read from pre-computed `portfolio_snapshots` table
-  - Portfolio create/edit triggers immediate snapshot refresh (non-blocking)
-  - Fallback: If snapshot doesn't exist, APIs return empty/placeholder data
+- **Snapshot + Redis architecture**: Portfolio/history data is pre-computed in the background into the `portfolio_snapshots` table and fronted by a Redis cache. Read endpoints serve **Redis → snapshot → empty placeholder**, in that order. Portfolio create/edit triggers an immediate (non-blocking) snapshot refresh. The background refresh cadence, wrapper script, and the legacy `POST /api/refresh-prices` fallback are documented once under [Snapshot Refresh Cron](#snapshot-refresh-cron-hetzner-vm).
 - Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
 - Unrealized gain shown as both absolute value and percentage
-- **Movers strip**: `src/components/MoversStrip.tsx` renders a rounded pill above the landing page's Users card — the tickers swinging most today, weighted by how widely they're held. A left rail (**Top movers** under a lucide `Flame`) sits beside `DISPLAY_COUNT` (3) rows by default; a "N more" chevron under the label expands the pill to the full qualified set and collapses it back (frontend-only — the API already returns the whole list, the 3-row cap is a display-side slice). Each row is `ticker | day move | held-by`, where held-by names the holders (`held by AB, CD`, matching the Users list) when they fit the row and falls back to a count (`held by 3 users`) otherwise — a per-row, width-measured decision in a layout effect. The ranking lives in `computeMarketMovers` (`api/portfolios.ts`): every live stock/ETF held by ≥1 publicly-visible (`public`/`allocation_public`) portfolio is a candidate (GOOG/GOOGL merged; no minimum-holders floor), ranked by breadth × |move|. Stocks moving ≥2% and ETFs ≥1.5% (mutual funds excluded) are the "qualified" movers that lead; the function backfills the rest up to `MOVER_MIN_COUNT` (**3 — keep in sync with `DISPLAY_COUNT`**), so the strip is effectively always visible. It returns `{ regular, extended }` — two independent rankings by price basis; `LandingPage` shows one per the Extended Hours toggle (default off ⇒ regular), so the *ranking* (not just the shown %) switches with the basis. Each `MarketMover` carries `holders: string[]` (portfolio ids, creation order); since only publicly-visible portfolios contribute, naming holders leaks nothing not already public. **Detailed layout/design rationale and rejected alternatives live in the component's code comments, not here.**
+- **Movers strip**: `src/components/MoversStrip.tsx` renders the "Top movers" pill on the landing page — the tickers swinging most today, ranked by breadth × |move| across publicly-visible (`public`/`allocation_public`) portfolios. The ranking is `computeMarketMovers` in `api/portfolios.ts`, returned as `{ regular, extended }` (one list per price basis; `LandingPage` picks one via the Extended Hours toggle, so the *ranking* switches with the basis). **Gotcha:** the display caps at `DISPLAY_COUNT` (3) rows in `MoversStrip.tsx`, which must stay in sync with `MOVER_MIN_COUNT` (3) in `api/portfolios.ts`. Layout/design rationale and rejected alternatives live in the component's code comments, not here.
+- **Two AI features (independent):**
+  - **Per-ticker news** — `scripts/generate-news.sh` (VM cron) runs `claude -p` to research held tickers and writes `ticker_news_summaries`; `api/news.ts` serves them (with a Yahoo-article fallback) to `NewsTicker`/`NewsSection` via the `usePortfolioNews` hook.
+  - **Deep research** — `generateDeepResearch` (`api/_lib/openai.ts`, OpenAI deep-research model) via `scripts/generate-research.ts`, stored in `portfolios.deep_research`, rendered by `AIResearchSection`. See [AI Research Generation](#ai-research-generation).
 - **Analytics events:**
   - Every page open fires `POST /api/log-view`. Portfolio routes use `useViewAnalytics` (mounted in `App.tsx`); the landing page uses `useLandingViewAnalytics` (mounted in `LandingPage.tsx`). Both fire on initial mount and on `visibilitychange → visible`.
   - `log-view` writes `event_type = 'view'` only. The `login` event type is emitted exclusively by `api/login.ts` at password verification — do not write `'login'` from anywhere else.
@@ -104,8 +114,10 @@ vercel --prod    # Deploy to production
 Copy `.env.example` to `.env.local` and fill in values. Required:
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Backend database
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - Frontend (if using Supabase directly)
+- `UPSTASH_REDIS_REST_KV_REST_API_URL`, `UPSTASH_REDIS_REST_KV_REST_API_TOKEN` - Upstash Redis cache (the doubled `_REST_KV_REST_` prefix comes from the Vercel integration — not a typo)
+- `OPENAI_API_KEY` - Deep research generation (`scripts/generate-research.ts`)
 - `REFRESH_SECRET` - Authentication token for background refresh endpoint (generate with `openssl rand -hex 32`)
-- `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios
+- `ADMIN_PASSWORD` - Optional admin override for viewing private portfolios; also gates the `/analytics` dashboard
 
 **Local development:** All secrets stored in `.env.local` (gitignored). Use `source .env.local` before running local scripts.
 
@@ -116,6 +128,9 @@ Snapshot refresh runs on the VM via cron — see `scripts/VM_SETUP.md` section 1
 - **Crontab:** `* * * * * $HOME/foliotracker/scripts/refresh-snapshots.sh` — fires every minute; the script self-skips off-hours ticks (minute not in {0,30}).
 - **Cadence:** every minute during live US sessions (pre-market + market + after-hours, Mon–Fri ET), every 30 minutes otherwise.
 - The legacy `POST /api/refresh-prices` Vercel endpoint (`REFRESH_SECRET` auth) remains deployed as a manual fallback but is no longer driven on a schedule.
+
+### News Generation Cron (Hetzner VM)
+`scripts/generate-news.sh` runs daily via cron, invoking `claude -p` per asset class to refresh `ticker_news_summaries`. Requires `claude` on `PATH` plus `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` from `.env.local`. See `scripts/VM_SETUP.md`.
 
 ## Database Migrations
 
@@ -181,7 +196,6 @@ This hashes the new password with bcrypt, updates the database, and invalidates 
 
 ## Workflow
 
-- **Build-only by default**: After making changes, run `npm run build` to verify no errors. Do **not** deploy via the Vercel CLI — only deploy when the user explicitly asks.
-- **Deployment = git push**: The Vercel GitHub integration auto-deploys every push to `main` to production. The normal flow is: make changes → `npm run build` → commit + push when the user asks (e.g. `/cp`). No `vercel` CLI command is needed or expected — "commit and push" IS the deploy.
-- Manual CLI deploys (`vercel` for preview, `vercel --prod`) are a fallback for special cases only, e.g. testing a preview without pushing to `main`.
-- **Build costs:** Vercel is configured with Standard build machine + on-demand concurrency disabled = $0/minute.
+- **Build-only by default**: after making changes, run `npm run build` to verify no errors. Don't deploy unless the user explicitly asks.
+- **Deployment = git push**: the Vercel GitHub integration auto-deploys every push to `main` to production. The normal flow is: make changes → `npm run build` → commit + push when asked (e.g. `/cp`). "Commit and push" IS the deploy — no `vercel` CLI command is involved. Manual `vercel` / `vercel --prod` deploys are a fallback for special cases only (e.g. a preview without pushing to `main`).
+- **Build costs:** Vercel uses a Standard build machine with on-demand concurrency disabled = $0/minute.

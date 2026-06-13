@@ -19,7 +19,7 @@ interface MoversStripProps {
 // server returns more than this, every extra name is a qualified mover (the
 // backfill only ever pads UP to this floor, never past it), so a "Show all"
 // toggle can safely expand the pill to the full qualified set and collapse back.
-const DISPLAY_COUNT = 4;
+const DISPLAY_COUNT = 3;
 
 // Slack (px) required beyond the measured text width before we commit to the
 // names variant — covers the gap between canvas measureText and real layout
@@ -83,7 +83,7 @@ function countLabel(m: MarketMover): string {
 // the backfill only pads UP to the floor, never past it), a small "N more"
 // chevron toggle tucked under the rail's "Top movers" label expands the pill to
 // the full qualified set and collapses it back. It lives in the rail's spare
-// vertical room (the rail is shorter than the ≥4-row movers block) and stays
+// vertical room (the rail is shorter than the ≥3-row movers block) and stays
 // narrower than the label, so it costs the pill neither an extra row of height
 // nor any of the horizontal width the single-row mobile fit depends on — it
 // never touches the movers' own rows. (A full-width toggle row beneath the
@@ -161,7 +161,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
       {/* Left rail: flame above the label, anchored to the pill's left edge so
           it reads as a label (echoing the left-aligned Users heading below). The
           expand/collapse toggle tucks UNDER the label in the rail's spare
-          vertical room — the rail is shorter than the (≥4-row) movers block, so
+          vertical room — the rail is shorter than the (≥3-row) movers block, so
           a chevron here costs the pill no extra height, and it stays narrower
           than "Top movers" so it costs no width either. That keeps the toggle
           off the movers' own rows, which the single-row mobile fit can't spare. */}

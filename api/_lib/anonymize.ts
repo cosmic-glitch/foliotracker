@@ -30,12 +30,6 @@ interface PortfolioResponseLike {
   totalDayChangePercent?: number;
   totalGain?: number | null;
   totalGainPercent?: number | null;
-  hotTake?: string | null;
-  hotTakeAt?: string | null;
-  buffettComment?: string | null;
-  buffettCommentAt?: string | null;
-  mungerComment?: string | null;
-  mungerCommentAt?: string | null;
   deepResearch?: string | null;
   deepResearchAt?: string | null;
   [k: string]: unknown;
@@ -57,13 +51,7 @@ export function stripPortfolioForAllocationOnly<T extends PortfolioResponseLike>
   stripped.totalGain = null;
   // Keep totalDayChangePercent and totalGainPercent — they're percentages.
 
-  // AI commentary tends to mention dollar amounts, so suppress it entirely.
-  stripped.hotTake = null;
-  stripped.hotTakeAt = null;
-  stripped.buffettComment = null;
-  stripped.buffettCommentAt = null;
-  stripped.mungerComment = null;
-  stripped.mungerCommentAt = null;
+  // The deep research report tends to mention dollar amounts, so suppress it.
   stripped.deepResearch = null;
   stripped.deepResearchAt = null;
 

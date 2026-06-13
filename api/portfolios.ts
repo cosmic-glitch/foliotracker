@@ -17,14 +17,10 @@ import {
   deletePortfolioSnapshot,
   recordSnapshotError,
   getAnalyticsData,
-  getPortfolioSnapshot,
-  updateHotTake,
-  clearChatHistory,
   type Visibility,
   type DbPortfolioListItem,
   type DbPortfolioSnapshot,
 } from './_lib/db.js';
-import { generateHotTake, type HoldingSummary } from './_lib/openai.js';
 import { getSymbolInfo, getQuote } from './_lib/yahoo.js';
 import { refreshPortfolioSnapshot } from './_lib/snapshot.js';
 import {
@@ -926,25 +922,6 @@ export default async function handler(
         // Continue - portfolio is created, snapshot will be retried by cron
       }
 
-      // Generate AI hot take (non-blocking)
-      try {
-        const snapshot = await getPortfolioSnapshot(cleanId);
-        if (snapshot && snapshot.holdings_json.length > 0) {
-          const holdings: HoldingSummary[] = snapshot.holdings_json.map((h) => ({
-            ticker: h.ticker,
-            name: h.name,
-            value: h.value,
-            allocation: h.allocation,
-            instrumentType: h.instrumentType,
-          }));
-          const hotTake = await generateHotTake(holdings, snapshot.total_value);
-          await updateHotTake(cleanId, hotTake);
-        }
-      } catch (err) {
-        console.error(`Failed to generate hot take for ${cleanId}:`, err);
-        // Non-blocking - don't fail the request
-      }
-
       res.status(201).json({
         id: cleanId,
         message: 'Portfolio created successfully',
@@ -1092,27 +1069,6 @@ export default async function handler(
           console.error(`Failed to record snapshot error for ${id}:`, recordErr)
         );
         // Continue - portfolio is updated, snapshot will be retried by cron
-      }
-
-      // Generate AI hot take and clear chat history (non-blocking)
-      try {
-        const snapshot = await getPortfolioSnapshot(id);
-        if (snapshot && snapshot.holdings_json.length > 0) {
-          const holdings: HoldingSummary[] = snapshot.holdings_json.map((h) => ({
-            ticker: h.ticker,
-            name: h.name,
-            value: h.value,
-            allocation: h.allocation,
-            instrumentType: h.instrumentType,
-          }));
-          const hotTake = await generateHotTake(holdings, snapshot.total_value);
-          await updateHotTake(id, hotTake);
-          // Clear chat history since portfolio has changed
-          await clearChatHistory(id);
-        }
-      } catch (err) {
-        console.error(`Failed to generate hot take for ${id}:`, err);
-        // Non-blocking - don't fail the request
       }
 
       res.status(200).json({

@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioAIComments, getChatHistory, addChatMessage, clearChatHistory, getTodayChatCount, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioDeepResearch, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
 import { stripPortfolioForAllocationOnly } from './_lib/anonymize.js';
-import { chatWithPortfolio, type HoldingSummary, type AIPersona } from './_lib/openai.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
 
@@ -54,12 +53,6 @@ interface PortfolioResponse {
   staleTickers: string[];
   lastError?: string | null;
   lastErrorAt?: string | null;
-  hotTake: string | null;
-  hotTakeAt: string | null;
-  buffettComment: string | null;
-  buffettCommentAt: string | null;
-  mungerComment: string | null;
-  mungerCommentAt: string | null;
   deepResearch: string | null;
   deepResearchAt: string | null;
   viewMode?: 'full' | 'allocation_only';
@@ -80,183 +73,6 @@ async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
   return result;
 }
 
-const MAX_MESSAGES_PER_DAY = 10;
-
-// Chat action handler
-async function handleChatAction(req: VercelRequest, res: VercelResponse): Promise<void> {
-  const portfolioId = req.query.id as string;
-  const persona = (req.query.persona as AIPersona) || 'hot-take';
-
-  if (!portfolioId) {
-    res.status(400).json({ error: 'Portfolio ID is required' });
-    return;
-  }
-
-  // Check if portfolio exists
-  const portfolio = await getPortfolio(portfolioId);
-  if (!portfolio) {
-    res.status(404).json({ error: 'Portfolio not found' });
-    return;
-  }
-
-  if (req.method === 'GET') {
-    // Return all AI comments and chat history
-    const [aiComments, chatHistory] = await Promise.all([
-      getPortfolioAIComments(portfolioId),
-      getChatHistory(portfolioId),
-    ]);
-
-    const messages = chatHistory
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-        created_at: m.created_at,
-      }));
-
-    res.status(200).json({
-      hotTake: aiComments.hot_take,
-      hotTakeAt: aiComments.hot_take_at,
-      buffettComment: aiComments.buffett_comment,
-      buffettCommentAt: aiComments.buffett_comment_at,
-      mungerComment: aiComments.munger_comment,
-      mungerCommentAt: aiComments.munger_comment_at,
-      messages,
-    });
-    return;
-  }
-
-  if (req.method === 'POST') {
-    const { message, password, token } = req.body;
-
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      res.status(400).json({ error: 'Message is required' });
-      return;
-    }
-
-    // Verify access for private portfolios
-    if (portfolio.visibility === 'private') {
-      if (!token && !password) {
-        res.status(401).json({ error: 'Password required for private portfolio' });
-        return;
-      }
-      const { authenticated } = await authenticateRequest(portfolioId, token, password);
-      if (!authenticated) {
-        res.status(401).json({ error: 'Invalid password' });
-        return;
-      }
-    }
-
-    // Check daily rate limit
-    const todayCount = await getTodayChatCount(portfolioId);
-    if (todayCount >= MAX_MESSAGES_PER_DAY) {
-      res.status(429).json({
-        error: 'Daily chat limit reached',
-        message: `This portfolio has reached its limit of ${MAX_MESSAGES_PER_DAY} messages today. Try again tomorrow!`,
-      });
-      return;
-    }
-
-    // Get portfolio snapshot for holdings context
-    const snapshot = await getPortfolioSnapshot(portfolioId);
-    if (!snapshot || snapshot.holdings_json.length === 0) {
-      res.status(400).json({ error: 'Portfolio has no holdings to discuss' });
-      return;
-    }
-
-    // Get AI comments
-    const aiComments = await getPortfolioAIComments(portfolioId);
-
-    // Get the appropriate comment based on persona
-    let initialComment: string | null = null;
-    switch (persona) {
-      case 'buffett':
-        initialComment = aiComments.buffett_comment;
-        break;
-      case 'munger':
-        initialComment = aiComments.munger_comment;
-        break;
-      case 'hot-take':
-      default:
-        initialComment = aiComments.hot_take;
-        break;
-    }
-
-    if (!initialComment) {
-      res.status(400).json({ error: 'No AI comment available for this persona. Try refreshing.' });
-      return;
-    }
-
-    // Get chat history
-    const chatHistory = await getChatHistory(portfolioId);
-    const history = chatHistory
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
-
-    // Build holdings summary
-    const holdings: HoldingSummary[] = snapshot.holdings_json.map((h) => ({
-      ticker: h.ticker,
-      name: h.name,
-      value: h.value,
-      allocation: h.allocation,
-      instrumentType: h.instrumentType,
-    }));
-
-    // Call OpenAI with persona
-    const userMessage = message.trim();
-    let aiResponse: string;
-    try {
-      aiResponse = await chatWithPortfolio(
-        holdings,
-        snapshot.total_value,
-        initialComment,
-        history,
-        userMessage,
-        persona
-      );
-    } catch (err) {
-      console.error('OpenAI chat error:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: 'Failed to get AI response', details: errorMessage });
-      return;
-    }
-
-    // Log messages to database
-    await addChatMessage(portfolioId, 'user', userMessage);
-    await addChatMessage(portfolioId, 'assistant', aiResponse);
-
-    res.status(200).json({
-      response: aiResponse,
-      remainingMessages: MAX_MESSAGES_PER_DAY - todayCount - 1,
-    });
-    return;
-  }
-
-  if (req.method === 'DELETE') {
-    const { password, token } = req.body;
-
-    if (!token && !password) {
-      res.status(401).json({ error: 'Password required to reset chat' });
-      return;
-    }
-
-    const { authenticated } = await authenticateRequest(portfolioId, token, password);
-    if (!authenticated) {
-      res.status(401).json({ error: 'Invalid password' });
-      return;
-    }
-
-    await clearChatHistory(portfolioId);
-    res.status(200).json({ message: 'Chat history cleared' });
-    return;
-  }
-
-  res.status(405).json({ error: 'Method not allowed' });
-}
-
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -270,13 +86,6 @@ export default async function handler(
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
-    return;
-  }
-
-  // Handle chat actions
-  const action = req.query.action as string;
-  if (action === 'chat') {
-    await handleChatAction(req, res);
     return;
   }
 
@@ -423,8 +232,8 @@ export default async function handler(
       ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
       : undefined;
 
-    // Fetch all AI comments
-    const aiComments = await timed('getPortfolioAIComments', () => getPortfolioAIComments(portfolioId));
+    // Fetch deep research report
+    const deepResearch = await timed('getPortfolioDeepResearch', () => getPortfolioDeepResearch(portfolioId));
 
     // Check if snapshot is stale (more than 10 minutes old during market hours)
     const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
@@ -449,14 +258,8 @@ export default async function handler(
       staleTickers: snapshot.stale_tickers ?? [],
       lastError: snapshot.last_error,
       lastErrorAt: snapshot.last_error_at,
-      hotTake: aiComments.hot_take,
-      hotTakeAt: aiComments.hot_take_at,
-      buffettComment: aiComments.buffett_comment,
-      buffettCommentAt: aiComments.buffett_comment_at,
-      mungerComment: aiComments.munger_comment,
-      mungerCommentAt: aiComments.munger_comment_at,
-      deepResearch: aiComments.deep_research,
-      deepResearchAt: aiComments.deep_research_at,
+      deepResearch: deepResearch.deep_research,
+      deepResearchAt: deepResearch.deep_research_at,
     };
 
     // Anonymize when either (a) the viewer arrived via an allocation-only share

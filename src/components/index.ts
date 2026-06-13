@@ -11,7 +11,4 @@ export { Footer } from './Footer';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { PermissionsModal } from './PermissionsModal';
 export { ShareModal } from './ShareModal';
-export { HotTakeSection } from './HotTakeSection';
-export { AICommentSection } from './AICommentSection';
 export { AIResearchSection } from './AIResearchSection';
-export { ChatModal } from './ChatModal';

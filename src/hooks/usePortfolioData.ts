@@ -68,12 +68,6 @@ interface ApiPortfolioResponse {
   lastUpdated: string;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
-  hotTake: string | null;
-  hotTakeAt: string | null;
-  buffettComment: string | null;
-  buffettCommentAt: string | null;
-  mungerComment: string | null;
-  mungerCommentAt: string | null;
   deepResearch: string | null;
   deepResearchAt: string | null;
   staleTickers?: string[];
@@ -303,12 +297,6 @@ export function usePortfolioData(
         lastUpdated: new Date(p.lastUpdated),
         marketStatus: p.marketStatus,
         benchmark: p.benchmark,
-        hotTake: null,
-        hotTakeAt: null,
-        buffettComment: null,
-        buffettCommentAt: null,
-        mungerComment: null,
-        mungerCommentAt: null,
         deepResearch: null,
         deepResearchAt: null,
         staleTickers: p.staleTickers ?? [],
@@ -417,12 +405,6 @@ export function usePortfolioData(
       lastUpdated: new Date(p.lastUpdated),
       marketStatus: p.marketStatus,
       benchmark: p.benchmark,
-      hotTake: p.hotTake,
-      hotTakeAt: p.hotTakeAt,
-      buffettComment: p.buffettComment,
-      buffettCommentAt: p.buffettCommentAt,
-      mungerComment: p.mungerComment,
-      mungerCommentAt: p.mungerCommentAt,
       deepResearch: p.deepResearch,
       deepResearchAt: p.deepResearchAt,
       staleTickers: p.staleTickers ?? [],

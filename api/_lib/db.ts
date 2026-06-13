@@ -21,22 +21,8 @@ export interface DbPortfolio {
   is_private: boolean;
   visibility: Visibility;
   allocation_public: boolean;
-  hot_take: string | null;
-  hot_take_at: string | null;
-  buffett_comment: string | null;
-  buffett_comment_at: string | null;
-  munger_comment: string | null;
-  munger_comment_at: string | null;
   deep_research: string | null;
   deep_research_at: string | null;
-}
-
-export interface DbPortfolioChat {
-  id: string;
-  portfolio_id: string;
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-  created_at: string;
 }
 
 export interface DbPortfolioViewer {
@@ -1350,132 +1336,23 @@ export async function getAnalyticsData(
   };
 }
 
-// Portfolio chat functions
-export async function getChatHistory(portfolioId: string): Promise<DbPortfolioChat[]> {
-  const { data, error } = await supabase
-    .from('portfolio_chats')
-    .select('*')
-    .eq('portfolio_id', portfolioId.toLowerCase())
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return data || [];
-}
-
-export async function addChatMessage(
-  portfolioId: string,
-  role: 'system' | 'user' | 'assistant',
-  content: string
-): Promise<void> {
-  const { error } = await supabase.from('portfolio_chats').insert({
-    portfolio_id: portfolioId.toLowerCase(),
-    role,
-    content,
-  });
-
-  if (error) throw error;
-}
-
-export async function clearChatHistory(portfolioId: string): Promise<void> {
-  const { error } = await supabase
-    .from('portfolio_chats')
-    .delete()
-    .eq('portfolio_id', portfolioId.toLowerCase());
-
-  if (error) throw error;
-}
-
-export async function getTodayChatCount(portfolioId: string): Promise<number> {
-  const todayStart = getSeattleMidnightToday();
-  const todayStartStr = todayStart.toISOString();
-
-  const { count, error } = await supabase
-    .from('portfolio_chats')
-    .select('*', { count: 'exact', head: true })
-    .eq('portfolio_id', portfolioId.toLowerCase())
-    .eq('role', 'user')
-    .gte('created_at', todayStartStr);
-
-  if (error) throw error;
-  return count || 0;
-}
-
-export async function updateHotTake(portfolioId: string, hotTake: string): Promise<void> {
-  const { error } = await supabase
-    .from('portfolios')
-    .update({
-      hot_take: hotTake,
-      hot_take_at: new Date().toISOString(),
-    })
-    .eq('id', portfolioId.toLowerCase());
-
-  if (error) throw error;
-}
-
-export async function updateBuffettComment(portfolioId: string, comment: string): Promise<void> {
-  const { error } = await supabase
-    .from('portfolios')
-    .update({
-      buffett_comment: comment,
-      buffett_comment_at: new Date().toISOString(),
-    })
-    .eq('id', portfolioId.toLowerCase());
-
-  if (error) throw error;
-}
-
-export async function updateMungerComment(portfolioId: string, comment: string): Promise<void> {
-  const { error } = await supabase
-    .from('portfolios')
-    .update({
-      munger_comment: comment,
-      munger_comment_at: new Date().toISOString(),
-    })
-    .eq('id', portfolioId.toLowerCase());
-
-  if (error) throw error;
-}
-
-export interface PortfolioAIComments {
-  hot_take: string | null;
-  hot_take_at: string | null;
-  buffett_comment: string | null;
-  buffett_comment_at: string | null;
-  munger_comment: string | null;
-  munger_comment_at: string | null;
+export interface PortfolioDeepResearch {
   deep_research: string | null;
   deep_research_at: string | null;
 }
 
-export async function getPortfolioAIComments(portfolioId: string): Promise<PortfolioAIComments> {
+export async function getPortfolioDeepResearch(portfolioId: string): Promise<PortfolioDeepResearch> {
   const { data, error } = await supabase
     .from('portfolios')
-    .select('hot_take, hot_take_at, buffett_comment, buffett_comment_at, munger_comment, munger_comment_at, deep_research, deep_research_at')
+    .select('deep_research, deep_research_at')
     .eq('id', portfolioId.toLowerCase())
     .single();
 
   if (error && error.code !== 'PGRST116') throw error;
   return data || {
-    hot_take: null,
-    hot_take_at: null,
-    buffett_comment: null,
-    buffett_comment_at: null,
-    munger_comment: null,
-    munger_comment_at: null,
     deep_research: null,
     deep_research_at: null,
   };
-}
-
-export async function getPortfolioHotTake(portfolioId: string): Promise<{ hot_take: string | null; hot_take_at: string | null }> {
-  const { data, error } = await supabase
-    .from('portfolios')
-    .select('hot_take, hot_take_at')
-    .eq('id', portfolioId.toLowerCase())
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return data || { hot_take: null, hot_take_at: null };
 }
 
 export async function updateDeepResearch(portfolioId: string, research: string): Promise<void> {

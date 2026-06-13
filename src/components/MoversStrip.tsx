@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Flame } from 'lucide-react';
+import { ChevronDown, ChevronUp, Flame } from 'lucide-react';
 
 export interface MarketMover {
   ticker: string;
@@ -13,9 +13,12 @@ interface MoversStripProps {
   movers: MarketMover[];
 }
 
-// How many movers the pill shows (one per row). The server floors the list at
-// the same count (MOVER_MIN_COUNT in api/portfolios.ts) so the rows are never
-// short; keep the two in sync.
+// How many movers the pill shows by default (one per row) — the collapsed size.
+// The server floors the list at the same count (MOVER_MIN_COUNT in
+// api/portfolios.ts) so the rows are never short; keep the two in sync. When the
+// server returns more than this, every extra name is a qualified mover (the
+// backfill only ever pads UP to this floor, never past it), so a "Show all"
+// toggle can safely expand the pill to the full qualified set and collapse back.
 const DISPLAY_COUNT = 4;
 
 // Slack (px) required beyond the measured text width before we commit to the
@@ -75,10 +78,23 @@ function countLabel(m: MarketMover): string {
 // (text-[15px]/base) to hold that fit; the gap also tightens on mobile (gap-3
 // vs gap-5). Two tickers per row never fit, so we don't try.
 //
+// Expand/collapse: by default the pill shows DISPLAY_COUNT rows (the collapsed
+// size). When the server returns more (every extra row is a qualified mover —
+// the backfill only pads UP to the floor, never past it), a centered "Show all
+// N" / "Show less" toggle below the rows expands the pill in place to the full
+// qualified set and collapses it back. The toggle sits on its own row beneath
+// the rail+movers (not beside them) so it never competes for the horizontal
+// space the single-row mobile fit depends on.
+//
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers).
 export function MoversStrip({ movers }: MoversStripProps) {
-  const shown = movers.slice(0, DISPLAY_COUNT);
+  // Collapsed by default; the viewer can expand to the full qualified list and
+  // collapse back. Only offered when the server returned more than DISPLAY_COUNT
+  // (i.e. there are qualified movers beyond the default rows to reveal).
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = movers.length > DISPLAY_COUNT;
+  const shown = expanded && canExpand ? movers : movers.slice(0, DISPLAY_COUNT);
 
   // Per-row: does the full holder-names string fit its column? Default false
   // (count) so the pre-measurement render never overflows; the layout effect
@@ -126,59 +142,86 @@ export function MoversStrip({ movers }: MoversStripProps) {
     const ro = new ResizeObserver(measure);
     ro.observe(container);
     return () => ro.disconnect();
-    // shown is derived from movers; re-measure whenever the movers change.
+    // shown is derived from movers + expanded; re-measure whenever either
+    // changes (expanding adds rows that need their own names-vs-count fit).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movers]);
+  }, [movers, expanded]);
 
   if (shown.length === 0) return null;
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2.5 flex items-center gap-3 md:gap-5"
+      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2.5"
       aria-label="Today's movers among tracked holdings"
     >
-      {/* Left rail: flame above the label, anchored to the pill's left edge so
-          it reads as a label (echoing the left-aligned Users heading below). */}
-      <div className="flex flex-col items-center gap-0.5 shrink-0">
-        {/* The lucide Flame icon: a single-color, thin-stroke flame in amber —
-            monochromatic (no second shade), and identical across platforms. This
-            is the original look the user preferred over the native 🔥 emoji. */}
-        <Flame className="w-4 h-4 text-amber-500" aria-hidden />
-        <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">
-          Top movers
-        </span>
-      </div>
+      <div className="flex items-center gap-3 md:gap-5">
+        {/* Left rail: flame above the label, anchored to the pill's left edge so
+            it reads as a label (echoing the left-aligned Users heading below). */}
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          {/* The lucide Flame icon: a single-color, thin-stroke flame in amber —
+              monochromatic (no second shade), and identical across platforms.
+              This is the original look the user preferred over the native 🔥. */}
+          <Flame className="w-4 h-4 text-amber-500" aria-hidden />
+          <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">
+            Top movers
+          </span>
+        </div>
 
-      {/* Movers grouped tightly (ticker | move | held-by adjacent) and
-          left-aligned beside the rail (justify-start), shifted hard left to use
-          the space a centered layout wasted, while a row's own pieces never
-          separate. */}
-      <div ref={containerRef} className="flex-1 flex justify-start min-w-0">
-        <div className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-3 gap-y-1">
-          {shown.map((mover, i) => {
-            const isPositive = mover.changePercent >= 0;
-            const useNames = fitNames[i] ?? false;
-            return (
-              <Fragment key={mover.ticker}>
-                <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
-                  {mover.ticker}
-                </span>
-                <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                  {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
-                </span>
-                <span
-                  ref={(el) => {
-                    heldByRefs.current[i] = el;
-                  }}
-                  className="text-xs text-text-secondary whitespace-nowrap"
-                >
-                  {useNames ? namesLabel(mover) : countLabel(mover)}
-                </span>
-              </Fragment>
-            );
-          })}
+        {/* Movers grouped tightly (ticker | move | held-by adjacent) and
+            left-aligned beside the rail (justify-start), shifted hard left to use
+            the space a centered layout wasted, while a row's own pieces never
+            separate. */}
+        <div ref={containerRef} className="flex-1 flex justify-start min-w-0">
+          <div className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-3 gap-y-1">
+            {shown.map((mover, i) => {
+              const isPositive = mover.changePercent >= 0;
+              const useNames = fitNames[i] ?? false;
+              return (
+                <Fragment key={mover.ticker}>
+                  <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
+                    {mover.ticker}
+                  </span>
+                  <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
+                    {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
+                  </span>
+                  <span
+                    ref={(el) => {
+                      heldByRefs.current[i] = el;
+                    }}
+                    className="text-xs text-text-secondary whitespace-nowrap"
+                  >
+                    {useNames ? namesLabel(mover) : countLabel(mover)}
+                  </span>
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      {/* Expand/collapse toggle on its own row beneath the rail+movers, so it
+          never eats the horizontal room the single-row mobile fit needs. Shown
+          only when there are qualified movers past the default rows to reveal. */}
+      {canExpand && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+        >
+          {expanded ? (
+            <>
+              Show less
+              <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+            </>
+          ) : (
+            <>
+              Show all {movers.length}
+              <ChevronDown className="w-3.5 h-3.5" aria-hidden />
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }

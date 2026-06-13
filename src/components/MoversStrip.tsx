@@ -80,8 +80,8 @@ function countLabel(m: MarketMover): string {
 //
 // Expand/collapse: by default the pill shows DISPLAY_COUNT rows (the collapsed
 // size). When the server returns more (every extra row is a qualified mover —
-// the backfill only pads UP to the floor, never past it), a small "+N" chevron
-// toggle tucked under the rail's "Top movers" label expands the pill in place to
+// the backfill only pads UP to the floor, never past it), a small "N more"
+// chevron toggle tucked under the rail's "Top movers" label expands the pill to
 // the full qualified set and collapses it back. It lives in the rail's spare
 // vertical room (the rail is shorter than the ≥4-row movers block) and stays
 // narrower than the label, so it costs the pill neither an extra row of height
@@ -184,11 +184,21 @@ export function MoversStrip({ movers }: MoversStripProps) {
             className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             {expanded ? (
-              <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+              <>
+                <span>less</span>
+                <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+              </>
             ) : (
               <>
-                <span className="tabular-nums">
-                  +{movers.length - DISPLAY_COUNT}
+                {/* "N more" (not a bare "+N") so it's obvious the number counts
+                    additional movers, not something cryptic. Stays narrower than
+                    the "Top movers" label, so the rail width — and the movers'
+                    horizontal space — is unchanged. */}
+                <span className="whitespace-nowrap">
+                  <span className="tabular-nums">
+                    {movers.length - DISPLAY_COUNT}
+                  </span>{' '}
+                  more
                 </span>
                 <ChevronDown className="w-3.5 h-3.5" aria-hidden />
               </>

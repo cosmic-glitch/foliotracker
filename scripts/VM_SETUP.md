@@ -195,3 +195,46 @@ and a full refresh line at `:00` and `:30`. During live sessions every
 tick runs the full refresh (~6–8s for ~40 tickers / 7 portfolios; the
 lockfile skips if the previous tick is still running).
 
+## 11. Upcoming Events generation cron
+
+`scripts/generate-events.sh` is the sibling of the news generator (section 7):
+a single daily `claude -p` session that researches the upcoming US macro
+calendar (~14 days) and the next earnings date for each held stock (~21 days),
+then persists a ranked feed to the `upcoming_events` table via
+`scripts/save-events.ts`. It reuses everything the news job already set up — the
+Claude CLI auth (step 4), `.env.local` (step 2), and the same `git pull` self-
+sync — so the only new steps are the migration and the crontab line.
+
+Run the migration once (Mac or VM — same DB):
+```bash
+source .env.local && npx tsx scripts/migrate-upcoming-events.ts
+```
+
+Smoke test the whole pipeline manually:
+```bash
+~/foliotracker/scripts/generate-events.sh
+tail -200 ~/foliotracker/scripts/events.log
+```
+
+Verify in Supabase:
+```sql
+SELECT event_date, event_type, importance, title, event_time
+FROM upcoming_events
+ORDER BY position;
+```
+
+Install the cron entry (keep the existing lines above it), `crontab -e`:
+```
+30 7 * * * $HOME/foliotracker/scripts/generate-events.sh >> $HOME/foliotracker/scripts/events.log 2>&1
+```
+
+07:30 UTC = 00:30 PT, daily — spaced ~100 min after the 05:50 news slot so the
+two `claude -p` sessions don't run concurrently against the same Max
+subscription (the events research takes longer when many held names report). If
+you ever see them overlap in the logs, push the events slot later. Macro dates
+are static for weeks and earnings dates firm up ~2–3 weeks out, so a single
+daily run is plenty; there's no market-hours gating (unlike the snapshot
+refresh) — it runs once every day. Like the news job, the script `git pull`s
+`main` first so prompt/script edits propagate without manual SSH, and logs to
+`scripts/events.log`.
+

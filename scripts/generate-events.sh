@@ -27,6 +27,14 @@ LOG_FILE="$PROJECT_DIR/scripts/events.log"
 
 echo "[$(date -u +%FT%TZ)] generate-events: starting" >> "$LOG_FILE"
 
+# Self-sync with main so prompt/script edits propagate without manual SSH.
+# Non-fatal: on pull failure, proceed with the current checkout.
+if git pull --ff-only origin main >> "$LOG_FILE" 2>&1; then
+  echo "[$(date -u +%FT%TZ)] generate-events: git pull OK at $(git rev-parse --short HEAD)" >> "$LOG_FILE"
+else
+  echo "[$(date -u +%FT%TZ)] generate-events: git pull FAILED at $(git rev-parse --short HEAD); proceeding" >> "$LOG_FILE"
+fi
+
 # Keep the holdings.json fresh (visibility filter may have changed) but leave
 # any prior events.json/.md in place until the new run overwrites them.
 npx tsx "$PROJECT_DIR/scripts/prepare-events-input.ts" \

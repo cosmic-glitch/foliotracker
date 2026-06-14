@@ -61,11 +61,12 @@ Assign `importance`:
 - `medium` — PPI, retail sales, GDP, ISM, JOLTS, sentiment.
 - `low` — everything else you chose to include.
 
-Note on display: the landing-page strip currently shows **only high-importance
-macro** (plus all held-stock earnings); medium/low macro is generated and stored
-for the record but hidden in the UI. Classify honestly — don't inflate a release
-to `high` just to surface it — but lean toward including the genuinely
-market-moving prints, since those are the macro events that will actually show.
+Note on display: the landing-page strip shows the **next few events
+chronologically across all importance levels** (capped at a few rows, with a
+"more" toggle for the rest), so every macro release you include here can surface,
+not just `high` ones. Importance no longer gates visibility — it only breaks ties
+within a single date when ranking — so classify honestly; don't inflate or
+deflate a release to change whether it shows.
 
 ## Step 2 — Earnings (per held ticker)
 

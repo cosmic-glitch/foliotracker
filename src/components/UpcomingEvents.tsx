@@ -39,18 +39,19 @@ function eventEmoji(e: { type: string; title: string }): string {
 // the full width below. One event per row, rendered as a plain statement:
 // date | title.
 //
-// Spare by design: no color-coded impact dot and no ticker chip. The feed is
-// filtered to only the events worth flagging — high-importance macro releases
-// (the old red tier; medium/amber and low/slate are dropped) plus every held
-// earnings — so an importance dot is redundant. Earnings titles are already
-// self-contained statements ("Micron Q3 FY26 earnings"), so a separate ticker
-// chip was just noise; the title alone reads cleanly.
+// Spare by design: no color-coded impact dot and no ticker chip. The strip shows
+// the next events across all importance levels (high/medium/low macro + every
+// held earnings), ranked chronologically — so it answers "what's coming next?"
+// rather than "what's most severe?", and an importance dot would just add noise
+// to a plain date | title statement. Earnings titles are already self-contained
+// ("Micron Q3 FY26 earnings"), so a separate ticker chip was redundant too; the
+// title alone reads cleanly.
 //
 // Each title is prefixed with a single category emoji (eventEmoji above) — 🏦
 // Fed/rates, 📈 inflation, 💼 jobs, 📊 growth, 🛍️ retail, 🏭 manufacturing, 💰
 // earnings. It's a lightweight at-a-glance cue for the kind of event, derived
-// from the event (not stored), and is purely decorative (aria-hidden) — distinct
-// from the dropped importance dot, which encoded severity.
+// from the event (not stored), and is purely decorative (aria-hidden) — it cues
+// category, not severity (which the strip deliberately doesn't encode).
 //
 // No right-column meta either: the clock time and holder handles are both
 // deliberately omitted. On a narrow (mobile) layout the screen is too cramped
@@ -65,11 +66,12 @@ export function UpcomingEvents() {
   const { data } = useUpcomingEvents();
   const [expanded, setExpanded] = useState(false);
 
-  // Show only the events worth flagging: every held-stock earnings, plus
-  // high-importance macro releases. Lower-tier macro (medium/low) is dropped.
-  const events = (data?.events ?? []).filter(
-    (e) => e.type === 'earnings' || e.importance === 'high'
-  );
+  // Show the next events across all importance levels — no client-side filter.
+  // The feed arrives pre-ranked (date → importance → breadth, stored in
+  // `position`), so slicing the first DISPLAY_COUNT yields the most imminent
+  // events, with importance only breaking ties within a given date. The rest sit
+  // behind the "more" toggle.
+  const events = data?.events ?? [];
   const canExpand = events.length > DISPLAY_COUNT;
   const shown = expanded && canExpand ? events : events.slice(0, DISPLAY_COUNT);
 

@@ -95,17 +95,24 @@ export function UpcomingEvents() {
       {/* Card body: top-left squared to line up flush under the tab, pulled up
           1px to overlap the tab's missing bottom border. */}
       <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
-        {/* date | title — date sizes to content, title flexes and truncates only
-            when it genuinely runs out of room (no meta column stealing width).
-            Both event types render the same: a plain title statement, no leading
-            impact dot or ticker chip (see the component header). */}
-        <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
+        {/* date | title — date sizes to content; the title takes the rest and
+            wraps to a second line rather than truncating (no meta column stealing
+            width). A long macro title like "Fed's preferred inflation gauge
+            (PCE)" can't fit one line on a narrow phone, so single-line truncation
+            clipped it; wrapping with a 2-line clamp keeps the whole title
+            readable while still bounding a pathologically long one. The grid is
+            items-start (not items-baseline) so the date aligns to the title's
+            FIRST line — a wrapped block's baseline is its last line, which would
+            otherwise drop the date down beside line 2. Both event types render
+            the same: a plain title statement, no leading impact dot or ticker
+            chip (see the component header). */}
+        <div className="grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1.5">
           {shown.map((e) => (
             <Fragment key={e.id}>
               <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
                 {formatChartDate(e.date)}
               </span>
-              <span className="truncate min-w-0 text-sm md:text-[15px] text-text-primary">
+              <span className="line-clamp-2 min-w-0 text-sm md:text-[15px] text-text-primary">
                 <span className="mr-1.5" aria-hidden>
                   {eventEmoji(e)}
                 </span>

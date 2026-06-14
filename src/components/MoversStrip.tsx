@@ -42,19 +42,19 @@ function countLabel(m: MarketMover): string {
   return `held by ${n} ${n === 1 ? 'user' : 'users'}`;
 }
 
-// Rounded pill directly above the Users card (spans its width). A left rail —
-// the word "Top movers" under a flame — names the strip and frames the per-row
-// holders as "users here," which the old icon-only version left users guessing
-// at. The rail is anchored to the pill's LEFT edge (a label, echoing the
-// left-aligned Users heading below); the movers are LEFT-aligned right beside
-// it (justify-start), shifted hard left to use the empty space that an earlier
-// centered layout left between the rail and the data. Each mover is one row:
-// ticker | day move | "held by …", three TIGHTLY grouped columns.
+// Rounded card directly above the Users card (spans its width). A folder-style
+// TAB juts from the card's top-left — a flame beside the words "Top movers" —
+// naming the strip and framing the per-row holders as "users here." The tab
+// carries no bottom border and paints above the card body
+// (z-10), so the card's top border is hidden beneath it and the two read as one
+// connected shape (a notepad tab). Moving the label off the old left rail and
+// onto the tab hands the rows the FULL card width. Each mover is one row:
+// ticker | day move | "held by …".
 //
-// The three columns are kept adjacent (no flexible spacer between them) so the
-// move sits right next to its ticker and the holders right next to the move — a
-// version that pushed the holders to the pill's far right opened an awkward gap
-// between a stock and its own "held by" text.
+// The day move is right-aligned in an auto column (so the percentages line up on
+// their right edge); the holders are the flexible (1fr) track, right-aligned to
+// the card's edge — which is exactly what the reclaimed full width buys us: far
+// more room for the holder names before a row has to fall back to a count.
 //
 // Holders column — names when they fit, else a count. We measure (canvas
 // measureText against the column's real available width) whether a row's full
@@ -62,9 +62,9 @@ function countLabel(m: MarketMover): string {
 // row alone falls back to "held by N users". The decision is per-row and
 // width-driven, so it adapts to viewport width and to how many people hold a
 // given name. Measuring happens in a layout effect (before paint, so no flash)
-// and re-runs on container resize. The available width is the column's leftover
-// after the ticker + move columns, which left-alignment makes a clean
-// container-left-to-cell-left span.
+// and re-runs on container resize. The available width is the holders track's
+// span from its left edge to the container's right edge (cell alignment within
+// the track doesn't move that left edge, so right-aligning the text is fine).
 //
 // The flame is the lucide-react Flame icon — a single-color, thin-stroke line
 // flame in amber (text-amber-500), monochromatic with no second shade. This is
@@ -72,23 +72,11 @@ function countLabel(m: MarketMover): string {
 // (unlike the native 🔥 emoji, which the platform paints in its own multi-shaded
 // art). A native emoji and a two-tone SVG are both kept in git history.
 //
-// Stacking the flame ABOVE the label (rather than beside it) shrinks the rail
-// to the label's width, which is what lets a single row fit even a 360px phone.
-// Type is a notch smaller on mobile (text-sm/[15px]) than desktop
-// (text-[15px]/base) to hold that fit; the gap also tightens on mobile (gap-3
-// vs gap-5). Two tickers per row never fit, so we don't try.
-//
-// Expand/collapse: by default the pill shows DISPLAY_COUNT rows (the collapsed
+// Expand/collapse: by default the strip shows DISPLAY_COUNT rows (the collapsed
 // size). When the server returns more (every extra row is a qualified mover —
-// the backfill only pads UP to the floor, never past it), a small "N more"
-// chevron toggle tucked under the rail's "Top movers" label expands the pill to
-// the full qualified set and collapses it back. It lives in the rail's spare
-// vertical room (the rail is shorter than the ≥3-row movers block) and stays
-// narrower than the label, so it costs the pill neither an extra row of height
-// nor any of the horizontal width the single-row mobile fit depends on — it
-// never touches the movers' own rows. (A full-width toggle row beneath the
-// strip, the obvious first cut, was rejected for grabbing exactly that scarce
-// vertical space.)
+// the backfill only pads UP to the floor, never past it), a centered "N more"
+// chevron toggle below the rows expands the strip to the full qualified set and
+// collapses it back.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers).
@@ -118,8 +106,8 @@ export function MoversStrip({ movers }: MoversStripProps) {
       if (!container || !firstCell) return;
 
       // Holders column starts after the ticker + move columns (and their gaps);
-      // left-alignment means the grid sits at the container's left edge, so the
-      // cell's offset from the container left is exactly that prefix width.
+      // the grid spans the full container from its left edge, so the cell's
+      // offset from the container left is exactly that prefix width.
       const containerLeft = container.getBoundingClientRect().left;
       const columnLeft = firstCell.getBoundingClientRect().left;
       const available = container.clientWidth - (columnLeft - containerLeft);
@@ -155,87 +143,91 @@ export function MoversStrip({ movers }: MoversStripProps) {
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2.5 flex items-center gap-3 md:gap-5"
+      className="mb-3 md:mb-6"
       aria-label="Today's movers among tracked holdings"
     >
-      {/* Left rail: flame above the label, anchored to the pill's left edge so
-          it reads as a label (echoing the left-aligned Users heading below). The
-          expand/collapse toggle tucks UNDER the label in the rail's spare
-          vertical room — the rail is shorter than the (≥3-row) movers block, so
-          a chevron here costs the pill no extra height, and it stays narrower
-          than "Top movers" so it costs no width either. That keeps the toggle
-          off the movers' own rows, which the single-row mobile fit can't spare. */}
-      <div className="flex flex-col items-center gap-0.5 shrink-0">
-        {/* The lucide Flame icon: a single-color, thin-stroke flame in amber —
-            monochromatic (no second shade), and identical across platforms. This
-            is the original look the user preferred over the native 🔥. */}
-        <Flame className="w-4 h-4 text-amber-500" aria-hidden />
-        <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">
+      {/* Folder tab jutting from the card's top-left: flame + label. No bottom
+          border, and z-10 so it paints OVER the card body below — the card's top
+          border is hidden beneath the tab and the two read as one connected
+          notepad-tab shape. inline-flex keeps the tab only as wide as its label.
+          The lucide Flame is a single-color thin-stroke amber flame (no second
+          shade), identical across platforms — the look the user preferred over
+          the native 🔥. */}
+      <div className="relative z-10 inline-flex items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+        <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
+        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
           Top movers
         </span>
-        {canExpand && (
-          <button
-            type="button"
-            onClick={() => setExpanded((e) => !e)}
-            aria-expanded={expanded}
-            aria-label={
-              expanded ? 'Show fewer movers' : `Show all ${movers.length} movers`
-            }
-            className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {expanded ? (
-              <>
-                <span>less</span>
-                <ChevronUp className="w-3.5 h-3.5" aria-hidden />
-              </>
-            ) : (
-              <>
-                {/* "N more" (not a bare "+N") so it's obvious the number counts
-                    additional movers, not something cryptic. Stays narrower than
-                    the "Top movers" label, so the rail width — and the movers'
-                    horizontal space — is unchanged. */}
-                <span className="whitespace-nowrap">
-                  <span className="tabular-nums">
-                    {movers.length - DISPLAY_COUNT}
-                  </span>{' '}
-                  more
-                </span>
-                <ChevronDown className="w-3.5 h-3.5" aria-hidden />
-              </>
-            )}
-          </button>
-        )}
       </div>
 
-      {/* Movers grouped tightly (ticker | move | held-by adjacent) and
-          left-aligned beside the rail (justify-start), shifted hard left to use
-          the space a centered layout wasted, while a row's own pieces never
-          separate. */}
-      <div ref={containerRef} className="flex-1 flex justify-start min-w-0">
-        <div className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-3 gap-y-1">
-          {shown.map((mover, i) => {
-            const isPositive = mover.changePercent >= 0;
-            const useNames = fitNames[i] ?? false;
-            return (
-              <Fragment key={mover.ticker}>
-                <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
-                  {mover.ticker}
-                </span>
-                <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                  {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
-                </span>
-                <span
-                  ref={(el) => {
-                    heldByRefs.current[i] = el;
-                  }}
-                  className="text-xs text-text-secondary whitespace-nowrap"
-                >
-                  {useNames ? namesLabel(mover) : countLabel(mover)}
-                </span>
-              </Fragment>
-            );
-          })}
+      {/* Card body. Top-left squared (rounded-tl-none) so its left border lines
+          up flush beneath the tab's left border; pulled up 1px (-mt-px) to
+          overlap the tab's missing bottom border into one seamless edge. Rows
+          get the full width now that the label lives on the tab, not a rail. */}
+      <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
+        <div ref={containerRef} className="w-full min-w-0">
+          {/* ticker | move (right-aligned, percentages line up) | held-by (the
+              flexible 1fr track, right-aligned to the card edge). */}
+          <div className="grid grid-cols-[auto_auto_1fr] items-baseline gap-x-3 gap-y-1">
+            {shown.map((mover, i) => {
+              const isPositive = mover.changePercent >= 0;
+              const useNames = fitNames[i] ?? false;
+              return (
+                <Fragment key={mover.ticker}>
+                  <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
+                    {mover.ticker}
+                  </span>
+                  <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
+                    {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
+                  </span>
+                  <span
+                    ref={(el) => {
+                      heldByRefs.current[i] = el;
+                    }}
+                    className="text-xs text-text-secondary whitespace-nowrap text-right"
+                  >
+                    {useNames ? namesLabel(mover) : countLabel(mover)}
+                  </span>
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Centered "N more" / "less" toggle below the rows. "N more" (not a
+            bare "+N") so it's obvious the number counts additional movers. Only
+            shown when the server returned more than DISPLAY_COUNT qualified
+            rows. */}
+        {canExpand && (
+          <div className="flex justify-center mt-1.5">
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              aria-label={
+                expanded ? 'Show fewer movers' : `Show all ${movers.length} movers`
+              }
+              className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {expanded ? (
+                <>
+                  <span>less</span>
+                  <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+                </>
+              ) : (
+                <>
+                  <span className="whitespace-nowrap">
+                    <span className="tabular-nums">
+                      {movers.length - DISPLAY_COUNT}
+                    </span>{' '}
+                    more
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5" aria-hidden />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

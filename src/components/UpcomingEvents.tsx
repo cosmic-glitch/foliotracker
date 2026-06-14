@@ -20,9 +20,11 @@ const IMPORTANCE_DOT: Record<UpcomingEvent['importance'], string> = {
 };
 
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
-// (bg-card border rounded-3xl) and the same left-rail-with-label + expand toggle
-// pattern as the movers strip, so the two read as a matched pair: what moved /
-// what's coming. One event per row: date | impact dot or ticker chip + title.
+// and the same notepad-tab-with-label + centered expand toggle pattern as the
+// movers strip, so the two read as a matched pair: what moved / what's coming. A
+// folder tab (calendar + "Upcoming") juts from the card's top-left; rows fill
+// the full width below. One event per row: date | impact dot or ticker chip +
+// title.
 //
 // No right-column meta: the clock time and holder handles are both deliberately
 // omitted. On a narrow (mobile) layout the screen is too cramped for them, and —
@@ -45,49 +47,24 @@ export function UpcomingEvents() {
 
   return (
     <div
-      className="mb-3 md:mb-6 bg-card border border-border rounded-3xl px-4 py-2.5 flex items-start gap-3 md:gap-5"
+      className="mb-3 md:mb-6"
       aria-label="Upcoming market events"
     >
-      {/* Left rail: calendar above the label, with the expand/collapse toggle
-          tucked underneath — same placement as the movers strip's "N more". */}
-      <div className="flex flex-col items-center gap-0.5 shrink-0">
-        <CalendarDays className="w-4 h-4 text-text-secondary" aria-hidden />
-        <span className="text-[15px] md:text-base font-semibold text-text-primary whitespace-nowrap">
+      {/* Folder tab jutting from the card's top-left — calendar + label, no
+          bottom border, z-10 so it paints over the card body's top border into
+          one connected notepad-tab shape. Matches the movers strip's tab. */}
+      <div className="relative z-10 inline-flex items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+        <CalendarDays className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
+        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
           Upcoming
         </span>
-        {canExpand && (
-          <button
-            type="button"
-            onClick={() => setExpanded((e) => !e)}
-            aria-expanded={expanded}
-            aria-label={
-              expanded ? 'Show fewer events' : `Show all ${events.length} events`
-            }
-            className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {expanded ? (
-              <>
-                <span>less</span>
-                <ChevronUp className="w-3.5 h-3.5" aria-hidden />
-              </>
-            ) : (
-              <>
-                <span className="whitespace-nowrap">
-                  <span className="tabular-nums">
-                    {events.length - DISPLAY_COUNT}
-                  </span>{' '}
-                  more
-                </span>
-                <ChevronDown className="w-3.5 h-3.5" aria-hidden />
-              </>
-            )}
-          </button>
-        )}
       </div>
 
-      {/* date | title — date sizes to content, title flexes and truncates only
-          when it genuinely runs out of room (no meta column stealing width). */}
-      <div className="flex-1 min-w-0">
+      {/* Card body: top-left squared to line up flush under the tab, pulled up
+          1px to overlap the tab's missing bottom border. */}
+      <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
+        {/* date | title — date sizes to content, title flexes and truncates only
+            when it genuinely runs out of room (no meta column stealing width). */}
         <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
           {shown.map((e) => (
             <Fragment key={e.id}>
@@ -110,6 +87,39 @@ export function UpcomingEvents() {
             </Fragment>
           ))}
         </div>
+
+        {/* Centered expand/collapse toggle below the rows — same pattern as the
+            movers strip. */}
+        {canExpand && (
+          <div className="flex justify-center mt-2">
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              aria-label={
+                expanded ? 'Show fewer events' : `Show all ${events.length} events`
+              }
+              className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {expanded ? (
+                <>
+                  <span>less</span>
+                  <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+                </>
+              ) : (
+                <>
+                  <span className="whitespace-nowrap">
+                    <span className="tabular-nums">
+                      {events.length - DISPLAY_COUNT}
+                    </span>{' '}
+                    more
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5" aria-hidden />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

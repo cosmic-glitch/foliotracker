@@ -52,8 +52,9 @@ function countLabel(m: MarketMover): string {
 // ticker | day move | "held by …".
 //
 // The day move is right-aligned in an auto column (so the percentages line up on
-// their right edge); the holders are the flexible (1fr) track, right-aligned to
-// the card's edge — which is exactly what the reclaimed full width buys us: far
+// their right edge); the holders are the flexible (1fr) track, left-aligned so
+// the label begins just past the percentage (one gap-x over) rather than being
+// shoved to the card's right edge — the reclaimed full width still buys us far
 // more room for the holder names before a row has to fall back to a count.
 //
 // Holders column — names when they fit, else a count. We measure (canvas
@@ -64,7 +65,8 @@ function countLabel(m: MarketMover): string {
 // given name. Measuring happens in a layout effect (before paint, so no flash)
 // and re-runs on container resize. The available width is the holders track's
 // span from its left edge to the container's right edge (cell alignment within
-// the track doesn't move that left edge, so right-aligning the text is fine).
+// the track doesn't move that left edge, so the left-aligned text has exactly
+// that span to grow into).
 //
 // The flame is the lucide-react Flame icon — a single-color, thin-stroke line
 // flame in amber (text-amber-500), monochromatic with no second shade. This is
@@ -170,7 +172,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
       <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
         <div ref={containerRef} className="w-full min-w-0">
           {/* ticker | move (right-aligned, percentages line up) | held-by (the
-              flexible 1fr track, right-aligned to the card edge). */}
+              flexible 1fr track, left-aligned so it starts just past the %). */}
           <div className="grid grid-cols-[auto_auto_1fr] items-baseline gap-x-3 gap-y-1">
             {shown.map((mover, i) => {
               const isPositive = mover.changePercent >= 0;
@@ -187,7 +189,7 @@ export function MoversStrip({ movers }: MoversStripProps) {
                     ref={(el) => {
                       heldByRefs.current[i] = el;
                     }}
-                    className="text-xs text-text-secondary whitespace-nowrap text-right"
+                    className="text-xs text-text-secondary whitespace-nowrap text-left"
                   >
                     {useNames ? namesLabel(mover) : countLabel(mover)}
                   </span>

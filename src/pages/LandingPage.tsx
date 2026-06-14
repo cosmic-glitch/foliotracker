@@ -349,17 +349,29 @@ export function LandingPage() {
                 (useUpcomingEvents) and self-hiding when the feed is empty. */}
             <UpcomingEvents />
 
-            {/* Portfolios List */}
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              {/* Timeframe toggle moved to UserMenu's "30-Day View" row —
-                  same setting, just promoted to a global preference. */}
-              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-                <Users className="w-5 h-5 text-text-secondary shrink-0" />
-                <h3 className="text-lg font-semibold text-text-primary">
+            {/* Portfolios List — same notepad-tab shell as the movers/upcoming
+                strips above, so the three read as a matched stack. A folder tab
+                (users icon + "Users") juts from the card's top-left; the rows
+                fill the card body below. The timeframe toggle that once lived in
+                this header now lives in UserMenu's "30-Day View" row — same
+                setting, promoted to a global preference. */}
+            <div aria-label="Tracked portfolios">
+              {/* Folder tab jutting from the card's top-left — users icon +
+                  label, no bottom border, z-10 so it paints over the card body's
+                  top border into one connected notepad-tab shape. Matches the
+                  movers/upcoming strips' tabs. */}
+              <div className="relative z-10 inline-flex items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+                <Users className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
+                <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
                   Users
-                </h3>
+                </span>
               </div>
 
+              {/* Card body: top-left squared to line up flush under the tab,
+                  pulled up 1px to overlap the tab's missing bottom border.
+                  overflow-hidden clips the per-row hover backgrounds to the
+                  rounded corners. */}
+              <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none overflow-hidden">
               {isLoading ? (
                 <div className="p-8 text-center text-text-secondary">
                   Loading portfolios...
@@ -422,6 +434,7 @@ export function LandingPage() {
                   })}
                 </div>
               )}
+              </div>
             </div>
 
             {/* Auth actions */}

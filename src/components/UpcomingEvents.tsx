@@ -19,22 +19,22 @@ const IMPORTANCE_DOT: Record<UpcomingEvent['importance'], string> = {
   low: 'bg-slate-400',
 };
 
-// Right-column meta: the time, plus holder handles for earnings (uppercased to
-// match the Users list / movers strip), e.g. "after close · AV, VD".
+// Right-column meta: holder handles for earnings (uppercased to match the Users
+// list / movers strip), e.g. "AV, VD". The clock time is deliberately omitted —
+// the date alone is enough, and dropping it frees horizontal space so the title
+// column stops truncating on narrow (mobile) layouts.
 function metaLabel(e: UpcomingEvent): string {
-  const parts: string[] = [];
-  if (e.time) parts.push(e.time);
   if (e.type === 'earnings' && e.holders && e.holders.length > 0) {
-    parts.push(e.holders.map((h) => h.toUpperCase()).join(', '));
+    return e.holders.map((h) => h.toUpperCase()).join(', ');
   }
-  return parts.join(' · ');
+  return '';
 }
 
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
 // (bg-card border rounded-3xl) and the same left-rail-with-label + expand toggle
 // pattern as the movers strip, so the two read as a matched pair: what moved /
 // what's coming. One event per row: date | impact dot or ticker chip + title |
-// time/holders.
+// holders (earnings only).
 //
 // Renders nothing when there are no future events (an empty strip would just be
 // filler) or while the query is loading/errored — it never shows a broken card.

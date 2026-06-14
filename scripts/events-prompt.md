@@ -95,7 +95,7 @@ A single JSON array, **sorted by `date` ascending**, then by importance
   "type": "macro",
   "date": "2026-06-17",
   "time": "14:00 ET",
-  "title": "Fed interest-rate decision (FOMC)",
+  "title": "Fed rate decision (FOMC)",
   "detail": "Fed concludes its June meeting; updated dot plot + Powell presser.",
   "importance": "high",
   "tickers": [],
@@ -113,28 +113,31 @@ Field rules:
 - `id`: stable slug — `"<type>-<ticker-or-series>-<date>"` lowercased.
 - `date`: ISO `YYYY-MM-DD`, the day the event occurs.
 - `time`: ET clock time, `"before open"`, `"after close"`, or `null` if unknown.
-- `title`: ≤ 64 chars. The UI renders the title as a plain statement (no ticker
-  chip), and the strip now has the horizontal room for a fuller phrase — so write
-  every title so a **non-expert understands it at a glance**. **Never lead with a
-  bare acronym or insider shorthand.** State the event in plain language; where an
-  acronym is the thing people recognize, append it in parentheses. Translate,
-  don't just abbreviate:
-    - "FOMC" → `"Fed interest-rate decision (FOMC)"`
-    - "May PCE inflation" → `"Fed's preferred inflation gauge (PCE), May"`
-    - "May CPI" → `"Consumer inflation (CPI), May"`
-    - "May PPI" → `"Wholesale inflation (PPI), May"`
-    - "May jobs report" → `"Monthly jobs report (payrolls), May"`
-    - "Q1 GDP third estimate" → `"Economic growth (GDP), Q1 — final estimate"`
-    - "May retail sales" → `"Retail sales, May"` (already plain — leave it)
-    - "ISM Manufacturing PMI" → `"Manufacturing activity (ISM), May"`
-    - "JOLTS job openings" → `"Job openings (JOLTS), May"`
-  Lead with the plain meaning, keep the month/quarter qualifier, and keep an
-  acronym only when it aids recognition. Earnings titles stay **self-contained
-  and name the company** (no ticker chip precedes them):
-  `"<Company> <quarter> <FY> earnings"`, e.g. `"Micron Q3 FY26 earnings"`,
-  `"Adobe Q2 FY26 earnings"` — a short recognizable company name, not the ticker.
-  If a fuller title would exceed 64 chars, trim the trailing qualifier (e.g. drop
-  ", May") rather than the plain-language meaning.
+- `title`: **≤ 32 characters — a hard limit.** The strip renders each title on a
+  single line in a narrow mobile column; anything longer is clipped. Brevity is
+  therefore the top constraint — say it in the shortest form that still reads
+  clearly, and judge for yourself how best to fit the meaning in that space.
+  Within the budget, prefer plain language a non-expert grasps: lead with the
+  plain meaning and append the acronym in parentheses **only if it still fits**;
+  if it doesn't, keep just the acronym people actually recognize (CPI, PCE, GDP,
+  FOMC). The event's **date is already shown in its own column**, so do NOT repeat
+  the month/period in the title — put the reporting period in `detail` instead.
+  Aim for ~24–30 chars; treat 32 as the ceiling, not the target:
+    - "FOMC" → `"Fed rate decision (FOMC)"`
+    - "May PCE inflation" → `"Fed's inflation gauge (PCE)"`
+    - "May CPI" → `"Consumer inflation (CPI)"`
+    - "May PPI" → `"Wholesale inflation (PPI)"`
+    - "May jobs report" → `"Jobs report (payrolls)"`
+    - "Q1 GDP third estimate" → `"Economic growth (GDP)"`
+    - "May retail sales" → `"Retail sales"`
+    - "ISM Manufacturing PMI" → `"Manufacturing PMI (ISM)"`
+    - "JOLTS job openings" → `"Job openings (JOLTS)"`
+  Earnings titles stay **self-contained and name the company** (no ticker chip
+  precedes them): `"<Company> Q# FY## earnings"`, e.g. `"Micron Q3 FY26 earnings"`,
+  `"Adobe Q2 FY26 earnings"` — a short, recognizable company name, not the ticker.
+  To fit 32 chars, shorten the name to its common form (e.g. "TSMC", not "Taiwan
+  Semiconductor"); if still over, drop the fiscal year ("Q3 earnings") before the
+  quarter, and only then trim further.
 - `detail`: one sentence, ≤ 140 chars. The "why it matters" / specifics.
 - `tickers`: `[]` for macro; the reporting ticker(s) for earnings.
 - `holders` / `holder_count`: `null` / `0` for macro; copied from the input for
@@ -153,10 +156,10 @@ date, e.g.:
 ## Upcoming events — generated 2026-06-13
 
 ### Mon Jun 15
-- 🟡 **Retail sales, May** — 8:30 ET. Read on the consumer post-tariffs.
+- 🟡 **Retail sales** — 8:30 ET. May read on the consumer post-tariffs.
 
 ### Wed Jun 17
-- 🔴 **Fed interest-rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.
+- 🔴 **Fed rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.
 
 ### Thu Jun 18
 - 📊 **Adobe Q2 FY26 earnings** — after close, confirmed. Held by av, gs, vp.

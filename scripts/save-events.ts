@@ -23,6 +23,13 @@ const EVENT_TYPES = new Set(['macro', 'earnings']);
 const IMPORTANCES = new Set(['high', 'medium', 'low']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Titles render on a single line in a narrow mobile column; longer ones clip
+// with an ellipsis. The generator (events-prompt.md) is instructed to keep every
+// title ≤ this; we don't reject here (one over-long title shouldn't nuke the
+// whole feed), but we warn so prompt drift is visible in the cron log. Keep in
+// sync with the ≤ 32 char rule in events-prompt.md.
+const TITLE_MAX = 32;
+
 interface RawEvent {
   id?: unknown;
   type?: unknown;
@@ -101,6 +108,15 @@ async function main() {
   }
 
   const rows = (parsed as RawEvent[]).map(toRow);
+
+  const tooLong = rows.filter((r) => r.title.length > TITLE_MAX);
+  if (tooLong.length) {
+    console.warn(
+      `warning: ${tooLong.length} title(s) exceed ${TITLE_MAX} chars and will clip on mobile:`
+    );
+    for (const r of tooLong) console.warn(`  [${r.title.length}] ${r.title}`);
+  }
+
   await replaceUpcomingEvents(rows);
 
   const macro = rows.filter((r) => r.event_type === 'macro').length;

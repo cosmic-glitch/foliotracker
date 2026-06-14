@@ -359,8 +359,9 @@ export function LandingPage() {
               {/* Folder tab jutting from the card's top-left — users icon +
                   label, no bottom border, z-10 so it paints over the card body's
                   top border into one connected notepad-tab shape. Matches the
-                  movers/upcoming strips' tabs. */}
-              <div className="relative z-10 inline-flex items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+                  movers/upcoming strips' tabs, including the shared fixed width
+                  (w-36) that keeps all three tabs at a constant width. */}
+              <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
                 <Users className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
                 <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
                   Users

@@ -61,6 +61,12 @@ Assign `importance`:
 - `medium` — PPI, retail sales, GDP, ISM, JOLTS, sentiment.
 - `low` — everything else you chose to include.
 
+Note on display: the landing-page strip currently shows **only high-importance
+macro** (plus all held-stock earnings); medium/low macro is generated and stored
+for the record but hidden in the UI. Classify honestly — don't inflate a release
+to `high` just to surface it — but lean toward including the genuinely
+market-moving prints, since those are the macro events that will actually show.
+
 ## Step 2 — Earnings (per held ticker)
 
 Walk `holdings.json` in order. For each ticker, use WebSearch / WebFetch to find
@@ -107,8 +113,12 @@ Field rules:
 - `id`: stable slug — `"<type>-<ticker-or-series>-<date>"` lowercased.
 - `date`: ISO `YYYY-MM-DD`, the day the event occurs.
 - `time`: ET clock time, `"before open"`, `"after close"`, or `null` if unknown.
-- `title`: ≤ 40 chars, no ticker for earnings (UI prefixes it). Macro titles are
-  the report name ("May CPI", "FOMC rate decision", "May jobs report").
+- `title`: ≤ 40 chars. The UI renders the title as a plain statement — no ticker
+  chip in front of it — so earnings titles must be **self-contained and name the
+  company**: `"<Company> <quarter> <FY> earnings"`, e.g. `"Micron Q3 FY26
+  earnings"`, `"Adobe Q2 FY26 earnings"`. Use a short recognizable company name,
+  not the ticker. Macro titles are the report name ("May CPI", "FOMC rate
+  decision", "May jobs report").
 - `detail`: one sentence, ≤ 140 chars. The "why it matters" / specifics.
 - `tickers`: `[]` for macro; the reporting ticker(s) for earnings.
 - `holders` / `holder_count`: `null` / `0` for macro; copied from the input for

@@ -149,11 +149,14 @@ export function MoversStrip({ movers }: MoversStripProps) {
       {/* Folder tab jutting from the card's top-left: flame + label. No bottom
           border, and z-10 so it paints OVER the card body below — the card's top
           border is hidden beneath the tab and the two read as one connected
-          notepad-tab shape. inline-flex keeps the tab only as wide as its label.
-          The lucide Flame is a single-color thin-stroke amber flame (no second
-          shade), identical across platforms — the look the user preferred over
-          the native 🔥. */}
-      <div className="relative z-10 inline-flex items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+          notepad-tab shape. A FIXED width (w-36) is shared by all three
+          landing-page tabs (movers / upcoming / users) — sized to the widest
+          label ("Top movers") — so the stacked tabs line up at a constant width
+          instead of each sizing to its own label; content stays left-aligned so
+          the tab icons align in a column down the stack. The lucide Flame is a
+          single-color thin-stroke amber flame (no second shade), identical
+          across platforms — the look the user preferred over the native 🔥. */}
+      <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
         <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
         <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
           Top movers

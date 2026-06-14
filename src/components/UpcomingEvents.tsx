@@ -19,22 +19,17 @@ const IMPORTANCE_DOT: Record<UpcomingEvent['importance'], string> = {
   low: 'bg-slate-400',
 };
 
-// Right-column meta: holder handles for earnings (uppercased to match the Users
-// list / movers strip), e.g. "AV, VD". The clock time is deliberately omitted —
-// the date alone is enough, and dropping it frees horizontal space so the title
-// column stops truncating on narrow (mobile) layouts.
-function metaLabel(e: UpcomingEvent): string {
-  if (e.type === 'earnings' && e.holders && e.holders.length > 0) {
-    return e.holders.map((h) => h.toUpperCase()).join(', ');
-  }
-  return '';
-}
-
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
 // (bg-card border rounded-3xl) and the same left-rail-with-label + expand toggle
 // pattern as the movers strip, so the two read as a matched pair: what moved /
-// what's coming. One event per row: date | impact dot or ticker chip + title |
-// holders (earnings only).
+// what's coming. One event per row: date | impact dot or ticker chip + title.
+//
+// No right-column meta: the clock time and holder handles are both deliberately
+// omitted. On a narrow (mobile) layout the screen is too cramped for them, and —
+// because this is a CSS grid — a meta column would reserve its widest cell's
+// width across every row, starving the title column and forcing truncation even
+// on rows whose own meta is empty. Dropping the column gives the title all the
+// space.
 //
 // Renders nothing when there are no future events (an empty strip would just be
 // filler) or while the query is loading/errored — it never shows a broken card.
@@ -90,10 +85,10 @@ export function UpcomingEvents() {
         )}
       </div>
 
-      {/* date | title | meta — date and meta size to content, title flexes and
-          truncates so a long name never pushes the time off the row. */}
+      {/* date | title — date sizes to content, title flexes and truncates only
+          when it genuinely runs out of room (no meta column stealing width). */}
       <div className="flex-1 min-w-0">
-        <div className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 gap-y-1.5">
+        <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
           {shown.map((e) => (
             <Fragment key={e.id}>
               <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
@@ -111,9 +106,6 @@ export function UpcomingEvents() {
                   />
                 )}
                 <span className="truncate">{e.title}</span>
-              </span>
-              <span className="text-xs text-text-secondary whitespace-nowrap text-right">
-                {metaLabel(e)}
               </span>
             </Fragment>
           ))}

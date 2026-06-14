@@ -115,24 +115,43 @@ Field rules:
 - `date`: ISO `YYYY-MM-DD`, the day the event occurs.
 - `time`: ET clock time, `"before open"`, `"after close"`, or `null` if unknown.
 - `title`: **≤ 32 characters — a hard limit.** The strip renders each title on a
-  single line in a narrow mobile column; anything longer is clipped. Brevity is
-  therefore the top constraint — say it in the shortest form that still reads
-  clearly, and judge for yourself how best to fit the meaning in that space.
-  Within the budget, prefer plain language a non-expert grasps: lead with the
-  plain meaning and append the acronym in parentheses **only if it still fits**;
-  if it doesn't, keep just the acronym people actually recognize (CPI, PCE, GDP,
-  FOMC). The event's **date is already shown in its own column**, so do NOT repeat
-  the month/period in the title — put the reporting period in `detail` instead.
-  Aim for ~24–30 chars; treat 32 as the ceiling, not the target:
+  single line in a narrow mobile column; anything longer is clipped. 32 is a
+  ceiling, not a target — but it is also a **budget to spend, not to minimize.**
+  A bare `"Retail sales"` wastes two-thirds of the line; if a title reads clearly
+  but is short, fill the remaining room with the single most useful specific.
+  Prefer plain language a non-expert grasps: lead with the plain meaning, then
+  add detail. The event's **date is already shown in its own column**, so do NOT
+  repeat the reference month/period in the title — put the reporting period in
+  `detail` instead. Use leftover space, in roughly this priority, for:
+  1. **Who issues the number** — the source agency. "Retail sales" alone is vague
+     about who produces it; `"Retail sales (Census)"` tells the reader it's the
+     official Census Bureau series, not a private survey. This also *disambiguates
+     look-alike releases*: consumer **sentiment** (UMich) vs consumer
+     **confidence** (Conference Board) are different prints from different
+     issuers, and the agency tag is what separates them. Issuer reference:
+     - Bureau of Labor Statistics → `(BLS)` — CPI, PPI, jobs report, JOLTS
+     - Bureau of Economic Analysis → `(BEA)` — PCE, GDP, personal income/spending
+     - Census Bureau → `(Census)` — retail sales
+     - Institute for Supply Management → `(ISM)` — Manufacturing / Services PMI
+     - University of Michigan → `(UMich)` — consumer sentiment
+     - Conference Board → `(CB)` — consumer confidence
+     - Federal Reserve → `(Fed)` / `(FOMC)` — rate decision
+  2. **Which cut** — the estimate round or revision (e.g. GDP advance vs 3rd
+     estimate), since that changes how market-moving it is.
+  3. The recognizable acronym in parentheses (CPI, PCE, GDP, FOMC) when the plain
+     name alone would be ambiguous.
+  Spend in that order until you run out of budget; don't cram all three if they
+  won't fit. Aim to land in the ~22–30 char band — informative, still one line:
     - "FOMC" → `"Fed rate decision (FOMC)"`
     - "May PCE inflation" → `"Fed's inflation gauge (PCE)"`
     - "May CPI" → `"Consumer inflation (CPI)"`
     - "May PPI" → `"Wholesale inflation (PPI)"`
-    - "May jobs report" → `"Jobs report (payrolls)"`
-    - "Q1 GDP third estimate" → `"Economic growth (GDP)"`
-    - "May retail sales" → `"Retail sales"`
+    - "May jobs report" → `"Jobs report, payrolls (BLS)"`
+    - "Q1 GDP third estimate" → `"GDP, 3rd estimate (BEA)"`
+    - "May retail sales" → `"Retail sales (Census)"`
     - "ISM Manufacturing PMI" → `"Manufacturing PMI (ISM)"`
-    - "JOLTS job openings" → `"Job openings (JOLTS)"`
+    - "JOLTS job openings" → `"Job openings, JOLTS (BLS)"`
+    - "Consumer sentiment, prelim" → `"Consumer sentiment (UMich)"`
   Earnings titles stay **self-contained and name the company** (no ticker chip
   precedes them): `"<Company> Q# FY## earnings"`, e.g. `"Micron Q3 FY26 earnings"`,
   `"Adobe Q2 FY26 earnings"` — a short, recognizable company name, not the ticker.
@@ -157,7 +176,7 @@ date, e.g.:
 ## Upcoming events — generated 2026-06-13
 
 ### Mon Jun 15
-- 🟡 **Retail sales** — 8:30 ET. May read on the consumer post-tariffs.
+- 🟡 **Retail sales (Census)** — 8:30 ET. May read on the consumer post-tariffs.
 
 ### Wed Jun 17
 - 🔴 **Fed rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.

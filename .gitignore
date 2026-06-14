@@ -42,6 +42,9 @@ backups/
 # Claude-generated news run artifacts (regenerated daily)
 scripts/news-output/
 
+# Claude-generated upcoming-events run artifacts (regenerated daily)
+scripts/events-output/
+
 # Cron lockfile for refresh-snapshots.sh
 scripts/refresh-snapshots.lock
 

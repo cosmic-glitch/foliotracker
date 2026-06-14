@@ -739,6 +739,82 @@ export async function upsertTickerNewsSummary(summary: {
   if (error) throw error;
 }
 
+// Upcoming events feed (landing page) — see scripts/migrate-upcoming-events.ts.
+// One ranked global list, regenerated wholesale by scripts/generate-events.sh.
+export interface UpcomingEventSource {
+  title: string;
+  url: string;
+}
+
+export interface DbUpcomingEvent {
+  id: string;
+  event_type: 'macro' | 'earnings';
+  event_date: string; // YYYY-MM-DD
+  event_time: string | null;
+  title: string;
+  detail: string;
+  importance: 'high' | 'medium' | 'low';
+  tickers: string[];
+  holders: string[] | null; // null for macro events
+  holder_count: number;
+  source: UpcomingEventSource | null;
+  position: number; // generator's ranking = display order
+  generated_at?: string;
+}
+
+// Future-dated events only (past events drop off on their own), returned in the
+// generator's ranked display order so the strip can slice the first N.
+export async function getUpcomingEvents(): Promise<DbUpcomingEvent[]> {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('upcoming_events')
+    .select('*')
+    .gte('event_date', today)
+    .order('position', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as DbUpcomingEvent[];
+}
+
+// Replace the whole feed atomically-ish: upsert the new set FIRST, then delete
+// rows no longer present. Same upsert-then-delete-stale safety as setHoldings —
+// a failed write can never leave the feed empty.
+export async function replaceUpcomingEvents(
+  events: Omit<DbUpcomingEvent, 'generated_at'>[]
+): Promise<void> {
+  if (events.length === 0) {
+    const { error } = await supabase
+      .from('upcoming_events')
+      .delete()
+      .neq('id', ''); // no id is empty, so this matches every row
+    if (error) throw error;
+    return;
+  }
+
+  const generated_at = new Date().toISOString();
+  const rows = events.map((e) => ({ ...e, generated_at }));
+
+  const { error: upsertError } = await supabase
+    .from('upcoming_events')
+    .upsert(rows, { onConflict: 'id' });
+  if (upsertError) throw upsertError;
+
+  const { data: existing, error: selectError } = await supabase
+    .from('upcoming_events')
+    .select('id');
+  if (selectError) throw selectError;
+
+  const keep = new Set(events.map((e) => e.id));
+  const stale = (existing ?? []).map((r) => r.id).filter((id) => !keep.has(id));
+  if (stale.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('upcoming_events')
+      .delete()
+      .in('id', stale);
+    if (deleteError) throw deleteError;
+  }
+}
+
 // Portfolio snapshot types and functions
 export interface SnapshotHolding {
   ticker: string;

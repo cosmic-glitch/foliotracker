@@ -6,6 +6,7 @@ import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { MoversStrip, type MarketMover } from '../components/MoversStrip';
+import { UpcomingEvents } from '../components/UpcomingEvents';
 import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
@@ -343,6 +344,10 @@ export function LandingPage() {
                   : data?.movers?.regular) ?? []
               }
             />
+
+            {/* Upcoming macro releases + held-ticker earnings. Self-fetching
+                (useUpcomingEvents) and self-hiding when the feed is empty. */}
+            <UpcomingEvents />
 
             {/* Portfolios List */}
             <div className="bg-card rounded-2xl border border-border overflow-hidden">

@@ -28,13 +28,14 @@ vercel --prod    # Deploy to production
 - `src/main.tsx` - Router (`/`, `/create`, `/:portfolioId`, `/:portfolioId/edit`, `/analytics`) wrapped in the React Query `QueryClientProvider` and the context providers below
 - `src/App.tsx` - Main portfolio view page
 - `src/pages/` - LandingPage, CreatePortfolio, EditPortfolio, AnalyticsDashboard
-- `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, MoversStrip, NewsSection/NewsTicker, AIResearchSection, etc.)
+- `src/components/` - UI components (HoldingsTable, HoldingsByType, TotalValue, MoversStrip, UpcomingEvents, NewsSection/NewsTicker, AIResearchSection, etc.)
 - `src/context/` - Context providers: `ThemeContext` (dark/light), `ExtendedHoursContext` (regular vs extended-hours price basis), `TimeframeContext` (`day`/`30d` chart range), `ToastContext` (transient toasts)
 - `src/lib/` - Frontend helpers: `queryClient.ts` (React Query config), `supabase.ts`, `auth.ts`, `market-hours.ts`, `parseHoldingsCsv.ts` (CSV holdings import), `newsHeadline.ts`, `mockData.ts`
 - `src/utils/` - `formatters.ts`, `equivalentTickers.ts` (GOOG/GOOGL consolidation for display)
 - **Data fetching is React Query** (`@tanstack/react-query`); the data hooks wrap `useQuery` against the API:
   - `src/hooks/usePortfolioData.ts` - Portfolio data for a route
   - `src/hooks/usePortfolioNews.ts` - Per-ticker news from `GET /api/news`
+  - `src/hooks/useUpcomingEvents.ts` - Landing-page upcoming events from `GET /api/events`
 - `src/hooks/useLoggedInPortfolio.ts` - Portfolio login state (localStorage, synchronous hydration)
 - `src/hooks/useUnlockedPortfolios.ts` - Portfolios unlocked this tab (sessionStorage, synchronous hydration)
 - `src/hooks/useHoldingsCsvUpload.ts` - CSV holdings import flow (Create/Edit portfolio)
@@ -47,12 +48,13 @@ vercel --prod    # Deploy to production
 - `api/portfolios.ts` - CRUD for portfolios (GET list, POST create, PUT update, DELETE); also serves the analytics dashboard data and computes the landing-page market movers (`movers` field on the GET list response — `{ regular, extended }`, one ranked list per price basis)
 - `api/history.ts` - Historical price data (Redis → snapshot fallback)
 - `api/news.ts` - `GET /api/news?tickers=…` returns per-ticker news: AI summaries from `ticker_news_summaries` when fresh, else a Yahoo-article fallback
+- `api/events.ts` - `GET /api/events` returns the landing-page Upcoming Events feed (future-dated rows from `upcoming_events`, ranked)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/login.ts` - Password verification + session token issuance. Emits the `login` analytics event.
 - `api/log-view.ts` - Emits `view` analytics events. Missing `portfolio_id` means a landing-page view (recorded with `portfolio_id = null`).
 - `api/permissions.ts` - Portfolio viewer permissions (selective visibility)
 - `api/share-links.ts` - Generate and resolve shareable view links
-- `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations + `ticker_news_summaries`)
+- `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations, `ticker_news_summaries`, and `upcoming_events`)
 - `api/_lib/redis.ts` - Upstash Redis read-through cache for snapshots, portfolio metadata, the portfolios list/count, and prices. Read endpoints (`portfolio`/`portfolios`/`history`/`permissions`) try Redis first and fall back to Supabase, backfilling the cache; the snapshot refresh writes through it.
 - `api/_lib/yahoo.ts` - Yahoo Finance API for quotes, historical data, symbol info, and news
 - `api/_lib/cache.ts` - Market hours / live-session detection utilities
@@ -62,7 +64,8 @@ vercel --prod    # Deploy to production
 - `api/_lib/prompts.ts` - Shared AI prompts (deep research report structure)
 - `scripts/generate-research.ts` - Generate AI deep-research reports for portfolios
 - `scripts/generate-news.sh` - VM-cron news generator: runs `claude -p` per asset class to research held tickers and persist per-ticker summaries (helpers: `prepare-news-input.ts`, `save-news-summary.ts`, `fetch-news.ts`; prompts in `news-prompt*.md`)
-- `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`)
+- `scripts/generate-events.sh` - VM-cron Upcoming Events generator: runs `claude -p` to research the macro calendar + held-ticker earnings, then persists the feed to `upcoming_events` (helpers: `prepare-events-input.ts` builds the held-stock input, `save-events.ts` persists; prompt in `events-prompt.md`; run artifacts in gitignored `scripts/events-output/`)
+- `scripts/` - One-time migration scripts (e.g., `migrate-instrument-types.ts`, `migrate-upcoming-events.ts`)
 
 ### Database (Supabase PostgreSQL)
 - `portfolios` table: id, display_name, password_hash, is_private, visibility, created_at
@@ -74,6 +77,7 @@ vercel --prod    # Deploy to production
 - `sessions` table: token, portfolio_id, is_admin, expires_at, created_at (issued by `api/login.ts`)
 - `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), ip_address, user_agent, country/city/region, referer, created_at
 - `ticker_news_summaries` table: ticker, AI summary markdown, sources (JSONB), summary_date — AI-generated per-ticker news, written by `scripts/generate-news.sh` and served by `api/news.ts`
+- `upcoming_events` table: id, event_type (`macro`/`earnings`), event_date, event_time, title, detail, importance, tickers/holders (JSONB), holder_count, source (JSONB), position — the landing-page Upcoming Events feed (one ranked global list, replaced wholesale by `scripts/generate-events.sh`, served by `api/events.ts`)
 
 ### External APIs
 - **Yahoo Finance** - Sole source for real-time quotes, historical data, and symbol info (free, no API key)
@@ -87,8 +91,10 @@ vercel --prod    # Deploy to production
 - Cost basis tracking: Holdings can have optional cost basis for gain/loss calculation
 - Unrealized gain shown as both absolute value and percentage
 - **Movers strip**: `src/components/MoversStrip.tsx` renders the "Top movers" pill on the landing page — the tickers swinging most today, ranked by breadth × |move| across publicly-visible (`public`/`allocation_public`) portfolios. The ranking is `computeMarketMovers` in `api/portfolios.ts`, returned as `{ regular, extended }` (one list per price basis; `LandingPage` picks one via the Extended Hours toggle, so the *ranking* switches with the basis). **Gotcha:** the display caps at `DISPLAY_COUNT` (3) rows in `MoversStrip.tsx`, which must stay in sync with `MOVER_MIN_COUNT` (3) in `api/portfolios.ts`. Layout/design rationale and rejected alternatives live in the component's code comments, not here.
-- **Two AI features (independent):**
+- **Upcoming events strip**: `src/components/UpcomingEvents.tsx` renders the "Upcoming" pill directly below the movers strip on the landing page — a forward-looking feed of macro releases (CPI, FOMC, PCE, jobs, etc.) and earnings for stocks held by publicly-visible portfolios. Generated daily by `scripts/generate-events.sh` into the `upcoming_events` table, served by `api/events.ts`, fetched via `useUpcomingEvents`. Mirrors the movers strip exactly: same card shell, a left rail with an expand/collapse toggle, and a `DISPLAY_COUNT` (3) cap; the generator emits `events.json` pre-ranked (date → importance → breadth) and `save-events.ts` stores that order in `position`, so the strip just slices the first N. Earnings carry holder handles ("held by AV, VD") like the movers strip; macro events use a red/amber/slate impact dot (economic-calendar convention). Self-hides when the feed is empty.
+- **Three AI-generated features (independent):**
   - **Per-ticker news** — `scripts/generate-news.sh` (VM cron) runs `claude -p` to research held tickers and writes `ticker_news_summaries`; `api/news.ts` serves them (with a Yahoo-article fallback) to `NewsTicker`/`NewsSection` via the `usePortfolioNews` hook.
+  - **Upcoming events** — `scripts/generate-events.sh` (VM cron) runs `claude -p` to research the macro calendar + held-ticker earnings and writes `upcoming_events`; `api/events.ts` serves the feed to `UpcomingEvents` via the `useUpcomingEvents` hook. See [Upcoming Events Generation](#upcoming-events-generation-cron-hetzner-vm).
   - **Deep research** — `generateDeepResearch` (`api/_lib/openai.ts`, OpenAI deep-research model) via `scripts/generate-research.ts`, stored in `portfolios.deep_research`, rendered by `AIResearchSection`. See [AI Research Generation](#ai-research-generation).
 - **Analytics events:**
   - Every page open fires `POST /api/log-view`. Portfolio routes use `useViewAnalytics` (mounted in `App.tsx`); the landing page uses `useLandingViewAnalytics` (mounted in `LandingPage.tsx`). Both fire on initial mount and on `visibilitychange → visible`.
@@ -129,6 +135,9 @@ Snapshot refresh runs on the VM via cron — see `scripts/VM_SETUP.md` section 1
 
 ### News Generation Cron (Hetzner VM)
 `scripts/generate-news.sh` runs daily via cron, invoking `claude -p` per asset class to refresh `ticker_news_summaries`. Requires `claude` on `PATH` plus `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` from `.env.local`. See `scripts/VM_SETUP.md`.
+
+### Upcoming Events Generation (Cron, Hetzner VM)
+`scripts/generate-events.sh` runs daily via cron (same mechanism as the news generator), invoking a single `claude -p` session to research the upcoming US macro calendar (~14 days) and the next earnings date for each held stock (~21 days), then persists a ranked feed to `upcoming_events` via `save-events.ts`. Pipeline: `prepare-events-input.ts` (held stocks across publicly-visible portfolios, with holder breadth) → `claude -p` with `events-prompt.md` → `events.json`/`events.md` in `scripts/events-output/` → `save-events.ts` (replaces the whole feed). Requires `claude` on `PATH` plus `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`. **Not yet installed in the VM crontab** — add it alongside the news generator (see `scripts/VM_SETUP.md`).
 
 ## Database Migrations
 

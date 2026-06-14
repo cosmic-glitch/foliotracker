@@ -43,6 +43,14 @@ function mapYahooQuoteType(instrumentType: string | undefined, name: string): st
     return 'Money Market';
   }
 
+  // Yahoo's chart endpoint occasionally reports an ETF as "EQUITY" (seen with
+  // SPYM, "State Street SPDR Portfolio S&P 500 ETF"). When the fund's own name
+  // carries a standalone "ETF" token, trust that over the mislabeled quote type.
+  // Word-boundary match so substrings like "Netflix" (n-ETF-lix) don't trip it.
+  if (/\betf\b/i.test(name)) {
+    return 'ETF';
+  }
+
   switch (instrumentType) {
     case 'EQUITY':
       return 'Common Stock';

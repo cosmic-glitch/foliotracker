@@ -10,6 +10,28 @@ import { formatChartDate } from '../utils/formatters';
 // toggle.
 const DISPLAY_COUNT = 3;
 
+// Category emoji shown before each event title. Derived here in the component
+// (not stored) so the persisted feed stays presentation-free; the generator's
+// controlled vocabulary (see scripts/events-prompt.md) makes keyword matching on
+// the title reliable. Earnings are typed; macro is matched by the report it names.
+// Decorative only — aria-hidden in the render, since the title text carries the
+// meaning. Order matters: more specific report keywords are checked first.
+function eventEmoji(e: { type: string; title: string }): string {
+  if (e.type === 'earnings') return '💰';
+  const t = e.title.toLowerCase();
+  // Inflation before Fed: titles like "Fed's preferred inflation gauge (PCE)"
+  // contain "fed" but are inflation prints, so they must match 📈 first; only an
+  // actual rate decision falls through to 🏦.
+  if (t.includes('inflation') || t.includes('pce') || t.includes('cpi') || t.includes('ppi')) return '📈';
+  if (t.includes('fomc') || t.includes('rate decision') || t.includes('fed')) return '🏦';
+  if (t.includes('payroll') || t.includes('jobs') || t.includes('employment') || t.includes('jolts') || t.includes('job opening')) return '💼';
+  if (t.includes('gdp') || t.includes('growth')) return '📊';
+  if (t.includes('retail')) return '🛍️';
+  if (t.includes('manufactur') || t.includes('ism') || t.includes('pmi')) return '🏭';
+  if (t.includes('sentiment') || t.includes('confidence')) return '🧭';
+  return '📅';
+}
+
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
 // and the same notepad-tab-with-label + centered expand toggle pattern as the
 // movers strip, so the two read as a matched pair: what moved / what's coming. A
@@ -17,12 +39,18 @@ const DISPLAY_COUNT = 3;
 // the full width below. One event per row, rendered as a plain statement:
 // date | title.
 //
-// Deliberately spare: no color-coded impact dot and no ticker chip. The feed is
+// Spare by design: no color-coded impact dot and no ticker chip. The feed is
 // filtered to only the events worth flagging — high-importance macro releases
 // (the old red tier; medium/amber and low/slate are dropped) plus every held
 // earnings — so an importance dot is redundant. Earnings titles are already
 // self-contained statements ("Micron Q3 FY26 earnings"), so a separate ticker
 // chip was just noise; the title alone reads cleanly.
+//
+// Each title is prefixed with a single category emoji (eventEmoji above) — 🏦
+// Fed/rates, 📈 inflation, 💼 jobs, 📊 growth, 🛍️ retail, 🏭 manufacturing, 💰
+// earnings. It's a lightweight at-a-glance cue for the kind of event, derived
+// from the event (not stored), and is purely decorative (aria-hidden) — distinct
+// from the dropped importance dot, which encoded severity.
 //
 // No right-column meta either: the clock time and holder handles are both
 // deliberately omitted. On a narrow (mobile) layout the screen is too cramped
@@ -78,6 +106,9 @@ export function UpcomingEvents() {
                 {formatChartDate(e.date)}
               </span>
               <span className="truncate min-w-0 text-sm md:text-[15px] text-text-primary">
+                <span className="mr-1.5" aria-hidden>
+                  {eventEmoji(e)}
+                </span>
                 {e.title}
               </span>
             </Fragment>

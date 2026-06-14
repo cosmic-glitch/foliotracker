@@ -95,7 +95,7 @@ A single JSON array, **sorted by `date` ascending**, then by importance
   "type": "macro",
   "date": "2026-06-17",
   "time": "14:00 ET",
-  "title": "FOMC rate decision",
+  "title": "Fed interest-rate decision (FOMC)",
   "detail": "Fed concludes its June meeting; updated dot plot + Powell presser.",
   "importance": "high",
   "tickers": [],
@@ -113,12 +113,28 @@ Field rules:
 - `id`: stable slug — `"<type>-<ticker-or-series>-<date>"` lowercased.
 - `date`: ISO `YYYY-MM-DD`, the day the event occurs.
 - `time`: ET clock time, `"before open"`, `"after close"`, or `null` if unknown.
-- `title`: ≤ 40 chars. The UI renders the title as a plain statement — no ticker
-  chip in front of it — so earnings titles must be **self-contained and name the
-  company**: `"<Company> <quarter> <FY> earnings"`, e.g. `"Micron Q3 FY26
-  earnings"`, `"Adobe Q2 FY26 earnings"`. Use a short recognizable company name,
-  not the ticker. Macro titles are the report name ("May CPI", "FOMC rate
-  decision", "May jobs report").
+- `title`: ≤ 64 chars. The UI renders the title as a plain statement (no ticker
+  chip), and the strip now has the horizontal room for a fuller phrase — so write
+  every title so a **non-expert understands it at a glance**. **Never lead with a
+  bare acronym or insider shorthand.** State the event in plain language; where an
+  acronym is the thing people recognize, append it in parentheses. Translate,
+  don't just abbreviate:
+    - "FOMC" → `"Fed interest-rate decision (FOMC)"`
+    - "May PCE inflation" → `"Fed's preferred inflation gauge (PCE), May"`
+    - "May CPI" → `"Consumer inflation (CPI), May"`
+    - "May PPI" → `"Wholesale inflation (PPI), May"`
+    - "May jobs report" → `"Monthly jobs report (payrolls), May"`
+    - "Q1 GDP third estimate" → `"Economic growth (GDP), Q1 — final estimate"`
+    - "May retail sales" → `"Retail sales, May"` (already plain — leave it)
+    - "ISM Manufacturing PMI" → `"Manufacturing activity (ISM), May"`
+    - "JOLTS job openings" → `"Job openings (JOLTS), May"`
+  Lead with the plain meaning, keep the month/quarter qualifier, and keep an
+  acronym only when it aids recognition. Earnings titles stay **self-contained
+  and name the company** (no ticker chip precedes them):
+  `"<Company> <quarter> <FY> earnings"`, e.g. `"Micron Q3 FY26 earnings"`,
+  `"Adobe Q2 FY26 earnings"` — a short recognizable company name, not the ticker.
+  If a fuller title would exceed 64 chars, trim the trailing qualifier (e.g. drop
+  ", May") rather than the plain-language meaning.
 - `detail`: one sentence, ≤ 140 chars. The "why it matters" / specifics.
 - `tickers`: `[]` for macro; the reporting ticker(s) for earnings.
 - `holders` / `holder_count`: `null` / `0` for macro; copied from the input for
@@ -137,13 +153,13 @@ date, e.g.:
 ## Upcoming events — generated 2026-06-13
 
 ### Mon Jun 15
-- 🟡 **May retail sales** — 8:30 ET. Read on the consumer post-tariffs.
+- 🟡 **Retail sales, May** — 8:30 ET. Read on the consumer post-tariffs.
 
 ### Wed Jun 17
-- 🔴 **FOMC rate decision** — 14:00 ET. Dot plot + Powell presser.
+- 🔴 **Fed interest-rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.
 
 ### Thu Jun 18
-- 📊 **Adobe (ADBE)** earnings — after close, confirmed. Held by av, gs, vp.
+- 📊 **Adobe Q2 FY26 earnings** — after close, confirmed. Held by av, gs, vp.
 ```
 
 Use 🔴 high / 🟡 medium / ⚪ low for macro, and 📊 for earnings. Keep it terse.

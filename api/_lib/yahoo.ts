@@ -27,6 +27,11 @@ export interface Quote {
   // Split-adjusted 52-week high from Yahoo. Preferred over the
   // companiesmarketcap.org value since Yahoo reliably adjusts for stock splits.
   fiftyTwoWeekHigh: number | null;
+  // Epoch ms of Yahoo's last regular-market price update (meta.regularMarketTime).
+  // For once-daily instruments (mutual fund / money-market NAV) this is the last
+  // NAV publish time; the snapshot layer uses it to detect a stale prior-session
+  // day change after a new session opens. null when Yahoo omits it.
+  regularMarketTime: number | null;
 }
 
 export interface SymbolInfo {
@@ -129,8 +134,13 @@ async function getYahooQuote(symbol: string): Promise<Quote | null> {
         typeof rawFiftyTwoWeekHigh === 'number' && rawFiftyTwoWeekHigh > 0
           ? rawFiftyTwoWeekHigh
           : null;
+      const rawRegularMarketTime = meta.regularMarketTime;
+      const regularMarketTime =
+        typeof rawRegularMarketTime === 'number' && rawRegularMarketTime > 0
+          ? rawRegularMarketTime * 1000
+          : null;
 
-      return { currentPrice, previousClose, changePercent, fiftyTwoWeekHigh };
+      return { currentPrice, previousClose, changePercent, fiftyTwoWeekHigh, regularMarketTime };
     });
   } catch (error) {
     const ts = new Date().toISOString();

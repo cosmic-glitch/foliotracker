@@ -168,3 +168,18 @@ export function getMarketStatus(now: Date = new Date()): 'open' | 'pre-market' |
   if (isAfterHours(now)) return 'after-hours';
   return 'closed';
 }
+
+// A once-daily-priced instrument (mutual fund / money-market NAV) only reprices
+// after the close — for some funds (e.g. Vanguard) hours later. During the
+// *next* regular session, Yahoo keeps serving the prior session's NAV and its
+// now-stale day change until the new NAV publishes that evening. Returns true
+// for exactly that window: the current trading date's regular session has
+// opened (≥ 9:30 ET, matching "reset at market open") and the latest NAV
+// predates that open. Callers reset the displayed change to 0 — the NAV hasn't
+// moved yet today — instead of carrying yesterday's percentage forward.
+export function isDailyNavStale(regularMarketTimeMs: number | null, now: Date = new Date()): boolean {
+  if (regularMarketTimeMs == null) return false;
+  const { tradingDate } = getCurrentTradingSessionRange(now);
+  const regularOpen = createETDate(tradingDate, 9, 30).getTime();
+  return now.getTime() >= regularOpen && regularMarketTimeMs < regularOpen;
+}

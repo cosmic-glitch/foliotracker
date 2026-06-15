@@ -18,7 +18,7 @@ import {
   getPortfolioSnapshot,
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData } from './yahoo.js';
-import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, createETDate } from './cache.js';
+import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, isDailyNavStale, createETDate } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -463,6 +463,33 @@ function applyIntradayPriceOverrides(
   }
 }
 
+// Reset the day change for once-daily-priced instruments (mutual funds / money
+// market) whose NAV hasn't refreshed for the current session yet. See
+// isDailyNavStale: after a new regular session opens, Yahoo keeps serving the
+// prior session's NAV alongside its stale day change. We collapse previousClose
+// to currentPrice so the change reads 0 everywhere it's (re)computed downstream
+// — snapshot holdings, portfolio totals, the price cache, and the client-side
+// regular-hours recompute in usePortfolioData — rather than carrying yesterday's
+// move forward as if it were today's. Self-heals once the new NAV publishes.
+function applyDailyNavStaleReset(
+  prices: Map<string, PriceData>,
+  instrumentTypes: Map<string, string>,
+  quoteTimes: Map<string, number | null>,
+  now: Date
+): void {
+  for (const [ticker, price] of prices.entries()) {
+    const type = instrumentTypes.get(ticker);
+    if (type !== 'Mutual Fund' && type !== 'Money Market') continue;
+    if (!isDailyNavStale(quoteTimes.get(ticker) ?? null, now)) continue;
+
+    prices.set(ticker, {
+      currentPrice: price.currentPrice,
+      previousClose: price.currentPrice,
+      changePercent: 0,
+    });
+  }
+}
+
 function buildPriceCacheUpdates(prices: Map<string, PriceData>): Array<{
   ticker: string;
   current_price: number;
@@ -502,6 +529,9 @@ export async function refreshAllSnapshots(): Promise<void> {
   const portfolios = await getPortfolios();
   const allHoldingsMap = new Map<string, DbHolding[]>();
   const allTickers = new Set<string>();
+  // ticker → instrument type, used to detect once-daily-priced funds whose NAV
+  // change goes stale after a new session opens (see applyDailyNavStaleReset).
+  const instrumentTypes = new Map<string, string>();
 
   for (const portfolio of portfolios) {
     const holdings = await getHoldings(portfolio.id);
@@ -509,6 +539,7 @@ export async function refreshAllSnapshots(): Promise<void> {
     for (const holding of holdings) {
       if (!holding.is_static) {
         allTickers.add(holding.ticker);
+        if (holding.instrument_type) instrumentTypes.set(holding.ticker, holding.instrument_type);
       }
     }
   }
@@ -525,6 +556,8 @@ export async function refreshAllSnapshots(): Promise<void> {
   // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
   const yahoo52WeekHighMap = new Map<string, number>();
+  // ticker → last NAV/print time (epoch ms) for the stale-fund reset below.
+  const quoteTimes = new Map<string, number | null>();
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -532,6 +565,7 @@ export async function refreshAllSnapshots(): Promise<void> {
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
+    quoteTimes.set(ticker, quote.regularMarketTime);
     if (quote.fiftyTwoWeekHigh != null) {
       yahoo52WeekHighMap.set(ticker, quote.fiftyTwoWeekHigh);
     }
@@ -661,6 +695,9 @@ export async function refreshAllSnapshots(): Promise<void> {
   // Use latest intraday close as current price where available.
   applyIntradayPriceOverrides(priceMap, intradayPrices);
 
+  // Zero out stale prior-session day change for funds that haven't repriced yet.
+  applyDailyNavStaleReset(priceMap, instrumentTypes, quoteTimes, today);
+
   // Update price cache (DB and Redis) with latest effective prices.
   const priceCacheUpdates = buildPriceCacheUpdates(priceMap);
   await upsertPriceCache(priceCacheUpdates);
@@ -759,6 +796,8 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   // Build price map from quote data (intraday overrides applied later)
   const priceMap = new Map<string, PriceData>();
   const yahoo52WeekHighMap = new Map<string, number>();
+  // ticker → last NAV/print time (epoch ms) for the stale-fund reset below.
+  const quoteTimes = new Map<string, number | null>();
 
   for (const [ticker, quote] of quotes.entries()) {
     priceMap.set(ticker, {
@@ -766,8 +805,18 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
       previousClose: quote.previousClose,
       changePercent: quote.changePercent,
     });
+    quoteTimes.set(ticker, quote.regularMarketTime);
     if (quote.fiftyTwoWeekHigh != null) {
       yahoo52WeekHighMap.set(ticker, quote.fiftyTwoWeekHigh);
+    }
+  }
+
+  // ticker → instrument type, used to detect once-daily-priced funds whose NAV
+  // change goes stale after a new session opens (see applyDailyNavStaleReset).
+  const instrumentTypes = new Map<string, string>();
+  for (const holding of holdings) {
+    if (!holding.is_static && holding.instrument_type) {
+      instrumentTypes.set(holding.ticker, holding.instrument_type);
     }
   }
 
@@ -885,6 +934,9 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
 
   // Use latest intraday close as current price where available.
   applyIntradayPriceOverrides(priceMap, intradayPrices);
+
+  // Zero out stale prior-session day change for funds that haven't repriced yet.
+  applyDailyNavStaleReset(priceMap, instrumentTypes, quoteTimes, today);
 
   // Update price cache (DB and Redis) with latest effective prices.
   const priceCacheUpdates = buildPriceCacheUpdates(priceMap);

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -12,7 +12,7 @@ import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
-import { useTimeframe } from '../context/TimeframeContext';
+import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
 import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
@@ -77,6 +77,26 @@ function formatCompactValue(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
+// The day-change % a row actually displays, honoring the extended-hours basis
+// and the active 1D/30D timeframe. Factored out so the "Top today" leader calc
+// and the per-row render below read from one source and can't drift apart.
+// Returns null when the active timeframe has no figure yet (e.g. a brand-new
+// portfolio in 30D mode) so callers can render "—" / skip it as the leader.
+function getDisplayChangePercent(
+  p: Portfolio,
+  showExtendedHours: boolean,
+  timeframe: Timeframe,
+): number | null {
+  if (timeframe === '30d') {
+    return showExtendedHours
+      ? p.thirtyDayChangePercent
+      : p.regularThirtyDayChangePercent ?? p.thirtyDayChangePercent;
+  }
+  return showExtendedHours
+    ? (p.dayChangePercent ?? 0)
+    : (p.regularDayChangePercent ?? p.dayChangePercent ?? 0);
+}
+
 interface PortfolioListRowProps {
   portfolio: Portfolio;
   displayValue: number;
@@ -89,6 +109,12 @@ interface PortfolioListRowProps {
   // When true, the row is restricted but allocation_public is ON: show
   // day-change % instead of a blurred dollar total.
   restrictedAllocOnly: boolean;
+  // True for the single row leading the currently-displayed day-change %.
+  // Gets the gold trophy pill + a faint amber row tint.
+  isTopMover: boolean;
+  // Pill text — "Top today" (1D) or "Top 30D" (30D); kept honest with the
+  // active timeframe since the leader is computed from that same metric.
+  topMoverLabel: string;
 }
 
 function PortfolioListRow({
@@ -99,6 +125,8 @@ function PortfolioListRow({
   peakPotentialValue,
   shouldBlurValues,
   restrictedAllocOnly,
+  isTopMover,
+  topMoverLabel,
 }: PortfolioListRowProps) {
   const { animatedValue, isRevealing, peakDelta, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -111,11 +139,27 @@ function PortfolioListRow({
   const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 sm:py-3 hover:bg-card-hover transition-colors">
+    <div
+      className={`flex items-center gap-3 px-4 py-2 sm:py-3 transition-colors ${
+        // Faint amber wash for the day's leader; deepens on hover so the row
+        // keeps its gold identity instead of falling back to the neutral hover.
+        isTopMover
+          ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12]'
+          : 'hover:bg-card-hover'
+      }`}
+    >
       {/* Left: Username + visibility tag */}
       <div className="min-w-0 shrink-0">
-        <p className="font-medium text-text-primary">
+        <p className="font-medium text-text-primary flex items-center gap-1.5">
           {portfolio.id.toUpperCase()}
+          {/* Day's-leader pill — same shape as the visibility pills below,
+              gold-tinted. font-normal resets the name's font-medium. */}
+          {isTopMover && (
+            <span className="inline-flex items-center gap-1 text-xs font-normal bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+              <Trophy className="w-3 h-3" />
+              {topMoverLabel}
+            </span>
+          )}
         </p>
         {portfolio.visibility === 'public' && (
           <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full mt-0.5">
@@ -285,6 +329,34 @@ export function LandingPage() {
     }, null as Date | null);
   }, [portfolios]);
 
+  // Which row leads the currently-displayed day-change %. "Displayed" is the
+  // crux: the metric follows the 1D/30D timeframe and the extended-hours basis,
+  // so the leader shifts when either toggle flips (and intraday as prices
+  // move). Eligible = rows that show a real % (full-access + allocation-only);
+  // fully-blurred rows are skipped (their % is a placeholder) and so are rows
+  // with no % yet (null → "—"). The comparison is sign-agnostic: on an all-red
+  // day the least-negative row still leads. Only crowned when at least two rows
+  // qualify — a leaderboard of one isn't a leaderboard.
+  const topMoverId = useMemo(() => {
+    let bestId: string | null = null;
+    let bestPct = -Infinity;
+    let eligible = 0;
+    for (const p of portfolios) {
+      const restricted = p.visibility !== 'public' && p.totalValue === null;
+      if (restricted && !p.allocation_public) continue; // fully blurred — no real %
+      const pct = getDisplayChangePercent(p, showExtendedHours, timeframe);
+      if (pct === null) continue;
+      eligible += 1;
+      if (pct > bestPct) {
+        bestPct = pct;
+        bestId = p.id;
+      }
+    }
+    return eligible >= 2 ? bestId : null;
+  }, [portfolios, showExtendedHours, timeframe]);
+
+  const topMoverLabel = timeframe === '30d' ? 'Top 30D' : 'Top today';
+
   const handleSignIn = async (userId: string, password: string) => {
     // Verify credentials via login endpoint — get token back
     const result = await loginToPortfolio(userId, password);
@@ -413,14 +485,11 @@ export function LandingPage() {
                         : (showExtendedHours
                             ? (portfolio.dayChange ?? 0)
                             : (portfolio.regularDayChange ?? portfolio.dayChange ?? 0));
-                    const displayChangePercent =
-                      timeframe === '30d'
-                        ? (showExtendedHours
-                            ? portfolio.thirtyDayChangePercent
-                            : portfolio.regularThirtyDayChangePercent ?? portfolio.thirtyDayChangePercent)
-                        : (showExtendedHours
-                            ? (portfolio.dayChangePercent ?? 0)
-                            : (portfolio.regularDayChangePercent ?? portfolio.dayChangePercent ?? 0));
+                    const displayChangePercent = getDisplayChangePercent(
+                      portfolio,
+                      showExtendedHours,
+                      timeframe,
+                    );
                     const peakPotentialValue = Math.max(
                       portfolio.peakPotentialValue ?? 0,
                       displayValue,
@@ -436,6 +505,8 @@ export function LandingPage() {
                         peakPotentialValue={peakPotentialValue}
                         shouldBlurValues={shouldBlurValues}
                         restrictedAllocOnly={restrictedAllocOnly}
+                        isTopMover={portfolio.id === topMoverId}
+                        topMoverLabel={topMoverLabel}
                       />
                     );
                   })}

@@ -358,11 +358,13 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // --- Market movers (landing-page ticker strip) ---
 // "The names swinging the most today, weighted by how widely they're held":
 // every live (non-static, market-priced) stock or ETF that anyone holds is a
-// candidate — there is no minimum-holders floor. Ranked by breadth × |move|,
-// the product we treat as overall "noteworthiness": a name one person holds can
-// outrank a widely-held one if its move is big enough (1 × 9% beats 3 × 2%),
-// while a calm name only surfaces when many hold it. Mutual funds are excluded —
-// they only price once a day.
+// candidate — there is no minimum-holders floor. Ranked by √breadth × |move|,
+// the product we treat as overall "noteworthiness": breadth (the holder count)
+// is square-rooted so popularity counts with diminishing returns and the size of
+// the move carries more weight. A thinly-held big mover can outrank a widely-held
+// calm name (√1 × 7% = 7 beats √4 × 2% = 4), while a calm name still surfaces
+// when enough people hold it. Mutual funds are excluded — they only price once a
+// day.
 //
 // Names whose day move clears a per-type threshold — single-name stocks at ±2%,
 // ETFs at ±1.5% (a diversified basket moves less, so a smaller swing is already
@@ -400,7 +402,7 @@ const MOVER_MIN_COUNT = 3;
 // Ceiling on how many names the strip shows in aggregate — even on a wild day
 // when dozens of names qualify, the expanded pill tops out here (the "N more"
 // link reveals up to this many rows, never the full qualified count). The
-// highest-ranked names by breadth × |move| make the cut. Enforced server-side
+// highest-ranked names by √breadth × |move| make the cut. Enforced server-side
 // so the payload — and the client's "N more" count, which is derived from the
 // returned length — both respect the cap.
 const MOVER_MAX_COUNT = 10;
@@ -485,7 +487,7 @@ function computeMarketMovers(
     isEtf: e.isEtf,
   }));
 
-  // Rank one price basis: breadth × |move| (the noteworthiness product). Names
+  // Rank one price basis: √breadth × |move| (the noteworthiness product). Names
   // clearing the per-type threshold lead; quiet days backfill by rank up to
   // MOVER_MIN_COUNT so the strip never comes up short.
   const rankBy = (
@@ -501,8 +503,8 @@ function computeMarketMovers(
       }))
       .sort(
         (a, b) =>
-          b.numPortfolios * Math.abs(b.changePercent) -
-          a.numPortfolios * Math.abs(a.changePercent)
+          Math.sqrt(b.numPortfolios) * Math.abs(b.changePercent) -
+          Math.sqrt(a.numPortfolios) * Math.abs(a.changePercent)
       );
 
     const qualified = scored.filter(

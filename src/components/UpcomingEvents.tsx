@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { useUpcomingEvents } from '../hooks/useUpcomingEvents';
 import { formatChartDate } from '../utils/formatters';
 
@@ -8,7 +8,7 @@ import { formatChartDate } from '../utils/formatters';
 // generator emits events.json already ranked (date → importance → breadth), so
 // the first N rows are the most imminent/important; the rest hide behind the
 // toggle.
-const DISPLAY_COUNT = 2;
+const DISPLAY_COUNT = 3;
 
 // Category emoji shown before each event title. Derived here in the component
 // (not stored) so the persisted feed stays presentation-free; the generator's
@@ -33,8 +33,9 @@ function eventEmoji(e: { type: string; title: string }): string {
 }
 
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
-// and the same notepad-tab-with-label + centered expand toggle pattern as the
-// movers strip, so the two read as a matched pair: what moved / what's coming. A
+// and the same notepad-tab-with-label + inline expand link (a blue "N more" at
+// the bottom-right of the last row) pattern as the movers strip, so the two read
+// as a matched pair: what moved / what's coming. A
 // folder tab (calendar + "Upcoming") juts from the card's top-left; rows fill
 // the full width below. One event per row, rendered as a plain statement:
 // date | title.
@@ -107,53 +108,55 @@ export function UpcomingEvents() {
             event types render the same: a plain title statement, no leading
             impact dot or ticker chip (see the component header). */}
         <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
-          {shown.map((e) => (
-            <Fragment key={e.id}>
-              <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
-                {formatChartDate(e.date)}
-              </span>
-              <span className="truncate min-w-0 text-sm md:text-[15px] text-text-primary">
+          {shown.map((e, i) => {
+            const isLast = i === shown.length - 1;
+            const title = (
+              <>
                 <span className="mr-1.5" aria-hidden>
                   {eventEmoji(e)}
                 </span>
                 {e.title}
-              </span>
-            </Fragment>
-          ))}
+              </>
+            );
+            return (
+              <Fragment key={e.id}>
+                <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
+                  {formatChartDate(e.date)}
+                </span>
+                {isLast && canExpand ? (
+                  // Last row shares its track with the expand/collapse link at
+                  // the bottom-right (no separate toggle line); the title
+                  // truncates a little earlier to make room for the blue link.
+                  <span className="flex items-baseline justify-between gap-2 min-w-0">
+                    <span className="truncate min-w-0 text-sm md:text-[15px] text-text-primary">
+                      {title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((x) => !x)}
+                      aria-expanded={expanded}
+                      aria-label={
+                        expanded
+                          ? 'Show fewer events'
+                          : `Show all ${events.length} events`
+                      }
+                      className="shrink-0 text-xs font-medium text-accent hover:underline whitespace-nowrap tabular-nums"
+                    >
+                      {expanded
+                        ? 'less'
+                        : `${events.length - DISPLAY_COUNT} more`}
+                    </button>
+                  </span>
+                ) : (
+                  <span className="truncate min-w-0 text-sm md:text-[15px] text-text-primary">
+                    {title}
+                  </span>
+                )}
+              </Fragment>
+            );
+          })}
         </div>
 
-        {/* Centered expand/collapse toggle below the rows — same pattern as the
-            movers strip. */}
-        {canExpand && (
-          <div className="flex justify-center mt-2">
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              aria-expanded={expanded}
-              aria-label={
-                expanded ? 'Show fewer events' : `Show all ${events.length} events`
-              }
-              className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
-            >
-              {expanded ? (
-                <>
-                  <span>less</span>
-                  <ChevronUp className="w-3.5 h-3.5" aria-hidden />
-                </>
-              ) : (
-                <>
-                  <span className="whitespace-nowrap">
-                    <span className="tabular-nums">
-                      {events.length - DISPLAY_COUNT}
-                    </span>{' '}
-                    more
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5" aria-hidden />
-                </>
-              )}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

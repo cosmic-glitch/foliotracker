@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Flame } from 'lucide-react';
+import { Flame } from 'lucide-react';
 
 export interface MarketMover {
   ticker: string;
@@ -19,13 +19,21 @@ interface MoversStripProps {
 // server returns more than this, every extra name is a qualified mover (the
 // backfill only ever pads UP to this floor, never past it), so a "Show all"
 // toggle can safely expand the pill to the full qualified set and collapse back.
-const DISPLAY_COUNT = 2;
+const DISPLAY_COUNT = 3;
 
 // Slack (px) required beyond the measured text width before we commit to the
 // names variant — covers the gap between canvas measureText and real layout
 // (letter-spacing, sub-pixel rounding) so a row that "just barely" fits doesn't
 // clip a character.
 const FIT_SLACK_PX = 4;
+
+// Horizontal room (px) reserved at the right end of the LAST visible row for the
+// "N more" / "less" link, which lives at that row's bottom-right (sharing the
+// row) rather than on its own line. Covers the widest label (a two-digit
+// "NN more") plus the flex gap, so a long holder list on the last row falls back
+// to the shorter count instead of running under the link. Generous by design —
+// over-reserving only nudges that one row to a count.
+const MORE_LINK_RESERVE_PX = 64;
 
 // The per-row "who holds this" label. We prefer naming the holders outright —
 // "held by AB, CD" — over a bare count, because the names are the same handles
@@ -76,9 +84,10 @@ function countLabel(m: MarketMover): string {
 //
 // Expand/collapse: by default the strip shows DISPLAY_COUNT rows (the collapsed
 // size). When the server returns more (every extra row is a qualified mover —
-// the backfill only pads UP to the floor, never past it), a centered "N more"
-// chevron toggle below the rows expands the strip to the full qualified set and
-// collapses it back.
+// the backfill only pads UP to the floor, never past it), a blue "N more" link
+// sits at the bottom-right of the last row (sharing that row, not a separate
+// toggle line) and expands the strip to the full qualified set; "less" collapses
+// it back.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers).
@@ -120,9 +129,17 @@ export function MoversStrip({ movers }: MoversStripProps) {
       const cs = getComputedStyle(firstCell);
       ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
 
-      const next = shown.map(
-        (m) => ctx.measureText(namesLabel(m)).width + FIT_SLACK_PX <= available
-      );
+      const next = shown.map((m, idx) => {
+        // The last visible row shares its track with the "N more" / "less" link
+        // at the bottom-right; reserve its footprint so a holder list that would
+        // collide with the link falls back to the shorter count instead.
+        const reserve =
+          canExpand && idx === shown.length - 1 ? MORE_LINK_RESERVE_PX : 0;
+        return (
+          ctx.measureText(namesLabel(m)).width + FIT_SLACK_PX + reserve <=
+          available
+        );
+      });
       setFitNames((prev) =>
         prev.length === next.length && prev.every((v, i) => v === next[i])
           ? prev
@@ -177,6 +194,8 @@ export function MoversStrip({ movers }: MoversStripProps) {
             {shown.map((mover, i) => {
               const isPositive = mover.changePercent >= 0;
               const useNames = fitNames[i] ?? false;
+              const isLast = i === shown.length - 1;
+              const heldByLabel = useNames ? namesLabel(mover) : countLabel(mover);
               return (
                 <Fragment key={mover.ticker}>
                   <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
@@ -185,54 +204,50 @@ export function MoversStrip({ movers }: MoversStripProps) {
                   <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                     {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
                   </span>
-                  <span
-                    ref={(el) => {
-                      heldByRefs.current[i] = el;
-                    }}
-                    className="text-xs text-text-secondary whitespace-nowrap text-left"
-                  >
-                    {useNames ? namesLabel(mover) : countLabel(mover)}
-                  </span>
+                  {isLast && canExpand ? (
+                    // Last row shares its track with the expand/collapse link at
+                    // the bottom-right (no separate toggle line): justify-between
+                    // keeps the holder label left and the blue link hard-right.
+                    <span className="flex items-baseline justify-between gap-2 min-w-0">
+                      <span
+                        ref={(el) => {
+                          heldByRefs.current[i] = el;
+                        }}
+                        className="text-xs text-text-secondary whitespace-nowrap text-left"
+                      >
+                        {heldByLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((e) => !e)}
+                        aria-expanded={expanded}
+                        aria-label={
+                          expanded
+                            ? 'Show fewer movers'
+                            : `Show all ${movers.length} movers`
+                        }
+                        className="shrink-0 text-xs font-medium text-accent hover:underline whitespace-nowrap tabular-nums"
+                      >
+                        {expanded
+                          ? 'less'
+                          : `${movers.length - DISPLAY_COUNT} more`}
+                      </button>
+                    </span>
+                  ) : (
+                    <span
+                      ref={(el) => {
+                        heldByRefs.current[i] = el;
+                      }}
+                      className="text-xs text-text-secondary whitespace-nowrap text-left"
+                    >
+                      {heldByLabel}
+                    </span>
+                  )}
                 </Fragment>
               );
             })}
           </div>
         </div>
-
-        {/* Centered "N more" / "less" toggle below the rows. "N more" (not a
-            bare "+N") so it's obvious the number counts additional movers. Only
-            shown when the server returned more than DISPLAY_COUNT qualified
-            rows. */}
-        {canExpand && (
-          <div className="flex justify-center mt-1.5">
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              aria-expanded={expanded}
-              aria-label={
-                expanded ? 'Show fewer movers' : `Show all ${movers.length} movers`
-              }
-              className="flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
-            >
-              {expanded ? (
-                <>
-                  <span>less</span>
-                  <ChevronUp className="w-3.5 h-3.5" aria-hidden />
-                </>
-              ) : (
-                <>
-                  <span className="whitespace-nowrap">
-                    <span className="tabular-nums">
-                      {movers.length - DISPLAY_COUNT}
-                    </span>{' '}
-                    more
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5" aria-hidden />
-                </>
-              )}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

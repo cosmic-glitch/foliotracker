@@ -19,7 +19,7 @@ interface MoversStripProps {
 // server returns more than this, every extra name is a qualified mover (the
 // backfill only ever pads UP to this floor, never past it), so a "Show all"
 // toggle can safely expand the pill to the full qualified set and collapse back.
-const DISPLAY_COUNT = 3;
+const DISPLAY_COUNT = 2;
 
 // Slack (px) required beyond the measured text width before we commit to the
 // names variant — covers the gap between canvas measureText and real layout

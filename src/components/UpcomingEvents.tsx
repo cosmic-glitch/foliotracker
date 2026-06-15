@@ -8,7 +8,7 @@ import { formatChartDate } from '../utils/formatters';
 // generator emits events.json already ranked (date → importance → breadth), so
 // the first N rows are the most imminent/important; the rest hide behind the
 // toggle.
-const DISPLAY_COUNT = 3;
+const DISPLAY_COUNT = 2;
 
 // Category emoji shown before each event title. Derived here in the component
 // (not stored) so the persisted feed stays presentation-free; the generator's

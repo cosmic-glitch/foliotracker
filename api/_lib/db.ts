@@ -989,8 +989,8 @@ export interface AnalyticsAggregation {
     dailyCounts: Record<string, number>; // { "2026-01-27": 3, "2026-01-26": 1, ... }
   }[];
   anonymousActivityByDay: {
-    identity: string;       // ip|ua hash key, stable per (ip, user_agent)
-    label: string;          // display: "Seattle • iPhone Safari • 172.56.108.x"
+    identity: string;       // the visitor's IP, stable per IP (browser/device merged)
+    label: string;          // display: "Seattle • 172.56.108.x"
     portfolio_id: string;
     lastVisitAt: string;    // ISO timestamp of the most recent event in the window
     dailyCounts: Record<string, number>;
@@ -1025,15 +1025,6 @@ export interface LocationDistributionEntry {
 // Exported so the frontend can recognize them and render friendly labels.
 export const ANONYMOUS_VIEWER = '(anonymous)';
 export const LANDING_PORTFOLIO = '(landing)';
-
-function extractBrowser(ua: string | null): string {
-  if (!ua) return 'Unknown';
-  if (/Edg\//.test(ua)) return 'Edge';
-  if (/Chrome\//.test(ua)) return 'Chrome';
-  if (/Firefox\//.test(ua)) return 'Firefox';
-  if (/Safari\//.test(ua)) return 'Safari';
-  return 'Browser';
-}
 
 function maskIp(ip: string | null): string {
   if (!ip || ip === 'unknown') return '?';
@@ -1100,14 +1091,13 @@ function formatLocationLong(
   return country ? `${city}, ${country}` : city;
 }
 
-function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; user_agent: string | null; ip_address: string | null }): string {
+// Anonymous identities are grouped by IP alone (browser/device no longer split
+// rows), so the label carries only location + masked IP — no device/browser.
+function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; ip_address: string | null }): string {
   const city = event.city
     ? formatCityLocation(event.city, event.region, event.country)
     : 'Unknown location';
-  const device = getDeviceType(event.user_agent);
-  const browser = extractBrowser(event.user_agent);
-  const deviceBrowser = device === 'Desktop' ? `${browser} desktop` : `${device} ${browser}`;
-  return `${city} • ${deviceBrowser} • ${maskIp(event.ip_address)}`;
+  return `${city} • ${maskIp(event.ip_address)}`;
 }
 
 function getDeviceType(userAgent: string | null): string {
@@ -1300,9 +1290,10 @@ export async function getAnalyticsData(
   // Most-recent event timestamp per (viewer_id, portfolio_id) bucket, used for the
   // "Last Visited" column.
   const viewerLastVisitMap = new Map<string, string>();
-  // Anonymous viewer activity: keyed by (ip|user_agent, portfolio_id). Each unique
-  // (IP, UA) pair counts as a distinct anonymous identity. Carries a representative
-  // label derived from the first event we see for that identity.
+  // Anonymous viewer activity: keyed by (ip, portfolio_id). Every visitor from a
+  // given IP collapses into one identity regardless of browser/device — we no
+  // longer split desktop vs mobile, which kept the row count down. Carries a
+  // representative label (location + masked IP) from the first event we see.
   const anonActivityMap = new Map<string, Record<string, number>>();
   const anonLastVisitMap = new Map<string, string>();
   const anonLabelMap = new Map<string, string>();
@@ -1321,7 +1312,7 @@ export async function getAnalyticsData(
       const prev = viewerLastVisitMap.get(key);
       if (!prev || event.created_at > prev) viewerLastVisitMap.set(key, event.created_at);
     } else {
-      const identity = `${event.ip_address || 'unknown'}|${event.user_agent || 'unknown'}`;
+      const identity = event.ip_address || 'unknown';
       const key = `${identity}|${portfolio}`;
       if (!anonActivityMap.has(key)) anonActivityMap.set(key, {});
       const counts = anonActivityMap.get(key)!;

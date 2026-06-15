@@ -296,8 +296,14 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
+      {/* Header — relative z-20: backdrop-blur already makes this header its
+          own stacking context, trapping the UserMenu dropdown's z-50 inside
+          it. Without a z-index the context sits at z-auto, so the relative
+          z-10 folder tabs below (MoversStrip/UpcomingEvents/Users), being
+          later in the DOM, paint over the header — and over the open menu,
+          bleeding the "Top movers"/"Upcoming" titles through it. z-20 lifts
+          the header (and its menu) above those tabs, below the z-50 modals. */}
+      <header className="relative z-20 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-2 md:py-4">
           <div className="flex items-center justify-between">
             <button

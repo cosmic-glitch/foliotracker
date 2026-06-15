@@ -19,6 +19,8 @@ interface MoversStripProps {
 // server returns more than this, every extra name is a qualified mover (the
 // backfill only ever pads UP to this floor, never past it), so a "Show all"
 // toggle can safely expand the pill to the full qualified set and collapse back.
+// That set is itself capped server-side at MOVER_MAX_COUNT (10), so the expanded
+// pill — and the "N more" count, derived from movers.length — never exceeds it.
 const DISPLAY_COUNT = 3;
 
 // Slack (px) required beyond the measured text width before we commit to the

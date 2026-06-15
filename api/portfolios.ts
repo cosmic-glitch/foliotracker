@@ -397,6 +397,13 @@ const MOVER_ETF_MIN_ABS_CHANGE_PCT = 1.5;
 // Floor on how many names the strip shows — one mover per row in the pill
 // (keep in sync with DISPLAY_COUNT in src/components/MoversStrip.tsx).
 const MOVER_MIN_COUNT = 3;
+// Ceiling on how many names the strip shows in aggregate — even on a wild day
+// when dozens of names qualify, the expanded pill tops out here (the "N more"
+// link reveals up to this many rows, never the full qualified count). The
+// highest-ranked names by breadth × |move| make the cut. Enforced server-side
+// so the payload — and the client's "N more" count, which is derived from the
+// returned length — both respect the cap.
+const MOVER_MAX_COUNT = 10;
 // Dual share classes count as one company for breadth; the canonical ticker
 // (value side) is what the strip displays.
 const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
@@ -504,9 +511,12 @@ function computeMarketMovers(
         (c.isEtf ? MOVER_ETF_MIN_ABS_CHANGE_PCT : MOVER_STOCK_MIN_ABS_CHANGE_PCT)
     );
 
-    const result = [...qualified];
+    // Cap the qualified leaders at MOVER_MAX_COUNT (they're already rank-sorted,
+    // so this keeps the most noteworthy). The backfill below only fires when
+    // fewer than MOVER_MIN_COUNT qualify, so the total can never exceed the cap.
+    const result = qualified.slice(0, MOVER_MAX_COUNT);
     if (result.length < MOVER_MIN_COUNT) {
-      const chosen = new Set(qualified.map((c) => c.ticker));
+      const chosen = new Set(result.map((c) => c.ticker));
       for (const c of scored) {
         if (result.length >= MOVER_MIN_COUNT) break;
         if (!chosen.has(c.ticker)) result.push(c);

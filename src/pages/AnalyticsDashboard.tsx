@@ -346,8 +346,9 @@ function GroupedActivityTable({
     return { dateStr, displayStr };
   });
 
-  // Group entries by viewer/identity, preserving the server's sort order.
-  // Parent rows carry the summed daily counts and the most recent visit.
+  // Group entries by viewer/identity. Parent rows carry the summed daily counts
+  // and the most recent visit; both the groups and their sub-rows are sorted by
+  // last visited (most recent first) below, independent of the server's order.
   interface ActivityGroup {
     groupKey: string;
     label: string;
@@ -379,6 +380,8 @@ function GroupedActivityTable({
   for (const group of groups) {
     group.portfolios.sort((a, b) => b.lastVisitAt.localeCompare(a.lastVisitAt));
   }
+  // Most-recently-active viewer/identity first, in both panels.
+  groups.sort((a, b) => b.lastVisitAt.localeCompare(a.lastVisitAt));
 
   return (
     <div className="overflow-x-auto">

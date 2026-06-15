@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, Globe, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -148,35 +148,18 @@ function PortfolioListRow({
           : 'hover:bg-card-hover'
       }`}
     >
-      {/* Left: Username + visibility tag */}
+      {/* Left: Username + day's-leader pill */}
       <div className="min-w-0 shrink-0">
-        <p className="font-medium text-text-primary flex items-center gap-1.5">
+        <p className="font-medium text-text-primary">
           {portfolio.id.toUpperCase()}
-          {/* Day's-leader pill — same shape as the visibility pills below,
-              gold-tinted. font-normal resets the name's font-medium. */}
-          {isTopMover && (
-            <span className="inline-flex items-center gap-1 text-xs font-normal bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-              <Trophy className="w-3 h-3" />
-              {topMoverLabel}
-            </span>
-          )}
         </p>
-        {portfolio.visibility === 'public' && (
-          <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full mt-0.5">
-            <Globe className="w-3 h-3" />
-            Public
-          </span>
-        )}
-        {portfolio.visibility === 'private' && (
-          <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5">
-            <Lock className="w-3 h-3" />
-            Private
-          </span>
-        )}
-        {portfolio.visibility === 'selective' && (
-          <span className="inline-flex items-center gap-1 text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full mt-0.5">
-            <Users className="w-3 h-3" />
-            By Invite
+        {/* Day's-leader pill — sits below the name, in the slot the
+            visibility pills (Public/Private/By Invite) used to occupy before
+            they were hidden to declutter the landing list. gold-tinted. */}
+        {isTopMover && (
+          <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap">
+            <Trophy className="w-3 h-3" />
+            {topMoverLabel}
           </span>
         )}
       </div>

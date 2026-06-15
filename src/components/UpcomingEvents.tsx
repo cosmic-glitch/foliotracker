@@ -3,12 +3,12 @@ import { CalendarDays } from 'lucide-react';
 import { useUpcomingEvents } from '../hooks/useUpcomingEvents';
 import { formatChartDate } from '../utils/formatters';
 
-// How many events the strip shows collapsed (one per row), matching the movers
-// strip's DISPLAY_COUNT so the two stack as a visually consistent pair. The
+// How many events the strip shows collapsed (one per row). Kept deliberately
+// tight at 1 so the landing page leads with just the single most imminent event
+// and stays uncluttered; the rest hide behind the "N more" toggle. The
 // generator emits events.json already ranked (date → importance → breadth), so
-// the first N rows are the most imminent/important; the rest hide behind the
-// toggle.
-const DISPLAY_COUNT = 3;
+// the first row is the most imminent/important.
+const DISPLAY_COUNT = 1;
 
 // Category emoji shown before each event title. Derived here in the component
 // (not stored) so the persisted feed stays presentation-free; the generator's

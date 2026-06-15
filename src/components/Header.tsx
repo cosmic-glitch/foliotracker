@@ -16,8 +16,15 @@ interface HeaderProps {
 }
 
 export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions }: HeaderProps) {
+  // z-20 (not z-10): sticky + backdrop-blur make the header its own stacking
+  // context, and the UserMenu dropdown's z-50 is trapped inside it. The
+  // landing-page folder tabs (MoversStrip/UpcomingEvents/Users) are relative
+  // z-10 and sit later in the DOM, so at a z-10 tie they'd paint over the
+  // header — and over the open dropdown, bleeding the "Top movers"/"Upcoming"
+  // titles through it. z-20 keeps the header (and its menu) above those tabs
+  // while staying below the z-50 modals.
   return (
-    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20">
       <div className="max-w-6xl mx-auto px-4 py-2 md:py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

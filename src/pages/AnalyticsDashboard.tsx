@@ -1002,7 +1002,13 @@ export function AnalyticsDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.viewerDeviceBreakdown.map((row) => {
+                      {[...data.viewerDeviceBreakdown]
+                        .sort((a, b) => {
+                          const pa = a.desktop + a.mobile > 0 ? a.mobile / (a.desktop + a.mobile) : 0;
+                          const pb = b.desktop + b.mobile > 0 ? b.mobile / (b.desktop + b.mobile) : 0;
+                          return pa - pb;
+                        })
+                        .map((row) => {
                         const isAnon = row.viewer_id === ANONYMOUS_VIEWER;
                         const total = row.desktop + row.mobile;
                         const pctMobile = total > 0 ? Math.round((row.mobile / total) * 100) : 0;

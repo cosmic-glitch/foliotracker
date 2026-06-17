@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Trophy } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -13,10 +13,9 @@ import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
-import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
-import { formatChange } from '../utils/formatters';
+import { formatLargeValue } from '../utils/formatters';
 
 interface Portfolio {
   id: string;
@@ -75,30 +74,17 @@ async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosRes
   return response.json();
 }
 
-function formatCompactValue(value: number): string {
-  const absValue = Math.abs(value);
-  if (absValue >= 1000) {
-    return `$${(value / 1000).toFixed(1)}k`;
-  }
-  return `$${value.toFixed(0)}`;
-}
-
-// Deterministic monogram avatar for a handle. A hashed hue gives each user a
-// stable identity color; the fixed saturation/lightness keep the white initials
-// legible on both themes. Initials are the handle's first two chars, matching
-// the uppercased id shown beside it. The avatar anchors the row's left edge —
-// it fills what used to be dead space between the name and the value and makes
-// the list scannable by identity, not just text.
-function avatarFor(id: string): { initials: string; backgroundColor: string } {
+// Deterministic identity color for a handle. A hashed hue gives each user a
+// stable color; the fixed saturation/lightness keep white text legible on both
+// themes. Used to tint the handle chip in each row — the handle itself carries
+// the color (Option B), so there's no separate avatar duplicating the name.
+function identityColor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  return {
-    initials: id.slice(0, 2).toUpperCase(),
-    backgroundColor: `hsl(${hue} 48% 38%)`,
-  };
+  return `hsl(${hue} 48% 38%)`;
 }
 
 // The day-change % a row actually displays, honoring the extended-hours basis
@@ -127,204 +113,145 @@ function getDisplayChangePercent(
     : (p.regularDayChangePercent ?? p.dayChangePercent ?? 0);
 }
 
-// The dollar total a row displays, honoring the extended-hours basis. Mirrors
-// the inline computation in the render below; factored out so the leaderboard
-// sort ranks rows by the very same number each row shows.
+// The dollar total a row displays, honoring the extended-hours basis. Shown as
+// secondary context in each row (the board ranks by today's move, not size).
 function getDisplayValue(p: Portfolio, showExtendedHours: boolean): number {
   return showExtendedHours
     ? (p.totalValue ?? 0)
     : (p.regularTotalValue ?? p.totalValue ?? 0);
 }
 
+// The metric the leaderboard ranks by: the row's displayed day-change % (1D) or
+// 30-day % (30D), per the active timeframe + extended-hours basis. Returns null
+// for rows that have no real % — fully-blurred portfolios (no access; the % is a
+// placeholder) and rows whose move isn't known yet (stale-NAV funds in 1D,
+// brand-new portfolios in 30D). Null-metric rows sink to the bottom, unranked.
+function getRankMetric(
+  p: Portfolio,
+  showExtendedHours: boolean,
+  timeframe: Timeframe,
+): number | null {
+  const fullyBlurred =
+    p.visibility !== 'public' && p.totalValue === null && !p.allocation_public;
+  if (fullyBlurred) return null;
+  return getDisplayChangePercent(p, showExtendedHours, timeframe);
+}
+
 interface PortfolioListRowProps {
   portfolio: Portfolio;
+  // Portfolio total, shown as muted secondary context (not the ranking key).
   displayValue: number;
-  // null when the chosen timeframe has no data (e.g., brand-new portfolio in
-  // 30D mode). Renders as "—" instead of a misleading "+$0.00 (+0.00%)".
-  displayChange: number | null;
+  // Today's move % — the ranked metric, rendered as the row's prominent figure.
+  // null when the active timeframe has no figure (renders "—").
   displayChangePercent: number | null;
-  peakPotentialValue: number;
   shouldBlurValues: boolean;
-  // When true, the row is restricted but allocation_public is ON: show
-  // day-change % instead of a blurred dollar total.
+  // When true, the row is restricted but allocation_public is ON: hide the $
+  // total (a lock) but still show the day-change %.
   restrictedAllocOnly: boolean;
-  // True for the single row leading the currently-displayed day-change %.
-  // Gets the gold trophy pill + a faint amber row tint.
-  isTopMover: boolean;
-  // Pill text — "Top today" (1D) or "Top 30D" (30D); kept honest with the
-  // active timeframe since the leader is computed from that same metric.
-  topMoverLabel: string;
-  // Leaderboard rank (value-desc) among full-access rows; null for the viewer's
-  // own pinned row (shown as "You") and restricted rows (no $ value to rank).
+  // Leaderboard rank by today's move (1..N). null for rows with no real % —
+  // they sink to the bottom and render "—".
   rank: number | null;
-  // True for the logged-in viewer's own row: accent ring on the avatar, a faint
-  // accent row wash, and a "You" chip in place of a rank number.
+  // True for the day's leader (rank 1, when there are ≥2 ranked rows): gold
+  // trophy in the rank slot + a faint amber row wash.
+  isLeader: boolean;
+  // True for the logged-in viewer's own row: accent ring on the chip, a faint
+  // accent row wash, and a "You" tag.
   isViewer: boolean;
 }
 
 function PortfolioListRow({
   portfolio,
   displayValue,
-  displayChange,
   displayChangePercent,
-  peakPotentialValue,
   shouldBlurValues,
   restrictedAllocOnly,
-  isTopMover,
-  topMoverLabel,
   rank,
+  isLeader,
   isViewer,
 }: PortfolioListRowProps) {
-  const { animatedValue, isRevealing, peakDelta, triggerReveal, onKeyDown } = usePeakReveal(
-    displayValue,
-    peakPotentialValue,
-  );
-  const hasChange = displayChange !== null && displayChangePercent !== null;
-  const isPositive = hasChange && displayChange! >= 0;
-  const changeColor = isPositive ? 'text-positive' : 'text-negative';
-  const sign = isPositive ? '+' : '';
-  const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
-  const avatar = avatarFor(portfolio.id);
+  const pct = displayChangePercent;
+  const hasPct = pct !== null;
+  const pctColor = !hasPct
+    ? 'text-text-secondary'
+    : pct! >= 0
+    ? 'text-positive'
+    : 'text-negative';
 
   return (
-    // The whole row is the tap target now — the per-row "View" button is gone,
-    // replaced by a trailing chevron. The day's leader keeps a faint amber wash
-    // and the viewer's own row a faint accent wash; both deepen on hover so they
-    // hold their identity over the neutral hover.
+    // One row, the whole thing a tap target (the per-row "View" button is gone,
+    // replaced by a trailing chevron). The day's leader gets a faint amber wash,
+    // the viewer's own row a faint accent wash; both deepen on hover.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-        isTopMover
+      className={`flex items-center gap-2.5 px-4 py-2.5 transition-colors ${
+        isLeader
           ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12]'
           : isViewer
           ? 'bg-accent/[0.06] hover:bg-accent/[0.12]'
           : 'hover:bg-card-hover'
       }`}
     >
-      {/* Rank — fixed-width column so the avatars and names line up down the
-          list. Empty for the pinned viewer row ("You" chip below) and restricted
-          rows; the slot stays to keep the column straight. */}
-      <span className="w-5 shrink-0 text-right text-xs tabular-nums text-text-secondary">
-        {rank ?? ''}
+      {/* Rank — fixed-width so the chips line up down the list. The day's leader
+          shows a gold trophy instead of "1"; unranked rows (no real %) are
+          blank here and render "—" on the right. */}
+      <span className="flex w-5 shrink-0 justify-end text-xs tabular-nums text-text-secondary">
+        {isLeader ? (
+          <Trophy className="w-3.5 h-3.5 text-amber-500" aria-label="Top today" />
+        ) : (
+          rank ?? ''
+        )}
       </span>
 
-      {/* Monogram avatar — colored identity anchor; accent ring on your own row. */}
+      {/* Identity chip (Option B) — the handle itself, tinted with the user's
+          color, so the color lives on the name rather than a separate avatar
+          that just repeats it. Accent ring on your own row. */}
       <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${
+        className={`max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-white ${
           isViewer ? 'ring-2 ring-accent' : ''
         }`}
-        style={{ backgroundColor: avatar.backgroundColor }}
-        aria-hidden
+        style={{ backgroundColor: identityColor(portfolio.id) }}
       >
-        {avatar.initials}
+        {portfolio.id.toUpperCase()}
       </span>
+      {isViewer && (
+        <span className="shrink-0 text-xs font-medium text-accent">You</span>
+      )}
 
-      {/* Name + badges. Takes the slack (flex-1) so a long handle truncates
-          instead of shoving the value column. */}
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-text-primary truncate">
-          {portfolio.id.toUpperCase()}
-        </p>
-        {(isViewer || isTopMover) && (
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {isViewer && (
-              <span className="text-xs font-medium text-accent">You</span>
-            )}
-            {/* Day's-leader pill — gold-tinted, sits below the name in the slot
-                the visibility pills used to occupy before they were hidden to
-                declutter the landing list. */}
-            {isTopMover && (
-              <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-                <Trophy className="w-3 h-3" />
-                {topMoverLabel}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Value + day change, right-aligned (tap-to-reveal peak on non-blurred
-          rows). shrink-0 so the column keeps its natural width and the name
-          truncates first. */}
-      <div className="shrink-0 text-right">
+      {/* Right cluster, pushed to the row's edge: portfolio total (muted,
+          secondary) then today's move % (the ranked metric — bold, colored, the
+          rightmost column so the descending sort reads cleanly). */}
+      <div className="ml-auto flex shrink-0 items-baseline gap-3">
         {shouldBlurValues ? (
-          <div>
-            <span className="text-lg font-semibold text-text-primary blur-sm select-none">
-              $X,XXX,XXX
-            </span>
-            <p className="text-sm text-positive blur-sm select-none">
-              +$X.Xk (+X.XX%)
-            </p>
-          </div>
+          <span className="text-sm tabular-nums text-text-secondary blur-sm select-none">
+            $X.XM
+          </span>
         ) : restrictedAllocOnly ? (
-          // No owner-level access, but the owner has allocation_public ON.
-          // Drop the dollar metaphor: a muted "Value hidden" lock cue above
-          // the day-change % (the only figure this viewer is allowed to see).
-          <div>
-            <span className="flex items-center justify-end gap-1.5 text-sm text-text-secondary">
-              <Lock className="w-3.5 h-3.5" />
-              Value hidden
-            </span>
-            {displayChangePercent !== null ? (
-              <p className={`text-sm ${displayChangePercent >= 0 ? 'text-positive' : 'text-negative'}`}>
-                {displayChangePercent >= 0 ? '+' : ''}{displayChangePercent.toFixed(2)}%
-              </p>
-            ) : (
-              <p className="text-sm text-text-secondary">—</p>
-            )}
-          </div>
+          // No owner-level access, but allocation_public is ON: hide the $ total
+          // (a lock) — the % to its right is the only figure this viewer sees.
+          <Lock className="w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
         ) : (
-          // The row is a link, so the reveal handlers preventDefault +
-          // stopPropagation to intercept the tap (reveal the 52w-high peak)
-          // instead of navigating to the portfolio.
-          <div
-            className={canReveal ? 'cursor-pointer select-none' : ''}
-            onClick={
-              canReveal
-                ? (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    triggerReveal();
-                  }
-                : undefined
-            }
-            role={canReveal ? 'button' : undefined}
-            tabIndex={canReveal ? 0 : undefined}
-            onKeyDown={
-              canReveal
-                ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-                    onKeyDown(e);
-                  }
-                : undefined
-            }
-          >
-            <span className="text-lg font-semibold text-text-primary">
-              ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </span>
-            {!isRevealing ? (
-              hasChange ? (
-                <p className={`text-sm whitespace-nowrap ${changeColor}`}>
-                  {sign}{formatCompactValue(Math.abs(displayChange!))} ({sign}{displayChangePercent!.toFixed(2)}%)
-                </p>
-              ) : (
-                <p className="text-sm text-text-secondary">—</p>
-              )
-            ) : (
-              <p className="text-sm text-amber-400 flex items-center justify-end gap-1 animate-[fadeIn_0.2s_ease-out] whitespace-nowrap">
-                <Sparkles className="w-3 h-3" />
-                {formatChange(peakDelta, true)} at 52w high
-              </p>
-            )}
-          </div>
+          <span className="text-sm tabular-nums whitespace-nowrap text-text-secondary">
+            {formatLargeValue(displayValue)}
+          </span>
+        )}
+
+        {shouldBlurValues ? (
+          <span className="text-[15px] font-semibold tabular-nums text-positive blur-sm select-none">
+            +0.00%
+          </span>
+        ) : hasPct ? (
+          <span className={`text-[15px] font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+            {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
+          </span>
+        ) : (
+          <span className="text-[15px] font-semibold text-text-secondary">—</span>
         )}
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
-          Restricted viewers still land on the allocation-only detail page (with
-          a notice up top), or hit the password prompt when allocation_public is
-          off — same destination the old "View" button had. */}
+          Restricted viewers still land on the allocation-only detail page, or
+          hit the password prompt — the same destination the old "View" had. */}
       <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
@@ -371,62 +298,45 @@ export function LandingPage() {
     const raw = data?.portfolios ?? [];
     if (raw.length === 0) return raw;
 
-    // Tier the list so the viewer sees what's most relevant first:
-    //   1 = your own portfolio (pinned to the top regardless of value)
-    //   2 = full access (public, or selective where you're invited; for these
-    //       the API returns a real totalValue)
-    //   3 = allocation-only (hideDollarsOnly: "Value hidden" + %)
-    //   4 = fully blurred (hideAllValues). Empty in production today since
-    //       every portfolio has allocation_public=true, but kept for defense.
-    // Within the full-access tier the list is a leaderboard: rank by displayed
-    // value DESC (the same extended-hours basis the rows render) so the numbers
-    // read cleanly top-to-bottom instead of looking random. This re-sorts when
-    // the extended-hours toggle flips (different basis → different totals →
-    // different order), which is correct for a value ranking; the 1D/30D toggle
-    // doesn't reorder (it changes only the change column, not the total). Tiers
-    // 3/4 have no dollar value to rank on, so they keep the API's created_at ASC
-    // order — which is also the stable tiebreaker (idx) for equal values.
-    const viewer = loggedInAs?.toLowerCase() ?? null;
-    const tierOf = (p: Portfolio): number => {
-      if (viewer && p.id.toLowerCase() === viewer) return 1;
-      const isRestricted = p.visibility !== 'public' && p.totalValue === null;
-      if (!isRestricted) return 2;
-      return p.allocation_public ? 3 : 4;
-    };
-
+    // The list is a leaderboard ranked by TODAY'S MOVE (displayed day-change %),
+    // not by portfolio size — a level field among friends, and deliberately not
+    // a net-worth ranking. The metric honors the 1D/30D timeframe and the
+    // extended-hours basis (see getRankMetric), so the order tracks the same %
+    // each row shows and re-sorts when either toggle flips or prices move
+    // intraday. The viewer is ranked in place like everyone else (not pinned),
+    // so they see their true standing. Rows with no real % — fully-blurred
+    // portfolios (no access) and ones whose move isn't known yet — have a null
+    // metric and sink to the bottom in created_at (idx) order, which is also the
+    // stable tiebreaker for equal percentages.
     return [...raw]
-      .map((p, idx) => ({ p, idx, tier: tierOf(p) }))
+      .map((p, idx) => ({
+        p,
+        idx,
+        metric: getRankMetric(p, showExtendedHours, timeframe),
+      }))
       .sort((a, b) => {
-        if (a.tier !== b.tier) return a.tier - b.tier;
-        if (a.tier === 2) {
-          const delta =
-            getDisplayValue(b.p, showExtendedHours) -
-            getDisplayValue(a.p, showExtendedHours);
-          if (delta !== 0) return delta;
-        }
+        if (a.metric === null && b.metric === null) return a.idx - b.idx;
+        if (a.metric === null) return 1;
+        if (b.metric === null) return -1;
+        if (b.metric !== a.metric) return b.metric - a.metric;
         return a.idx - b.idx;
       })
       .map((e) => e.p);
-  }, [data, loggedInAs, showExtendedHours]);
+  }, [data, showExtendedHours, timeframe]);
 
-  // Value-rank for the leaderboard. Full-access rows are numbered 1..N in the
-  // value-desc order they're displayed in; the viewer's own pinned row shows a
-  // "You" chip instead of a number (it's pinned out of value order, so a number
-  // there would misread), and restricted rows (no $ value) stay unranked. The
-  // counter walks `portfolios`, already value-sorted within the full-access
-  // tier, so the displayed positions and the numbers agree.
+  // Rank by today's move, 1..N over the rows that have a real % (the list is
+  // already sorted %-desc, so a running counter matches the displayed order).
+  // The viewer is ranked in place like everyone else; null-metric rows stay
+  // unranked and render "—".
   const rankById = useMemo(() => {
     const map: Record<string, number> = {};
-    const viewer = loggedInAs?.toLowerCase() ?? null;
     let rank = 0;
     for (const p of portfolios) {
-      const isViewer = viewer !== null && p.id.toLowerCase() === viewer;
-      const isRestricted = p.visibility !== 'public' && p.totalValue === null;
-      if (isViewer || isRestricted) continue;
+      if (getRankMetric(p, showExtendedHours, timeframe) === null) continue;
       map[p.id] = ++rank;
     }
     return map;
-  }, [portfolios, loggedInAs]);
+  }, [portfolios, showExtendedHours, timeframe]);
 
   // Get most recent lastUpdated from all portfolios
   const latestUpdate = useMemo(() => {
@@ -438,33 +348,13 @@ export function LandingPage() {
     }, null as Date | null);
   }, [portfolios]);
 
-  // Which row leads the currently-displayed day-change %. "Displayed" is the
-  // crux: the metric follows the 1D/30D timeframe and the extended-hours basis,
-  // so the leader shifts when either toggle flips (and intraday as prices
-  // move). Eligible = rows that show a real % (full-access + allocation-only);
-  // fully-blurred rows are skipped (their % is a placeholder) and so are rows
-  // with no % yet (null → "—"). The comparison is sign-agnostic: on an all-red
-  // day the least-negative row still leads. Only crowned when at least two rows
-  // qualify — a leaderboard of one isn't a leaderboard.
-  const topMoverId = useMemo(() => {
-    let bestId: string | null = null;
-    let bestPct = -Infinity;
-    let eligible = 0;
-    for (const p of portfolios) {
-      const restricted = p.visibility !== 'public' && p.totalValue === null;
-      if (restricted && !p.allocation_public) continue; // fully blurred — no real %
-      const pct = getDisplayChangePercent(p, showExtendedHours, timeframe);
-      if (pct === null) continue;
-      eligible += 1;
-      if (pct > bestPct) {
-        bestPct = pct;
-        bestId = p.id;
-      }
-    }
-    return eligible >= 2 ? bestId : null;
-  }, [portfolios, showExtendedHours, timeframe]);
-
-  const topMoverLabel = timeframe === '30d' ? 'Top 30D' : 'Top today';
+  // How many rows have a real % (are ranked). The day's leader (rank 1) only
+  // earns the trophy when at least two rows qualify — a leaderboard of one isn't
+  // a leaderboard. The caption names the ranking basis so the order (and the
+  // unsorted-looking dollar column beside it) reads as intentional.
+  const rankedCount = Object.keys(rankById).length;
+  const rankBasisLabel =
+    timeframe === '30d' ? 'Ranked by 30-day move' : "Ranked by today's move";
 
   const handleSignIn = async (userId: string, password: string) => {
     // Verify credentials via login endpoint — get token back
@@ -569,62 +459,51 @@ export function LandingPage() {
                   No portfolios yet. Be the first to create one!
                 </div>
               ) : (
-                <div className="divide-y divide-border">
-                  {portfolios.map((portfolio) => {
-                    // Restricted = visibility !== public AND server omitted
-                    // the dollar total. Owner-side: server returned full
-                    // values, so isRestricted stays false.
-                    const isRestricted =
-                      portfolio.visibility !== 'public' && portfolio.totalValue === null;
-                    const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
-                    const shouldBlurValues = isRestricted && !portfolio.allocation_public;
-                    const displayValue = showExtendedHours
-                      ? (portfolio.totalValue ?? 0)
-                      : (portfolio.regularTotalValue ?? portfolio.totalValue ?? 0);
-                    // Resolve change values from the active timeframe. Each
-                    // pair has an extended-hours flavor and a regular-session
-                    // flavor; respect the same showExtendedHours rule as the
-                    // dollar total above. Nulls flow through so the row
-                    // renders "—" when 30D has no anchor yet.
-                    const displayChange =
-                      timeframe === '30d'
-                        ? (showExtendedHours
-                            ? portfolio.thirtyDayChange
-                            : portfolio.regularThirtyDayChange ?? portfolio.thirtyDayChange)
-                        : (showExtendedHours
-                            ? (portfolio.dayChange ?? 0)
-                            : (portfolio.regularDayChange ?? portfolio.dayChange ?? 0));
-                    const displayChangePercent = getDisplayChangePercent(
-                      portfolio,
-                      showExtendedHours,
-                      timeframe,
-                    );
-                    const peakPotentialValue = Math.max(
-                      portfolio.peakPotentialValue ?? 0,
-                      displayValue,
-                    );
-                    const isViewer =
-                      loggedInAs != null &&
-                      portfolio.id.toLowerCase() === loggedInAs.toLowerCase();
+                <>
+                  {/* Caption: names the ranking basis so the order — and the
+                      intentionally-unsorted dollar column beside it — reads as a
+                      "today's move" leaderboard, not a net-worth one. */}
+                  <div className="border-b border-border px-4 py-2 text-xs text-text-secondary">
+                    {rankBasisLabel}
+                  </div>
+                  <div className="divide-y divide-border">
+                    {portfolios.map((portfolio) => {
+                      // Restricted = visibility !== public AND server omitted
+                      // the dollar total. Owner-side: server returned full
+                      // values, so isRestricted stays false.
+                      const isRestricted =
+                        portfolio.visibility !== 'public' && portfolio.totalValue === null;
+                      const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
+                      const shouldBlurValues = isRestricted && !portfolio.allocation_public;
+                      const displayValue = getDisplayValue(portfolio, showExtendedHours);
+                      // Today's move % — the ranked metric. Null (unknown move /
+                      // no 30D anchor) flows through so the row renders "—".
+                      const displayChangePercent = getDisplayChangePercent(
+                        portfolio,
+                        showExtendedHours,
+                        timeframe,
+                      );
+                      const isViewer =
+                        loggedInAs != null &&
+                        portfolio.id.toLowerCase() === loggedInAs.toLowerCase();
+                      const rank = rankById[portfolio.id] ?? null;
 
-                    return (
-                      <PortfolioListRow
-                        key={portfolio.id}
-                        portfolio={portfolio}
-                        displayValue={displayValue}
-                        displayChange={displayChange}
-                        displayChangePercent={displayChangePercent}
-                        peakPotentialValue={peakPotentialValue}
-                        shouldBlurValues={shouldBlurValues}
-                        restrictedAllocOnly={restrictedAllocOnly}
-                        isTopMover={portfolio.id === topMoverId}
-                        topMoverLabel={topMoverLabel}
-                        rank={rankById[portfolio.id] ?? null}
-                        isViewer={isViewer}
-                      />
-                    );
-                  })}
-                </div>
+                      return (
+                        <PortfolioListRow
+                          key={portfolio.id}
+                          portfolio={portfolio}
+                          displayValue={displayValue}
+                          displayChangePercent={displayChangePercent}
+                          shouldBlurValues={shouldBlurValues}
+                          restrictedAllocOnly={restrictedAllocOnly}
+                          rank={rank}
+                          isLeader={rank === 1 && rankedCount >= 2}
+                          isViewer={isViewer}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
               )}
               </div>
             </div>

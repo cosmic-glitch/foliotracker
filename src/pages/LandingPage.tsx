@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Trophy } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -13,9 +13,9 @@ import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
+import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
-import { formatLargeValue } from '../utils/formatters';
 
 interface Portfolio {
   id: string;
@@ -121,16 +121,27 @@ function getDisplayValue(p: Portfolio, showExtendedHours: boolean): number {
     : (p.regularTotalValue ?? p.totalValue ?? 0);
 }
 
+// The shared demo portfolio is a sample for visitors to explore, not a real
+// competitor — it's excluded from the ranking and always sorted dead last (see
+// getRankMetric + the sort comparator). Keyed by id since there's no is_demo
+// column; the same id the mock-data fallback uses (src/lib/mockData.ts).
+const DEMO_PORTFOLIO_ID = 'demo';
+function isDemoPortfolio(p: Portfolio): boolean {
+  return p.id.toLowerCase() === DEMO_PORTFOLIO_ID;
+}
+
 // The metric the leaderboard ranks by: the row's displayed day-change % (1D) or
 // 30-day % (30D), per the active timeframe + extended-hours basis. Returns null
-// for rows that have no real % — fully-blurred portfolios (no access; the % is a
-// placeholder) and rows whose move isn't known yet (stale-NAV funds in 1D,
-// brand-new portfolios in 30D). Null-metric rows sink to the bottom, unranked.
+// for rows excluded from the ranking — the demo portfolio (a sample, not a
+// competitor), fully-blurred portfolios (no access; the % is a placeholder), and
+// rows whose move isn't known yet (stale-NAV funds in 1D, brand-new portfolios
+// in 30D). Null-metric rows sink to the bottom, unranked (the demo last of all).
 function getRankMetric(
   p: Portfolio,
   showExtendedHours: boolean,
   timeframe: Timeframe,
 ): number | null {
+  if (isDemoPortfolio(p)) return null;
   const fullyBlurred =
     p.visibility !== 'public' && p.totalValue === null && !p.allocation_public;
   if (fullyBlurred) return null;
@@ -140,7 +151,10 @@ function getRankMetric(
 interface PortfolioListRowProps {
   portfolio: Portfolio;
   // Portfolio total, shown as muted secondary context (not the ranking key).
+  // Full comma-grouped figure; tap-to-reveal animates it up to the 52w peak.
   displayValue: number;
+  // 52-week-high "peak potential" total; tapping the value counts up to this.
+  peakPotentialValue: number;
   // Today's move % — the ranked metric, rendered as the row's prominent figure.
   // null when the active timeframe has no figure (renders "—").
   displayChangePercent: number | null;
@@ -152,23 +166,35 @@ interface PortfolioListRowProps {
   // they sink to the bottom and render "—".
   rank: number | null;
   // True for the day's leader (rank 1, when there are ≥2 ranked rows): gold
-  // trophy in the rank slot + a faint amber row wash.
+  // trophy in the rank slot. No row wash — the trophy + top position already say
+  // "winner"; a third cue for the same fact is redundant.
   isLeader: boolean;
-  // True for the logged-in viewer's own row: accent ring on the chip, a faint
-  // accent row wash, and a "You" tag.
+  // True for the logged-in viewer's own row: accent ring on the chip + a faint
+  // accent row wash so you can spot yourself. No "You" tag — you know who you
+  // are, and dropping it keeps every row's left edge consistent.
   isViewer: boolean;
+  // True for the demo portfolio — excluded from the ranking and pinned last; a
+  // muted "Demo" tag explains why it sits apart with no rank number.
+  isDemo: boolean;
 }
 
 function PortfolioListRow({
   portfolio,
   displayValue,
+  peakPotentialValue,
   displayChangePercent,
   shouldBlurValues,
   restrictedAllocOnly,
   rank,
   isLeader,
   isViewer,
+  isDemo,
 }: PortfolioListRowProps) {
+  const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
+    displayValue,
+    peakPotentialValue,
+  );
+  const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
   const pct = displayChangePercent;
   const hasPct = pct !== null;
   const pctColor = !hasPct
@@ -179,15 +205,14 @@ function PortfolioListRow({
 
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
-    // replaced by a trailing chevron). The day's leader gets a faint amber wash,
-    // the viewer's own row a faint accent wash; both deepen on hover.
+    // replaced by a trailing chevron). Only the viewer's own row gets a wash
+    // (faint accent, deepening on hover); the leader is marked by the trophy +
+    // top position alone, so no leader wash.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
       className={`flex items-center gap-2.5 px-4 py-2.5 transition-colors ${
-        isLeader
-          ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12]'
-          : isViewer
+        isViewer
           ? 'bg-accent/[0.06] hover:bg-accent/[0.12]'
           : 'hover:bg-card-hover'
       }`}
@@ -214,31 +239,64 @@ function PortfolioListRow({
       >
         {portfolio.id.toUpperCase()}
       </span>
-      {isViewer && (
-        <span className="shrink-0 text-xs font-medium text-accent">You</span>
+      {isDemo && (
+        <span className="shrink-0 text-xs font-medium text-text-secondary">Demo</span>
       )}
 
       {/* Right cluster, pushed to the row's edge: portfolio total (muted,
-          secondary) then today's move % (the ranked metric — bold, colored, the
-          rightmost column so the descending sort reads cleanly). */}
+          secondary — full comma-grouped figure) then today's move % (the ranked
+          metric — bold, colored, the rightmost column so the descending sort
+          reads cleanly). The total is tap-to-reveal: it counts up to the 52w
+          peak and the % slot swaps to a "52w high" cue while revealing. */}
       <div className="ml-auto flex shrink-0 items-baseline gap-3">
         {shouldBlurValues ? (
           <span className="text-sm tabular-nums text-text-secondary blur-sm select-none">
-            $X.XM
+            $X,XXX,XXX
           </span>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but allocation_public is ON: hide the $ total
           // (a lock) — the % to its right is the only figure this viewer sees.
           <Lock className="w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
         ) : (
-          <span className="text-sm tabular-nums whitespace-nowrap text-text-secondary">
-            {formatLargeValue(displayValue)}
+          // The row is a link, so the reveal handlers preventDefault +
+          // stopPropagation to intercept the tap (count up to the 52w peak)
+          // instead of navigating to the portfolio.
+          <span
+            className={`text-sm tabular-nums whitespace-nowrap ${
+              isRevealing ? 'text-amber-400' : 'text-text-secondary'
+            } ${canReveal ? 'cursor-pointer select-none' : ''}`}
+            onClick={
+              canReveal
+                ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    triggerReveal();
+                  }
+                : undefined
+            }
+            role={canReveal ? 'button' : undefined}
+            tabIndex={canReveal ? 0 : undefined}
+            onKeyDown={
+              canReveal
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+                    onKeyDown(e);
+                  }
+                : undefined
+            }
+          >
+            ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         )}
 
         {shouldBlurValues ? (
           <span className="text-[15px] font-semibold tabular-nums text-positive blur-sm select-none">
             +0.00%
+          </span>
+        ) : isRevealing ? (
+          <span className="flex items-center gap-1 text-[15px] font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
+            <Sparkles className="w-3 h-3" />
+            52w high
           </span>
         ) : hasPct ? (
           <span className={`text-[15px] font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
@@ -307,14 +365,17 @@ export function LandingPage() {
     // so they see their true standing. Rows with no real % — fully-blurred
     // portfolios (no access) and ones whose move isn't known yet — have a null
     // metric and sink to the bottom in created_at (idx) order, which is also the
-    // stable tiebreaker for equal percentages.
+    // stable tiebreaker for equal percentages. The demo portfolio is always dead
+    // last (below even the other unranked rows) — it's a sample, not a player.
     return [...raw]
       .map((p, idx) => ({
         p,
         idx,
+        demo: isDemoPortfolio(p),
         metric: getRankMetric(p, showExtendedHours, timeframe),
       }))
       .sort((a, b) => {
+        if (a.demo !== b.demo) return a.demo ? 1 : -1;
         if (a.metric === null && b.metric === null) return a.idx - b.idx;
         if (a.metric === null) return 1;
         if (b.metric === null) return -1;
@@ -476,6 +537,10 @@ export function LandingPage() {
                       const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
                       const shouldBlurValues = isRestricted && !portfolio.allocation_public;
                       const displayValue = getDisplayValue(portfolio, showExtendedHours);
+                      const peakPotentialValue = Math.max(
+                        portfolio.peakPotentialValue ?? 0,
+                        displayValue,
+                      );
                       // Today's move % — the ranked metric. Null (unknown move /
                       // no 30D anchor) flows through so the row renders "—".
                       const displayChangePercent = getDisplayChangePercent(
@@ -493,12 +558,14 @@ export function LandingPage() {
                           key={portfolio.id}
                           portfolio={portfolio}
                           displayValue={displayValue}
+                          peakPotentialValue={peakPotentialValue}
                           displayChangePercent={displayChangePercent}
                           shouldBlurValues={shouldBlurValues}
                           restrictedAllocOnly={restrictedAllocOnly}
                           rank={rank}
                           isLeader={rank === 1 && rankedCount >= 2}
                           isViewer={isViewer}
+                          isDemo={isDemoPortfolio(portfolio)}
                         />
                       );
                     })}

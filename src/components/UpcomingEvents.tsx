@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { useUpcomingEvents } from '../hooks/useUpcomingEvents';
-import { formatChartDate } from '../utils/formatters';
+import { formatEventDate } from '../utils/formatters';
 
 // How many events the strip shows collapsed (one per row). Kept deliberately
 // tight at 1 so the landing page leads with just the single most imminent event
@@ -38,7 +38,10 @@ function eventEmoji(e: { type: string; title: string }): string {
 // as a matched pair: what moved / what's coming. A
 // folder tab (calendar + "Upcoming") juts from the card's top-left; rows fill
 // the full width below. One event per row, rendered as a plain statement:
-// date | title.
+// date | title. Near-term events (≤ 3 days out) show a relative, accent-colored
+// label ("Today" / "Tomorrow" / "In N days") in place of the absolute date so
+// imminent events catch the eye; further-out events keep the muted "Jun 24"
+// form (see formatEventDate in utils/formatters).
 //
 // Spare by design: no color-coded impact dot and no ticker chip. The strip shows
 // the next events across all importance levels (high/medium/low macro + every
@@ -110,6 +113,10 @@ export function UpcomingEvents() {
         <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
           {shown.map((e, i) => {
             const isLast = i === shown.length - 1;
+            // Imminent events (≤ 3 days out) show a relative label ("Today",
+            // "Tomorrow", "In 2 days") in accent color so they stand out;
+            // further-out events fall back to the muted absolute date ("Jun 24").
+            const { label: dateLabel, isNear } = formatEventDate(e.date);
             const title = (
               <>
                 <span className="mr-1.5" aria-hidden>
@@ -120,8 +127,12 @@ export function UpcomingEvents() {
             );
             return (
               <Fragment key={e.id}>
-                <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
-                  {formatChartDate(e.date)}
+                <span
+                  className={`font-semibold text-sm md:text-[15px] whitespace-nowrap tabular-nums ${
+                    isNear ? 'text-accent' : 'text-text-primary'
+                  }`}
+                >
+                  {dateLabel}
                 </span>
                 {isLast && canExpand ? (
                   // Last row shares its track with the expand/collapse link at

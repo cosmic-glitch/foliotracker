@@ -57,6 +57,26 @@ export function formatChartDate(dateString: string): string {
   }).format(date);
 }
 
+// Near-term events read better as a relative label ("Today", "Tomorrow", "In 2
+// days") than an absolute date; once an event is further out the absolute date
+// is clearer. Returns the label plus `isNear` so callers can visually emphasize
+// the imminent ones (see UpcomingEvents). Comparison is calendar-day based (both
+// dates pinned to local midnight) so "Tomorrow" means the next calendar date
+// regardless of clock time, and Math.round absorbs DST-induced 23/25h days.
+export function formatEventDate(dateString: string): { label: string; isNear: boolean } {
+  const datePart = dateString.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  const eventDate = new Date(year, month - 1, day);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((eventDate.getTime() - today.getTime()) / 86_400_000);
+
+  if (diffDays <= 0) return { label: 'Today', isNear: true };
+  if (diffDays === 1) return { label: 'Tomorrow', isNear: true };
+  if (diffDays <= 3) return { label: `In ${diffDays} days`, isNear: true };
+  return { label: formatChartDate(dateString), isNear: false };
+}
+
 export function formatChartTime(dateString: string): string {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat('en-US', {

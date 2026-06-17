@@ -59,11 +59,11 @@ export function formatChartDate(dateString: string): string {
 
 // Near-term events read better as a relative label ("Today", "Tomorrow", "In 2
 // days") than an absolute date; once an event is further out the absolute date
-// is clearer. Returns the label plus `isNear` so callers can visually emphasize
-// the imminent ones (see UpcomingEvents). Comparison is calendar-day based (both
-// dates pinned to local midnight) so "Tomorrow" means the next calendar date
-// regardless of clock time, and Math.round absorbs DST-induced 23/25h days.
-export function formatEventDate(dateString: string): { label: string; isNear: boolean } {
+// is clearer, so this falls back to formatChartDate beyond 3 days. Comparison is
+// calendar-day based (both dates pinned to local midnight) so "Tomorrow" means
+// the next calendar date regardless of clock time, and Math.round absorbs
+// DST-induced 23/25h days.
+export function formatEventDate(dateString: string): string {
   const datePart = dateString.split('T')[0];
   const [year, month, day] = datePart.split('-').map(Number);
   const eventDate = new Date(year, month - 1, day);
@@ -71,10 +71,10 @@ export function formatEventDate(dateString: string): { label: string; isNear: bo
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((eventDate.getTime() - today.getTime()) / 86_400_000);
 
-  if (diffDays <= 0) return { label: 'Today', isNear: true };
-  if (diffDays === 1) return { label: 'Tomorrow', isNear: true };
-  if (diffDays <= 3) return { label: `In ${diffDays} days`, isNear: true };
-  return { label: formatChartDate(dateString), isNear: false };
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays <= 3) return `In ${diffDays} days`;
+  return formatChartDate(dateString);
 }
 
 export function formatChartTime(dateString: string): string {

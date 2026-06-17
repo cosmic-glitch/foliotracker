@@ -38,10 +38,11 @@ function eventEmoji(e: { type: string; title: string }): string {
 // as a matched pair: what moved / what's coming. A
 // folder tab (calendar + "Upcoming") juts from the card's top-left; rows fill
 // the full width below. One event per row, rendered as a plain statement:
-// date | title. Near-term events (≤ 3 days out) show a relative, accent-colored
-// label ("Today" / "Tomorrow" / "In N days") in place of the absolute date so
-// imminent events catch the eye; further-out events keep the muted "Jun 24"
-// form (see formatEventDate in utils/formatters).
+// date | title. Near-term events (≤ 3 days out) show a relative label ("Today" /
+// "Tomorrow" / "In N days") in place of the absolute date; further-out events
+// keep the "Jun 24" form (see formatEventDate in utils/formatters). All dates
+// share one color — deliberately NOT the accent blue, which on this page reads
+// as a link (the "N more"/"less" toggle is blue).
 //
 // Spare by design: no color-coded impact dot and no ticker chip. The strip shows
 // the next events across all importance levels (high/medium/low macro + every
@@ -114,9 +115,11 @@ export function UpcomingEvents() {
           {shown.map((e, i) => {
             const isLast = i === shown.length - 1;
             // Imminent events (≤ 3 days out) show a relative label ("Today",
-            // "Tomorrow", "In 2 days") in accent color so they stand out;
-            // further-out events fall back to the muted absolute date ("Jun 24").
-            const { label: dateLabel, isNear } = formatEventDate(e.date);
+            // "Tomorrow", "In 2 days"); further-out events show the absolute
+            // date ("Jun 24"). All dates render in the same color — accent blue
+            // was rejected because it reads as a link next to the genuinely-blue
+            // "more"/"less" toggle.
+            const dateLabel = formatEventDate(e.date);
             const title = (
               <>
                 <span className="mr-1.5" aria-hidden>
@@ -127,11 +130,7 @@ export function UpcomingEvents() {
             );
             return (
               <Fragment key={e.id}>
-                <span
-                  className={`font-semibold text-sm md:text-[15px] whitespace-nowrap tabular-nums ${
-                    isNear ? 'text-accent' : 'text-text-primary'
-                  }`}
-                >
+                <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap tabular-nums">
                   {dateLabel}
                 </span>
                 {isLast && canExpand ? (

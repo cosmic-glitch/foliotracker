@@ -150,13 +150,18 @@ function getRankMetric(
 
 interface PortfolioListRowProps {
   portfolio: Portfolio;
-  // Portfolio total, shown as muted secondary context (not the ranking key).
-  // Full comma-grouped figure; tap-to-reveal animates it up to the 52w peak.
+  // Portfolio total — the row's prominent dollar figure (larger, bold, primary
+  // color). It is NOT the ranking key: the board still ranks by % move (see the
+  // caption + getRankMetric); the dollar is just shown with full visual weight
+  // because it's a headline number visitors care about. Full comma-grouped
+  // figure; tap-to-reveal animates it up to the 52w peak.
   displayValue: number;
   // 52-week-high "peak potential" total; tapping the value counts up to this.
   peakPotentialValue: number;
-  // Today's move % — the ranked metric, rendered as the row's prominent figure.
-  // null when the active timeframe has no figure (renders "—").
+  // Today's move % — the ranked metric, rendered as a smaller colored delta to
+  // the right of the dollar total (color carries the up/down signal; the dollar
+  // is the dominant figure). null when the active timeframe has no figure
+  // (renders "—").
   displayChangePercent: number | null;
   shouldBlurValues: boolean;
   // When true, the row is restricted but allocation_public is ON: hide the $
@@ -243,14 +248,15 @@ function PortfolioListRow({
         <span className="shrink-0 text-xs font-medium text-text-secondary">Demo</span>
       )}
 
-      {/* Right cluster, pushed to the row's edge: portfolio total (muted,
-          secondary — full comma-grouped figure) then today's move % (the ranked
-          metric — bold, colored, the rightmost column so the descending sort
-          reads cleanly). The total is tap-to-reveal: it counts up to the 52w
+      {/* Right cluster, pushed to the row's edge: portfolio total (the dominant
+          figure — larger, bold, full comma-grouped, primary color) then today's
+          move % (the ranked metric, a smaller colored delta in the rightmost
+          column so the descending sort still reads cleanly; color carries the
+          up/down signal). The total is tap-to-reveal: it counts up to the 52w
           peak and the % slot swaps to a "52w high" cue while revealing. */}
       <div className="ml-auto flex shrink-0 items-baseline gap-3">
         {shouldBlurValues ? (
-          <span className="text-sm tabular-nums text-text-secondary blur-sm select-none">
+          <span className="text-base font-semibold tabular-nums text-text-secondary blur-sm select-none">
             $X,XXX,XXX
           </span>
         ) : restrictedAllocOnly ? (
@@ -262,8 +268,8 @@ function PortfolioListRow({
           // stopPropagation to intercept the tap (count up to the 52w peak)
           // instead of navigating to the portfolio.
           <span
-            className={`text-sm tabular-nums whitespace-nowrap ${
-              isRevealing ? 'text-amber-400' : 'text-text-secondary'
+            className={`text-base font-semibold tabular-nums whitespace-nowrap ${
+              isRevealing ? 'text-amber-400' : 'text-text-primary'
             } ${canReveal ? 'cursor-pointer select-none' : ''}`}
             onClick={
               canReveal
@@ -290,20 +296,20 @@ function PortfolioListRow({
         )}
 
         {shouldBlurValues ? (
-          <span className="text-[15px] font-semibold tabular-nums text-positive blur-sm select-none">
+          <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
             +0.00%
           </span>
         ) : isRevealing ? (
-          <span className="flex items-center gap-1 text-[15px] font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
+          <span className="flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
             <Sparkles className="w-3 h-3" />
             52w high
           </span>
         ) : hasPct ? (
-          <span className={`text-[15px] font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+          <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
             {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
           </span>
         ) : (
-          <span className="text-[15px] font-semibold text-text-secondary">—</span>
+          <span className="text-sm font-semibold text-text-secondary">—</span>
         )}
       </div>
 

@@ -210,17 +210,13 @@ function PortfolioListRow({
 
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
-    // replaced by a trailing chevron). Only the viewer's own row gets a wash
-    // (faint accent, deepening on hover); the leader is marked by the trophy +
-    // top position alone, so no leader wash.
+    // replaced by a trailing chevron). No per-row wash — the list is small enough
+    // that the viewer finds their own row via the accent-ringed identity chip; the
+    // leader is marked by the trophy + top position alone.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className={`flex items-center gap-2.5 px-4 py-2.5 transition-colors ${
-        isViewer
-          ? 'bg-accent/[0.06] hover:bg-accent/[0.12]'
-          : 'hover:bg-card-hover'
-      }`}
+      className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width so the chips line up down the list. The day's leader
           shows a gold trophy instead of "1"; unranked rows (no real %) are

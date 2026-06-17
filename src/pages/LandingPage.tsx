@@ -178,9 +178,6 @@ interface PortfolioListRowProps {
   // accent row wash so you can spot yourself. No "You" tag — you know who you
   // are, and dropping it keeps every row's left edge consistent.
   isViewer: boolean;
-  // True for the demo portfolio — excluded from the ranking and pinned last; a
-  // muted "Demo" tag explains why it sits apart with no rank number.
-  isDemo: boolean;
 }
 
 function PortfolioListRow({
@@ -193,7 +190,6 @@ function PortfolioListRow({
   rank,
   isLeader,
   isViewer,
-  isDemo,
 }: PortfolioListRowProps) {
   const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -240,9 +236,6 @@ function PortfolioListRow({
       >
         {portfolio.id.toUpperCase()}
       </span>
-      {isDemo && (
-        <span className="shrink-0 text-xs font-medium text-text-secondary">Demo</span>
-      )}
 
       {/* Right cluster, pushed to the row's edge: portfolio total (the dominant
           figure — larger, bold, full comma-grouped, primary color) then today's
@@ -567,7 +560,6 @@ export function LandingPage() {
                           rank={rank}
                           isLeader={rank === 1 && rankedCount >= 2}
                           isViewer={isViewer}
-                          isDemo={isDemoPortfolio(portfolio)}
                         />
                       );
                     })}

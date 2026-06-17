@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, Eye, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -83,6 +83,24 @@ function formatCompactValue(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
+// Deterministic monogram avatar for a handle. A hashed hue gives each user a
+// stable identity color; the fixed saturation/lightness keep the white initials
+// legible on both themes. Initials are the handle's first two chars, matching
+// the uppercased id shown beside it. The avatar anchors the row's left edge —
+// it fills what used to be dead space between the name and the value and makes
+// the list scannable by identity, not just text.
+function avatarFor(id: string): { initials: string; backgroundColor: string } {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return {
+    initials: id.slice(0, 2).toUpperCase(),
+    backgroundColor: `hsl(${hue} 48% 38%)`,
+  };
+}
+
 // The day-change % a row actually displays, honoring the extended-hours basis
 // and the active 1D/30D timeframe. Factored out so the "Top today" leader calc
 // and the per-row render below read from one source and can't drift apart.
@@ -109,6 +127,15 @@ function getDisplayChangePercent(
     : (p.regularDayChangePercent ?? p.dayChangePercent ?? 0);
 }
 
+// The dollar total a row displays, honoring the extended-hours basis. Mirrors
+// the inline computation in the render below; factored out so the leaderboard
+// sort ranks rows by the very same number each row shows.
+function getDisplayValue(p: Portfolio, showExtendedHours: boolean): number {
+  return showExtendedHours
+    ? (p.totalValue ?? 0)
+    : (p.regularTotalValue ?? p.totalValue ?? 0);
+}
+
 interface PortfolioListRowProps {
   portfolio: Portfolio;
   displayValue: number;
@@ -127,6 +154,12 @@ interface PortfolioListRowProps {
   // Pill text — "Top today" (1D) or "Top 30D" (30D); kept honest with the
   // active timeframe since the leader is computed from that same metric.
   topMoverLabel: string;
+  // Leaderboard rank (value-desc) among full-access rows; null for the viewer's
+  // own pinned row (shown as "You") and restricted rows (no $ value to rank).
+  rank: number | null;
+  // True for the logged-in viewer's own row: accent ring on the avatar, a faint
+  // accent row wash, and a "You" chip in place of a rank number.
+  isViewer: boolean;
 }
 
 function PortfolioListRow({
@@ -139,6 +172,8 @@ function PortfolioListRow({
   restrictedAllocOnly,
   isTopMover,
   topMoverLabel,
+  rank,
+  isViewer,
 }: PortfolioListRowProps) {
   const { animatedValue, isRevealing, peakDelta, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -149,35 +184,70 @@ function PortfolioListRow({
   const changeColor = isPositive ? 'text-positive' : 'text-negative';
   const sign = isPositive ? '+' : '';
   const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
+  const avatar = avatarFor(portfolio.id);
 
   return (
-    <div
-      className={`flex items-center gap-3 px-4 py-2 sm:py-3 transition-colors ${
-        // Faint amber wash for the day's leader; deepens on hover so the row
-        // keeps its gold identity instead of falling back to the neutral hover.
+    // The whole row is the tap target now — the per-row "View" button is gone,
+    // replaced by a trailing chevron. The day's leader keeps a faint amber wash
+    // and the viewer's own row a faint accent wash; both deepen on hover so they
+    // hold their identity over the neutral hover.
+    <Link
+      to={`/${portfolio.id}`}
+      aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
+      className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
         isTopMover
           ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12]'
+          : isViewer
+          ? 'bg-accent/[0.06] hover:bg-accent/[0.12]'
           : 'hover:bg-card-hover'
       }`}
     >
-      {/* Left: Username + day's-leader pill */}
-      <div className="min-w-0 shrink-0">
-        <p className="font-medium text-text-primary">
+      {/* Rank — fixed-width column so the avatars and names line up down the
+          list. Empty for the pinned viewer row ("You" chip below) and restricted
+          rows; the slot stays to keep the column straight. */}
+      <span className="w-5 shrink-0 text-right text-xs tabular-nums text-text-secondary">
+        {rank ?? ''}
+      </span>
+
+      {/* Monogram avatar — colored identity anchor; accent ring on your own row. */}
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${
+          isViewer ? 'ring-2 ring-accent' : ''
+        }`}
+        style={{ backgroundColor: avatar.backgroundColor }}
+        aria-hidden
+      >
+        {avatar.initials}
+      </span>
+
+      {/* Name + badges. Takes the slack (flex-1) so a long handle truncates
+          instead of shoving the value column. */}
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-text-primary truncate">
           {portfolio.id.toUpperCase()}
         </p>
-        {/* Day's-leader pill — sits below the name, in the slot the
-            visibility pills (Public/Private/By Invite) used to occupy before
-            they were hidden to declutter the landing list. gold-tinted. */}
-        {isTopMover && (
-          <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap">
-            <Trophy className="w-3 h-3" />
-            {topMoverLabel}
-          </span>
+        {(isViewer || isTopMover) && (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {isViewer && (
+              <span className="text-xs font-medium text-accent">You</span>
+            )}
+            {/* Day's-leader pill — gold-tinted, sits below the name in the slot
+                the visibility pills used to occupy before they were hidden to
+                declutter the landing list. */}
+            {isTopMover && (
+              <span className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                <Trophy className="w-3 h-3" />
+                {topMoverLabel}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Middle: Value + day change (tap-to-reveal peak on non-blurred rows) */}
-      <div className="flex-1 min-w-0 text-right">
+      {/* Value + day change, right-aligned (tap-to-reveal peak on non-blurred
+          rows). shrink-0 so the column keeps its natural width and the name
+          truncates first. */}
+      <div className="shrink-0 text-right">
         {shouldBlurValues ? (
           <div>
             <span className="text-lg font-semibold text-text-primary blur-sm select-none">
@@ -205,19 +275,37 @@ function PortfolioListRow({
             )}
           </div>
         ) : (
+          // The row is a link, so the reveal handlers preventDefault +
+          // stopPropagation to intercept the tap (reveal the 52w-high peak)
+          // instead of navigating to the portfolio.
           <div
             className={canReveal ? 'cursor-pointer select-none' : ''}
-            onClick={canReveal ? triggerReveal : undefined}
+            onClick={
+              canReveal
+                ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    triggerReveal();
+                  }
+                : undefined
+            }
             role={canReveal ? 'button' : undefined}
             tabIndex={canReveal ? 0 : undefined}
-            onKeyDown={canReveal ? onKeyDown : undefined}
+            onKeyDown={
+              canReveal
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+                    onKeyDown(e);
+                  }
+                : undefined
+            }
           >
             <span className="text-lg font-semibold text-text-primary">
               ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
             {!isRevealing ? (
               hasChange ? (
-                <p className={`text-sm ${changeColor}`}>
+                <p className={`text-sm whitespace-nowrap ${changeColor}`}>
                   {sign}{formatCompactValue(Math.abs(displayChange!))} ({sign}{displayChangePercent!.toFixed(2)}%)
                 </p>
               ) : (
@@ -233,19 +321,12 @@ function PortfolioListRow({
         )}
       </div>
 
-      {/* Right: View button. Always "View" — restricted viewers land on the
-          allocation-only detail page (with a notice up top) when
-          allocation_public is on, or hit the password prompt when it's off. */}
-      <div className="flex flex-col items-end gap-0.5 shrink-0">
-        <Link
-          to={`/${portfolio.id}`}
-          className="flex items-center gap-1.5 text-accent hover:text-accent/80 px-2.5 py-1.5 rounded-lg hover:bg-accent/10 transition-colors text-sm"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          View
-        </Link>
-      </div>
-    </div>
+      {/* Chevron — the row itself is the tap target; this just signals "opens".
+          Restricted viewers still land on the allocation-only detail page (with
+          a notice up top), or hit the password prompt when allocation_public is
+          off — same destination the old "View" button had. */}
+      <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+    </Link>
   );
 }
 
@@ -291,15 +372,20 @@ export function LandingPage() {
     if (raw.length === 0) return raw;
 
     // Tier the list so the viewer sees what's most relevant first:
-    //   1 = your own portfolio
+    //   1 = your own portfolio (pinned to the top regardless of value)
     //   2 = full access (public, or selective where you're invited; for these
     //       the API returns a real totalValue)
     //   3 = allocation-only (hideDollarsOnly: "Value hidden" + %)
     //   4 = fully blurred (hideAllValues). Empty in production today since
     //       every portfolio has allocation_public=true, but kept for defense.
-    // Within a tier, fall back to the API's existing created_at ASC ordering
-    // so positions stay stable across visits and don't shuffle on the
-    // timeframe toggle or the extended-hours toggle.
+    // Within the full-access tier the list is a leaderboard: rank by displayed
+    // value DESC (the same extended-hours basis the rows render) so the numbers
+    // read cleanly top-to-bottom instead of looking random. This re-sorts when
+    // the extended-hours toggle flips (different basis → different totals →
+    // different order), which is correct for a value ranking; the 1D/30D toggle
+    // doesn't reorder (it changes only the change column, not the total). Tiers
+    // 3/4 have no dollar value to rank on, so they keep the API's created_at ASC
+    // order — which is also the stable tiebreaker (idx) for equal values.
     const viewer = loggedInAs?.toLowerCase() ?? null;
     const tierOf = (p: Portfolio): number => {
       if (viewer && p.id.toLowerCase() === viewer) return 1;
@@ -310,9 +396,37 @@ export function LandingPage() {
 
     return [...raw]
       .map((p, idx) => ({ p, idx, tier: tierOf(p) }))
-      .sort((a, b) => a.tier - b.tier || a.idx - b.idx)
+      .sort((a, b) => {
+        if (a.tier !== b.tier) return a.tier - b.tier;
+        if (a.tier === 2) {
+          const delta =
+            getDisplayValue(b.p, showExtendedHours) -
+            getDisplayValue(a.p, showExtendedHours);
+          if (delta !== 0) return delta;
+        }
+        return a.idx - b.idx;
+      })
       .map((e) => e.p);
-  }, [data, loggedInAs]);
+  }, [data, loggedInAs, showExtendedHours]);
+
+  // Value-rank for the leaderboard. Full-access rows are numbered 1..N in the
+  // value-desc order they're displayed in; the viewer's own pinned row shows a
+  // "You" chip instead of a number (it's pinned out of value order, so a number
+  // there would misread), and restricted rows (no $ value) stay unranked. The
+  // counter walks `portfolios`, already value-sorted within the full-access
+  // tier, so the displayed positions and the numbers agree.
+  const rankById = useMemo(() => {
+    const map: Record<string, number> = {};
+    const viewer = loggedInAs?.toLowerCase() ?? null;
+    let rank = 0;
+    for (const p of portfolios) {
+      const isViewer = viewer !== null && p.id.toLowerCase() === viewer;
+      const isRestricted = p.visibility !== 'public' && p.totalValue === null;
+      if (isViewer || isRestricted) continue;
+      map[p.id] = ++rank;
+    }
+    return map;
+  }, [portfolios, loggedInAs]);
 
   // Get most recent lastUpdated from all portfolios
   const latestUpdate = useMemo(() => {
@@ -489,6 +603,9 @@ export function LandingPage() {
                       portfolio.peakPotentialValue ?? 0,
                       displayValue,
                     );
+                    const isViewer =
+                      loggedInAs != null &&
+                      portfolio.id.toLowerCase() === loggedInAs.toLowerCase();
 
                     return (
                       <PortfolioListRow
@@ -502,6 +619,8 @@ export function LandingPage() {
                         restrictedAllocOnly={restrictedAllocOnly}
                         isTopMover={portfolio.id === topMoverId}
                         topMoverLabel={topMoverLabel}
+                        rank={rankById[portfolio.id] ?? null}
+                        isViewer={isViewer}
                       />
                     );
                   })}

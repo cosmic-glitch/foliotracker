@@ -42,6 +42,12 @@ interface Portfolio {
   // When TRUE, restricted viewers still receive day-change % (no $ total).
   // The LP row uses this to pick the "Allocation only" render instead of blur.
   allocation_public: boolean;
+  // TRUE when today's 1D move can't be known yet — every market-priced holding
+  // is a once-daily fund whose NAV hasn't repriced this session (see
+  // isDayChangeUnknown in api/portfolios.ts). The row shows "—" for the day
+  // move and is excluded from the "Top today" leader. Optional so older cached
+  // payloads (undefined) degrade to "known". Only affects 1D, not 30D.
+  dayChangeUnknown?: boolean;
   lastUpdated?: string;
 }
 
@@ -92,6 +98,12 @@ function getDisplayChangePercent(
       ? p.thirtyDayChangePercent
       : p.regularThirtyDayChangePercent ?? p.thirtyDayChangePercent;
   }
+  // 1D: a funds-only portfolio whose NAV hasn't repriced today has an unknown
+  // day move (the stale-NAV reset zeroed it). Return null — not a flat 0% —
+  // so the row renders "—" and is skipped from the "Top today" leader, rather
+  // than falsely winning on a red day. (30D above is unaffected: a multi-week
+  // move stays knowable even when today's NAV is a day stale.)
+  if (p.dayChangeUnknown) return null;
   return showExtendedHours
     ? (p.dayChangePercent ?? 0)
     : (p.regularDayChangePercent ?? p.dayChangePercent ?? 0);

@@ -538,6 +538,38 @@ function computeMarketMovers(
   };
 }
 
+// A portfolio's 1D ("Top today") move is *unknown* — not flat — when every
+// market-priced holding is a once-daily fund (mutual fund / money market) whose
+// NAV hasn't repriced for today's session yet. The stale-NAV reset (see
+// applyDailyNavStaleReset in snapshot.ts) collapses such a fund's previousClose
+// to its currentPrice, zeroing the day change on both price bases, so a
+// funds-only portfolio reads a hard 0% during market hours. Left alone, that 0%
+// would crown an all-mutual-fund portfolio "Top today" on a red day even though
+// its move simply wasn't known yet. We surface this so the landing page renders
+// "—" for the day move and skips the row in the leaderboard.
+//
+// Strict by design: any non-fund tradeable holding (a stock/ETF that prices
+// live) makes the day move knowable, so the portfolio is NOT flagged. Static
+// holdings don't price intraday and aren't considered. Self-heals once the new
+// NAV publishes — currentPrice then diverges from previousClose, so the
+// signature no longer matches. Only affects 1D; the 30D move stays knowable.
+function isDayChangeUnknown(snapshot: DbPortfolioSnapshot): boolean {
+  const tradeable = snapshot.holdings_json.filter((h) => !h.isStatic);
+  if (tradeable.length === 0) return false;
+  return tradeable.every((h) => {
+    const isOnceDailyFund =
+      h.instrumentType === 'Mutual Fund' || h.instrumentType === 'Money Market';
+    if (!isOnceDailyFund) return false;
+    // Stale-NAV reset signature: flat across both price bases (the reset sets
+    // previousClose = currentPrice; regularMarketPrice already equals it).
+    const regPrice =
+      Number.isFinite(h.regularMarketPrice) && h.regularMarketPrice > 0
+        ? h.regularMarketPrice
+        : h.currentPrice;
+    return h.previousClose === h.currentPrice && h.previousClose === regPrice;
+  });
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -679,6 +711,10 @@ export default async function handler(
             ? (regularDayChange / regularPreviousTotal) * 100
             : 0;
 
+          // True when today's 1D move can't be known yet (funds-only portfolio,
+          // NAV not repriced). FE renders "—" and drops it from "Top today".
+          const dayChangeUnknown = snapshot ? isDayChangeUnknown(snapshot) : false;
+
           // 30D figures, anchored on the first datapoint of history_30d_json
           // (the oldest day we have stored, ~30 trading days back). Null
           // anchor → null change/% so the FE can render "—" instead of
@@ -715,6 +751,7 @@ export default async function handler(
               regularThirtyDayChange: null,
               regularThirtyDayChangePercent: null,
               thirtyDayWindowStart: null,
+              dayChangeUnknown: false,
             };
           }
 
@@ -737,6 +774,7 @@ export default async function handler(
               regularThirtyDayChange: null,
               regularThirtyDayChangePercent,
               thirtyDayWindowStart,
+              dayChangeUnknown,
               lastUpdated: snapshot?.updated_at,
             };
           }
@@ -756,6 +794,7 @@ export default async function handler(
               regularThirtyDayChange,
               regularThirtyDayChangePercent,
               thirtyDayWindowStart,
+              dayChangeUnknown,
               lastUpdated: snapshot.updated_at,
             };
           }
@@ -775,6 +814,7 @@ export default async function handler(
             regularThirtyDayChange: null,
             regularThirtyDayChangePercent: null,
             thirtyDayWindowStart: null,
+            dayChangeUnknown: false,
           };
         })
       );

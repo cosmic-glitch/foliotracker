@@ -235,7 +235,7 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-start gap-2 pl-3 pr-4 py-1 transition-colors hover:bg-card-hover"
+      className="flex items-start gap-2 pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
           same column center across rows. ONLY the top 3 are marked, with a medal

@@ -235,7 +235,7 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-center gap-2 pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
+      className="flex items-center gap-2 pl-3 pr-4 py-1 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
           same column center across rows. ONLY the top 3 are marked, with a medal
@@ -281,7 +281,7 @@ function PortfolioListRow({
       <div className="flex w-32 shrink-0 flex-col items-end leading-tight">
         {/* Value — the dominant figure, full and un-abbreviated. */}
         {shouldBlurValues ? (
-          <span className="text-lg font-semibold text-text-secondary blur-sm select-none">
+          <span className="text-lg font-semibold leading-tight text-text-secondary blur-sm select-none">
             $XX,XXX,XXX
           </span>
         ) : restrictedAllocOnly ? (
@@ -291,11 +291,11 @@ function PortfolioListRow({
           // collapse to the 16px icon) so it inherits the same line-box height as
           // the value span it stands in for, making a locked row exactly as tall
           // as a valued one — no short rows.
-          <span className="text-lg text-text-secondary" aria-label="Value hidden">
+          <span className="text-lg leading-tight text-text-secondary" aria-label="Value hidden">
             <Lock className="inline-block w-4 h-4 align-middle" />
           </span>
         ) : (
-          <span className="text-lg font-semibold whitespace-nowrap text-text-primary">
+          <span className="text-lg font-semibold leading-tight whitespace-nowrap text-text-primary">
             {formatCurrency(displayValue, false)}
           </span>
         )}
@@ -305,31 +305,33 @@ function PortfolioListRow({
             "—" when the move isn't known yet (stale-NAV 1D) or has no anchor
             (brand-new 30D). Color carries the up/down signal. */}
         {shouldBlurValues ? (
-          <span className="text-sm font-medium text-positive blur-sm select-none">
+          <span className="text-sm font-medium leading-tight text-positive blur-sm select-none">
             +$XXk (+0.00%)
           </span>
         ) : restrictedAllocOnly ? (
           hasPct ? (
-            <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
+            <span className={`text-sm font-medium leading-tight whitespace-nowrap ${pctColor}`}>
               {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
             </span>
           ) : (
-            <span className="text-sm font-medium text-text-secondary">—</span>
+            <span className="text-sm font-medium leading-tight text-text-secondary">—</span>
           )
         ) : hasPct ? (
-          <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
+          <span className={`text-sm font-medium leading-tight whitespace-nowrap ${pctColor}`}>
             {displayChange !== null ? `${formatCompactChange(displayChange)} ` : ''}
             ({pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%)
           </span>
         ) : (
-          <span className="text-sm font-medium text-text-secondary">—</span>
+          <span className="text-sm font-medium leading-tight text-text-secondary">—</span>
         )}
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
-          Restricted viewers still land on the allocation-only detail page, or
-          hit the password prompt — the same destination the old "View" had. */}
-      <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          ml-auto pins it to the row's right edge while the figure cluster stays
+          left, next to the name. Restricted viewers still land on the
+          allocation-only detail page, or hit the password prompt — the same
+          destination the old "View" had. */}
+      <ChevronRight className="ml-auto w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }

@@ -235,7 +235,7 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-center gap-2 pl-3 pr-4 py-2 transition-colors hover:bg-card-hover"
+      className="flex items-center gap-2 pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
           same column center across rows. ONLY the top 3 are marked, with a medal
@@ -254,10 +254,13 @@ function PortfolioListRow({
       </span>
 
       {/* Handle — plain text, no box. Users are told apart by the name alone;
-          an outline added nothing but visual noise next to the numbers. Allowed
-          to shrink + truncate (min-w-0) so the fixed-width value/change columns
-          to the right always keep their alignment, even on narrow screens. */}
-      <span className="min-w-0 max-w-[8rem] truncate text-sm font-semibold text-text-primary">
+          an outline added nothing but visual noise next to the numbers. Fixed
+          width (truncating long handles) so the figure cluster starts at a
+          constant x across rows — that keeps the values in a clean column AND
+          lets them sit just to the right of the name rather than being flung to
+          the far edge (the chevron, ml-auto'd below, is the only thing pinned to
+          the right). */}
+      <span className="w-24 shrink-0 truncate text-sm font-semibold text-text-primary">
         {portfolio.id.toUpperCase()}
       </span>
 
@@ -271,19 +274,28 @@ function PortfolioListRow({
           the up/down signal. (This collapses the old three same-weight columns —
           the source of the "wall of numbers" clutter — into a clear dominant /
           secondary hierarchy.) The total is static here (no tap-to-reveal — that
-          lives only on the detail page), so the whole row is one tap target. */}
-      <div className="ml-auto flex shrink-0 flex-col items-end leading-tight">
+          lives only on the detail page), so the whole row is one tap target.
+          Fixed width (w-32) + right-aligned (items-end) so every row's figures
+          stack into one column; NOT ml-auto'd — it sits just right of the name,
+          with the chevron alone pinned to the row's right edge. */}
+      <div className="flex w-32 shrink-0 flex-col items-end leading-tight">
         {/* Value — the dominant figure, full and un-abbreviated. */}
         {shouldBlurValues ? (
-          <span className="text-lg font-bold tabular-nums text-text-secondary blur-sm select-none">
+          <span className="text-lg font-semibold text-text-secondary blur-sm select-none">
             $XX,XXX,XXX
           </span>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but allocation_public is ON: hide the $ total
-          // (a lock) — the % below is the only figure this viewer sees.
-          <Lock className="w-4 h-4 text-text-secondary" aria-label="Value hidden" />
+          // (a lock) — the % below is the only figure this viewer sees. The lock
+          // lives in a text-lg span (NOT a flex box — a flex container would
+          // collapse to the 16px icon) so it inherits the same line-box height as
+          // the value span it stands in for, making a locked row exactly as tall
+          // as a valued one — no short rows.
+          <span className="text-lg text-text-secondary" aria-label="Value hidden">
+            <Lock className="inline-block w-4 h-4 align-middle" />
+          </span>
         ) : (
-          <span className="text-lg font-bold tabular-nums whitespace-nowrap text-text-primary">
+          <span className="text-lg font-semibold whitespace-nowrap text-text-primary">
             {formatCurrency(displayValue, false)}
           </span>
         )}
@@ -293,24 +305,24 @@ function PortfolioListRow({
             "—" when the move isn't known yet (stale-NAV 1D) or has no anchor
             (brand-new 30D). Color carries the up/down signal. */}
         {shouldBlurValues ? (
-          <span className="text-xs font-medium tabular-nums text-positive blur-sm select-none">
+          <span className="text-sm font-medium text-positive blur-sm select-none">
             +$XXk (+0.00%)
           </span>
         ) : restrictedAllocOnly ? (
           hasPct ? (
-            <span className={`text-xs font-medium tabular-nums whitespace-nowrap ${pctColor}`}>
+            <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
               {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
             </span>
           ) : (
-            <span className="text-xs font-medium text-text-secondary">—</span>
+            <span className="text-sm font-medium text-text-secondary">—</span>
           )
         ) : hasPct ? (
-          <span className={`text-xs font-medium tabular-nums whitespace-nowrap ${pctColor}`}>
+          <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
             {displayChange !== null ? `${formatCompactChange(displayChange)} ` : ''}
             ({pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%)
           </span>
         ) : (
-          <span className="text-xs font-medium text-text-secondary">—</span>
+          <span className="text-sm font-medium text-text-secondary">—</span>
         )}
       </div>
 

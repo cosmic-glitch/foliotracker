@@ -265,7 +265,7 @@ function PortfolioListRow({
           the move line — there's room in the column) and leading-tight; the
           medal is shrink-0 so the name truncates to make room for it rather than
           pushing it off. items-center pairs the name and badge cleanly. */}
-      <span className="flex w-24 shrink-0 items-center gap-1.5">
+      <span className="flex w-20 shrink-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-base font-semibold leading-tight text-text-primary">
           {portfolio.id.toUpperCase()}
         </span>
@@ -332,18 +332,21 @@ function PortfolioListRow({
       {/* Percentage column — today's % move, pulled out of the dollar line into
           its own column so each figure reads cleanly. ml-auto pushes it toward
           the right (into the space that used to sit empty between the figures and
-          the chevron); self-center vertically centers it against the two-line
-          dollar column. Colored with the up/down signal; `—` when the % isn't
+          the chevron). NOT self-center: it top-aligns with the row (items-start),
+          so its cap-top lines up with the name and the dollar value — same
+          text-lg + leading-tight as the value, so the three tops sit on one line.
+          Rendered at the value's size (text-lg/semibold) so it reads as a co-equal
+          headline figure, color-carrying the up/down signal; `—` when the % isn't
           known (unknown 1D move / no 30D anchor). */}
-      <div className="ml-auto self-center w-14 shrink-0 text-right leading-tight">
+      <div className="ml-auto w-16 shrink-0 text-right leading-tight">
         {shouldBlurValues ? (
-          <span className="text-sm font-medium text-positive blur-sm select-none">+0.00%</span>
+          <span className="text-lg font-semibold leading-tight text-positive blur-sm select-none">+0.00%</span>
         ) : hasPct ? (
-          <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
+          <span className={`text-lg font-semibold leading-tight whitespace-nowrap ${pctColor}`}>
             {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
           </span>
         ) : (
-          <span className="text-sm font-medium text-text-secondary">—</span>
+          <span className="text-lg font-semibold leading-tight text-text-secondary">—</span>
         )}
       </div>
 

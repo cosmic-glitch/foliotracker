@@ -259,87 +259,93 @@ function PortfolioListRow({
         )}
       </span>
 
-      {/* Identity chip — the handle in a transparent pill with one faint,
-          neutral border (same outline for every user). The border is pure
-          containment, not identity: there's no per-user color, so users are
-          told apart by the name text alone. Deliberately uncolored — an
-          arbitrary identity hue shouldn't compete with the meaningful
-          green/red move color, and a single border reads quietly down the
-          list. Legible on both themes (border-border tracks the card edge). */}
-      <span className="max-w-[8rem] shrink-0 truncate rounded-md border border-border px-2 py-0.5 text-sm font-semibold text-text-primary">
+      {/* Handle — plain text, no box. Users are told apart by the name alone;
+          an outline added nothing but visual noise next to the numbers. Allowed
+          to shrink + truncate (min-w-0) so the fixed-width value/change columns
+          to the right always keep their alignment, even on narrow screens. */}
+      <span className="min-w-0 max-w-[8rem] truncate text-sm font-semibold text-text-primary">
         {portfolio.id.toUpperCase()}
       </span>
 
-      {/* Right cluster, pushed to the row's edge: portfolio total (the dominant
-          figure — larger, bold, primary color, compact `$21.68M`) then today's
-          move as `-$612k (-2.34%)` — the colored dollar delta with the ranked %
-          in parens (color carries the up/down signal; the total is the dominant
-          figure). Compacting the total to M frees the width the dollar move now
-          occupies. The total is tap-to-reveal: it counts up to the 52w peak and
-          the change slot swaps to a "52w high" cue while revealing. */}
+      {/* Right cluster, pushed to the row's edge and split into two right-aligned
+          columns so the figures line up vertically down the list: the portfolio
+          total (dominant — bold, primary, compact `$21.68M`) then today's move as
+          `-$612k (-2.34%)` (the colored dollar delta + ranked % in parens; color
+          carries the up/down signal). The move column is a FIXED width and the
+          total a min-width, both text-right — so the total's right edge is stable
+          regardless of how long the move reads, and the M's line up in one column
+          with the %'s in another. The total is tap-to-reveal: it counts up to the
+          52w peak and the move slot swaps to a "52w high" cue while revealing. */}
       <div className="ml-auto flex shrink-0 items-baseline gap-3">
-        {shouldBlurValues ? (
-          <span className="text-base font-semibold tabular-nums text-text-secondary blur-sm select-none">
-            $XX.XXM
-          </span>
-        ) : restrictedAllocOnly ? (
-          // No owner-level access, but allocation_public is ON: hide the $ total
-          // (a lock) — the % to its right is the only figure this viewer sees.
-          <Lock className="w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
-        ) : (
-          // The row is a link, so the reveal handlers preventDefault +
-          // stopPropagation to intercept the tap (count up to the 52w peak)
-          // instead of navigating to the portfolio.
-          <span
-            className={`text-base font-semibold tabular-nums whitespace-nowrap ${
-              isRevealing ? 'text-amber-400' : 'text-text-primary'
-            } ${canReveal ? 'cursor-pointer select-none' : ''}`}
-            onClick={
-              canReveal
-                ? (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    triggerReveal();
-                  }
-                : undefined
-            }
-            role={canReveal ? 'button' : undefined}
-            tabIndex={canReveal ? 0 : undefined}
-            onKeyDown={
-              canReveal
-                ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-                    onKeyDown(e);
-                  }
-                : undefined
-            }
-          >
-            {formatCurrency(animatedValue, true)}
-          </span>
-        )}
+        {/* Total column — min-width + right-aligned so every row's `M` lines up. */}
+        <div className="min-w-[4.5rem] text-right">
+          {shouldBlurValues ? (
+            <span className="text-base font-semibold tabular-nums text-text-secondary blur-sm select-none">
+              $XX.XXM
+            </span>
+          ) : restrictedAllocOnly ? (
+            // No owner-level access, but allocation_public is ON: hide the $ total
+            // (a lock) — the % to its right is the only figure this viewer sees.
+            <Lock className="inline-block w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
+          ) : (
+            // The row is a link, so the reveal handlers preventDefault +
+            // stopPropagation to intercept the tap (count up to the 52w peak)
+            // instead of navigating to the portfolio.
+            <span
+              className={`text-base font-semibold tabular-nums whitespace-nowrap ${
+                isRevealing ? 'text-amber-400' : 'text-text-primary'
+              } ${canReveal ? 'cursor-pointer select-none' : ''}`}
+              onClick={
+                canReveal
+                  ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      triggerReveal();
+                    }
+                  : undefined
+              }
+              role={canReveal ? 'button' : undefined}
+              tabIndex={canReveal ? 0 : undefined}
+              onKeyDown={
+                canReveal
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+                      onKeyDown(e);
+                    }
+                  : undefined
+              }
+            >
+              {formatCurrency(animatedValue, true)}
+            </span>
+          )}
+        </div>
 
-        {shouldBlurValues ? (
-          <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
-            +$XXXk (+0.00%)
-          </span>
-        ) : isRevealing ? (
-          <span className="flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
-            <Sparkles className="w-3 h-3" />
-            52w high
-          </span>
-        ) : hasPct ? (
-          // The colored move: dollar delta + the ranked % in parens
-          // (`-$612k (-2.34%)`). Allocation-only viewers have no $ figure
-          // (anonymized server-side, displayChange === null) — they see just the
-          // %. Both share the green/red color and the same sign as the %.
-          <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
-            {displayChange !== null ? `${formatCompactChange(displayChange)} (` : ''}
-            {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
-            {displayChange !== null ? ')' : ''}
-          </span>
-        ) : (
-          <span className="text-sm font-semibold text-text-secondary">—</span>
-        )}
+        {/* Move column — fixed width + right-aligned. The fixed width anchors the
+            total's right edge (above) and lines the %'s up under the chevron. */}
+        <div className="w-28 text-right">
+          {shouldBlurValues ? (
+            <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
+              +$XXXk (+0.00%)
+            </span>
+          ) : isRevealing ? (
+            <span className="inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
+              <Sparkles className="w-3 h-3" />
+              52w high
+            </span>
+          ) : hasPct ? (
+            // The colored move: dollar delta + the ranked % in parens
+            // (`-$612k (-2.34%)`). Allocation-only viewers have no $ figure
+            // (anonymized server-side, displayChange === null) — they see just the
+            // %. Both share the green/red color and the same sign as the %.
+            <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+              {displayChange !== null ? `${formatCompactChange(displayChange)} (` : ''}
+              {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
+              {displayChange !== null ? ')' : ''}
+            </span>
+          ) : (
+            <span className="text-sm font-semibold text-text-secondary">—</span>
+          )}
+        </div>
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".

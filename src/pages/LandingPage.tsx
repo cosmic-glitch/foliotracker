@@ -265,7 +265,7 @@ function PortfolioListRow({
           the move line — there's room in the column) and leading-tight; the
           medal is shrink-0 so the name truncates to make room for it rather than
           pushing it off. items-center pairs the name and badge cleanly. */}
-      <span className="flex w-32 shrink-0 items-center gap-1.5">
+      <span className="flex w-24 shrink-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-base font-semibold leading-tight text-text-primary">
           {portfolio.id.toUpperCase()}
         </span>
@@ -276,23 +276,19 @@ function PortfolioListRow({
         )}
       </span>
 
-      {/* Right cluster — two tiers stacked, right-aligned, so the dollar value
-          dominates and the move reads as secondary context. The board still
-          ranks by % move (see the caption + getRankMetric); the value is just
-          the headline figure visitors care about, so it gets the visual weight.
-          Top tier: the portfolio total, large + bold + FULL (un-abbreviated
-          `$4,487,000`) — the unmistakable focal point of each row. Bottom tier:
-          today's move on one smaller, muted line `-$25k (-0.55%)`, color-carrying
-          the up/down signal. (This collapses the old three same-weight columns —
-          the source of the "wall of numbers" clutter — into a clear dominant /
-          secondary hierarchy.) The total counts up to its fresh figure on price
-          refetch (standalone useCountUp) but has no tap-to-reveal — that 52w-peak
-          easter egg lives only on the detail page, so the whole row is one tap
-          target.
-          Fixed width (w-32) + right-aligned (items-end) so every row's figures
-          stack into one column; NOT ml-auto'd — it sits just right of the name,
-          with the chevron alone pinned to the row's right edge. */}
-      <div className="flex w-32 shrink-0 flex-col items-end leading-tight">
+      {/* Dollar column — the absolute total stacked over today's dollar move,
+          right-aligned into one clean column. The value dominates (large + bold +
+          FULL, un-abbreviated `$4,487,000`) as the headline figure; the dollar
+          move sits directly under it (`-$25k`), smaller and color-carrying the
+          up/down signal. The percentage used to ride this same line in parens —
+          it's now its own column to the right (below), so each line is shorter
+          and the row reads as clean columns instead of a "wall of numbers". The
+          total counts up to its fresh figure on price refetch (standalone
+          useCountUp) but has no tap-to-reveal — that 52w-peak easter egg lives
+          only on the detail page, so the whole row is one tap target.
+          Fixed width + right-aligned (items-end) so every row's dollars stack
+          into one column; sits just right of the name, NOT pinned to the edge. */}
+      <div className="flex w-28 shrink-0 flex-col items-end leading-tight">
         {/* Value — the dominant figure, full and un-abbreviated. */}
         {shouldBlurValues ? (
           <span className="text-lg font-semibold leading-tight text-text-secondary blur-sm select-none">
@@ -300,7 +296,7 @@ function PortfolioListRow({
           </span>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but allocation_public is ON: hide the $ total
-          // (a lock) — the % below is the only figure this viewer sees. The lock
+          // (a lock) — the % column is the only figure this viewer sees. The lock
           // lives in a text-lg span (NOT a flex box — a flex container would
           // collapse to the 16px icon) so it inherits the same line-box height as
           // the value span it stands in for, making a locked row exactly as tall
@@ -314,40 +310,51 @@ function PortfolioListRow({
           </span>
         )}
 
-        {/* Move — smaller, muted secondary line. Normally `-$25k (-0.55%)`; just
-            the % for allocation-only rows (the $ move is anonymized server-side);
-            "—" when the move isn't known yet (stale-NAV 1D) or has no anchor
-            (brand-new 30D). Color carries the up/down signal. */}
+        {/* Dollar move — smaller, colored, just the dollars now (`-$25k`); the %
+            lives in the next column. `—` for allocation-only rows (the $ move is
+            anonymized server-side — never leak it here) and when the move isn't
+            known (stale-NAV 1D) or has no anchor (brand-new 30D). */}
         {shouldBlurValues ? (
           <span className="text-sm font-medium leading-tight text-positive blur-sm select-none">
-            +$XXk (+0.00%)
+            +$XXk
           </span>
         ) : restrictedAllocOnly ? (
-          hasPct ? (
-            <span className={`text-sm font-medium leading-tight whitespace-nowrap ${pctColor}`}>
-              {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
-            </span>
-          ) : (
-            <span className="text-sm font-medium leading-tight text-text-secondary">—</span>
-          )
-        ) : hasPct ? (
+          <span className="text-sm font-medium leading-tight text-text-secondary">—</span>
+        ) : displayChange !== null ? (
           <span className={`text-sm font-medium leading-tight whitespace-nowrap ${pctColor}`}>
-            {displayChange !== null ? `${formatCompactChange(displayChange)} ` : ''}
-            ({pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%)
+            {formatCompactChange(displayChange)}
           </span>
         ) : (
           <span className="text-sm font-medium leading-tight text-text-secondary">—</span>
         )}
       </div>
 
+      {/* Percentage column — today's % move, pulled out of the dollar line into
+          its own column so each figure reads cleanly. ml-auto pushes it toward
+          the right (into the space that used to sit empty between the figures and
+          the chevron); self-center vertically centers it against the two-line
+          dollar column. Colored with the up/down signal; `—` when the % isn't
+          known (unknown 1D move / no 30D anchor). */}
+      <div className="ml-auto self-center w-14 shrink-0 text-right leading-tight">
+        {shouldBlurValues ? (
+          <span className="text-sm font-medium text-positive blur-sm select-none">+0.00%</span>
+        ) : hasPct ? (
+          <span className={`text-sm font-medium whitespace-nowrap ${pctColor}`}>
+            {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
+          </span>
+        ) : (
+          <span className="text-sm font-medium text-text-secondary">—</span>
+        )}
+      </div>
+
       {/* Chevron — the row itself is the tap target; this just signals "opens".
-          ml-auto pins it to the row's right edge while the figure cluster stays
-          left, next to the name; self-center keeps it vertically centered against
-          the two-line row (the row is items-start so the name top-aligns with the
-          value). Restricted viewers still land on the allocation-only detail
-          page, or hit the password prompt — the same destination the old "View"
-          had. */}
-      <ChevronRight className="ml-auto self-center w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          Pinned to the row's right edge (the % column's ml-auto absorbs the slack
+          before it, so this sits just right of the %); self-center keeps it
+          vertically centered against the two-line row (the row is items-start so
+          the name top-aligns with the value). Restricted viewers still land on
+          the allocation-only detail page, or hit the password prompt — the same
+          destination the old "View" had. */}
+      <ChevronRight className="self-center w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }

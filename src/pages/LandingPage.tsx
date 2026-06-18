@@ -222,12 +222,21 @@ function PortfolioListRow({
   // at the real value (no count-from-zero); the tween only fires when a refresh
   // changes displayValue, which is what makes the landing numbers feel live.
   const animatedValue = useCountUp(displayValue);
-  // Top-3 podium: 🥇/🥈/🥉 medal emoji for 1st/2nd/3rd. Gated on ≥2 ranked rows
-  // (a board of one isn't a leaderboard); below that #1 just shows a plain "1".
-  // Ranks 4+ and unranked rows fall through to the number / blank. (rank 2 only
-  // exists when count ≥2, rank 3 when ≥3, so the single showPodium gate suffices
-  // for all three.)
+  // Top-3 podium: 🥇/🥈/🥉 medal emoji for 1st/2nd/3rd, shown as a badge right
+  // after the name (there's no leading rank column — names are left-aligned and
+  // lead each row). Gated on ≥2 ranked rows (a board of one isn't a
+  // leaderboard); below that, and for ranks 4+/unranked rows, no medal shows.
+  // (rank 2 only exists when count ≥2, rank 3 when ≥3, so the single showPodium
+  // gate suffices for all three.)
   const showPodium = rankedCount >= 2;
+  const medal =
+    showPodium && rank === 1
+      ? { emoji: '🥇', label: 'Top today' }
+      : showPodium && rank === 2
+      ? { emoji: '🥈', label: '2nd today' }
+      : showPodium && rank === 3
+      ? { emoji: '🥉', label: '3rd today' }
+      : null;
   const pct = displayChangePercent;
   const hasPct = pct !== null;
   const pctColor = !hasPct
@@ -239,40 +248,32 @@ function PortfolioListRow({
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
     // replaced by a trailing chevron). No per-row wash and no own-row accent —
-    // every row reads the same; the top 3 are marked by the podium medal + top
-    // position alone.
+    // every row reads the same; the top 3 are marked by a podium medal badge
+    // beside the name.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
       className="flex items-start gap-2 pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
     >
-      {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
-          same column center across rows. ONLY the top 3 are marked, with a medal
-          emoji: 🥇 (1st), 🥈 (2nd), 🥉 (3rd). Everyone else — ranks 4+ and
-          unranked rows alike — is intentionally blank here (no numbers); the
-          fixed-width spacer is kept empty so their names still line up under the
-          medaled rows above. */}
-      <span className="flex w-6 shrink-0 justify-center text-sm tabular-nums text-text-secondary">
-        {showPodium && rank === 1 ? (
-          <span role="img" aria-label="Top today" className="text-lg leading-none">🥇</span>
-        ) : showPodium && rank === 2 ? (
-          <span role="img" aria-label="2nd today" className="text-lg leading-none">🥈</span>
-        ) : showPodium && rank === 3 ? (
-          <span role="img" aria-label="3rd today" className="text-lg leading-none">🥉</span>
-        ) : null}
-      </span>
-
-      {/* Handle — plain text, no box. Users are told apart by the name alone;
-          an outline added nothing but visual noise next to the numbers. Fixed
-          width (truncating long handles) so the figure cluster starts at a
-          constant x across rows — that keeps the values in a clean column AND
-          lets them sit just to the right of the name rather than being flung to
-          the far edge (the chevron, ml-auto'd below, is the only thing pinned to
-          the right). Sized text-base (a touch bigger than the move line — there's
-          room in the column) and leading-tight so its cap-top lines up with the
-          value's top via the row's items-start. */}
-      <span className="w-24 shrink-0 truncate text-base font-semibold leading-tight text-text-primary">
-        {portfolio.id.toUpperCase()}
+      {/* Handle + medal — the name leads each row (left-aligned, no preceding
+          rank column) with the top-3 podium medal sitting as a badge right after
+          it. Fixed-width container (truncating long handles) so the figure
+          cluster starts at a constant x across rows — that keeps the values in a
+          clean column AND lets them sit just to the right of the name rather than
+          being flung to the far edge (the chevron, ml-auto'd below, is the only
+          thing pinned to the right). The name is text-base (a touch bigger than
+          the move line — there's room in the column) and leading-tight; the
+          medal is shrink-0 so the name truncates to make room for it rather than
+          pushing it off. items-center pairs the name and badge cleanly. */}
+      <span className="flex w-32 shrink-0 items-center gap-1.5">
+        <span className="min-w-0 truncate text-base font-semibold leading-tight text-text-primary">
+          {portfolio.id.toUpperCase()}
+        </span>
+        {medal && (
+          <span role="img" aria-label={medal.label} className="shrink-0 text-lg leading-none">
+            {medal.emoji}
+          </span>
+        )}
       </span>
 
       {/* Right cluster — two tiers stacked, right-aligned, so the dollar value

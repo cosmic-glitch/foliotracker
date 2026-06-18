@@ -16,6 +16,19 @@ import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
 import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
+import { formatCurrency } from '../utils/formatters';
+
+// Compact signed dollar change for a leaderboard row — thousands with no
+// decimals (-$612k), millions with two (-$1.23M), matched to the M-suffixed
+// portfolio total beside it. (formatCurrency's compact mode renders k with one
+// decimal — $612.0k — so the tighter $612k the row wants is formatted here.)
+function formatCompactChange(value: number): string {
+  const sign = value >= 0 ? '+' : '-';
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}k`;
+  return `${sign}$${Math.round(abs)}`;
+}
 
 interface Portfolio {
   id: string;
@@ -108,6 +121,28 @@ function getDisplayValue(p: Portfolio, showExtendedHours: boolean): number {
     : (p.regularTotalValue ?? p.totalValue ?? 0);
 }
 
+// The dollar move a row displays — the $ counterpart to getDisplayChangePercent,
+// rendered beside the % so the row reads "$21.68M  -$612k (-2.34%)". Honors the
+// extended-hours basis and active timeframe. Returns null when the active
+// timeframe has no figure (brand-new portfolio in 30D, unknown stale-NAV move in
+// 1D) or when the viewer is allocation-only restricted (the server anonymizes
+// the $ fields, leaving only the %) — callers then show just the % or "—".
+function getDisplayDayChange(
+  p: Portfolio,
+  showExtendedHours: boolean,
+  timeframe: Timeframe,
+): number | null {
+  if (timeframe === '30d') {
+    return showExtendedHours
+      ? p.thirtyDayChange
+      : p.regularThirtyDayChange ?? p.thirtyDayChange;
+  }
+  if (p.dayChangeUnknown) return null;
+  return showExtendedHours
+    ? p.dayChange
+    : p.regularDayChange ?? p.dayChange;
+}
+
 // The shared demo portfolio is a sample for visitors to explore, not a real
 // competitor — it's excluded from the ranking and always sorted dead last (see
 // getRankMetric + the sort comparator). Keyed by id since there's no is_demo
@@ -140,11 +175,15 @@ interface PortfolioListRowProps {
   // Portfolio total — the row's prominent dollar figure (larger, bold, primary
   // color). It is NOT the ranking key: the board still ranks by % move (see the
   // caption + getRankMetric); the dollar is just shown with full visual weight
-  // because it's a headline number visitors care about. Full comma-grouped
-  // figure; tap-to-reveal animates it up to the 52w peak.
+  // because it's a headline number visitors care about. Rendered compact
+  // (`$21.68M`); tap-to-reveal animates it up to the 52w peak.
   displayValue: number;
   // 52-week-high "peak potential" total; tapping the value counts up to this.
   peakPotentialValue: number;
+  // Today's dollar move, rendered beside the % as the secondary colored figure
+  // (`-$612k`). null when the active timeframe has no figure or the viewer is
+  // allocation-only restricted ($ anonymized) — the row then shows just the %.
+  displayChange: number | null;
   // Today's move % — the ranked metric, rendered as a smaller colored delta to
   // the right of the dollar total (color carries the up/down signal; the dollar
   // is the dominant figure). null when the active timeframe has no figure
@@ -168,6 +207,7 @@ function PortfolioListRow({
   portfolio,
   displayValue,
   peakPotentialValue,
+  displayChange,
   displayChangePercent,
   shouldBlurValues,
   restrictedAllocOnly,
@@ -231,15 +271,16 @@ function PortfolioListRow({
       </span>
 
       {/* Right cluster, pushed to the row's edge: portfolio total (the dominant
-          figure — larger, bold, full comma-grouped, primary color) then today's
-          move % (the ranked metric, a smaller colored delta in the rightmost
-          column so the descending sort still reads cleanly; color carries the
-          up/down signal). The total is tap-to-reveal: it counts up to the 52w
-          peak and the % slot swaps to a "52w high" cue while revealing. */}
+          figure — larger, bold, primary color, compact `$21.68M`) then today's
+          move as `-$612k (-2.34%)` — the colored dollar delta with the ranked %
+          in parens (color carries the up/down signal; the total is the dominant
+          figure). Compacting the total to M frees the width the dollar move now
+          occupies. The total is tap-to-reveal: it counts up to the 52w peak and
+          the change slot swaps to a "52w high" cue while revealing. */}
       <div className="ml-auto flex shrink-0 items-baseline gap-3">
         {shouldBlurValues ? (
           <span className="text-base font-semibold tabular-nums text-text-secondary blur-sm select-none">
-            $X,XXX,XXX
+            $XX.XXM
           </span>
         ) : restrictedAllocOnly ? (
           // No owner-level access, but allocation_public is ON: hide the $ total
@@ -273,13 +314,13 @@ function PortfolioListRow({
                 : undefined
             }
           >
-            ${animatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {formatCurrency(animatedValue, true)}
           </span>
         )}
 
         {shouldBlurValues ? (
           <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
-            +0.00%
+            +$XXXk (+0.00%)
           </span>
         ) : isRevealing ? (
           <span className="flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
@@ -287,8 +328,14 @@ function PortfolioListRow({
             52w high
           </span>
         ) : hasPct ? (
+          // The colored move: dollar delta + the ranked % in parens
+          // (`-$612k (-2.34%)`). Allocation-only viewers have no $ figure
+          // (anonymized server-side, displayChange === null) — they see just the
+          // %. Both share the green/red color and the same sign as the %.
           <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+            {displayChange !== null ? `${formatCompactChange(displayChange)} (` : ''}
             {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
+            {displayChange !== null ? ')' : ''}
           </span>
         ) : (
           <span className="text-sm font-semibold text-text-secondary">—</span>
@@ -537,6 +584,13 @@ export function LandingPage() {
                         showExtendedHours,
                         timeframe,
                       );
+                      // Today's dollar move, shown beside the % (`-$612k`). Null
+                      // for allocation-only / unknown rows → "%-only" / "—".
+                      const displayChange = getDisplayDayChange(
+                        portfolio,
+                        showExtendedHours,
+                        timeframe,
+                      );
                       const rank = rankById[portfolio.id] ?? null;
 
                       return (
@@ -545,6 +599,7 @@ export function LandingPage() {
                           portfolio={portfolio}
                           displayValue={displayValue}
                           peakPotentialValue={peakPotentialValue}
+                          displayChange={displayChange}
                           displayChangePercent={displayChangePercent}
                           shouldBlurValues={shouldBlurValues}
                           restrictedAllocOnly={restrictedAllocOnly}

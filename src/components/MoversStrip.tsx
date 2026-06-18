@@ -11,6 +11,11 @@ export interface MarketMover {
 
 interface MoversStripProps {
   movers: MarketMover[];
+  // First-load flag from the portfolios query. While true with no movers yet,
+  // the strip holds its space with a skeleton instead of rendering nothing, so it
+  // doesn't pop in above the Users card and shove it down once data lands. Once
+  // loaded, an empty `movers` means a genuinely quiet day → render nothing.
+  isLoading?: boolean;
 }
 
 // How many movers the pill shows by default (one per row) — the collapsed size.
@@ -92,8 +97,10 @@ function countLabel(m: MarketMover): string {
 // it back.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
-// filler. The server keeps the list populated (see computeMarketMovers).
-export function MoversStrip({ movers }: MoversStripProps) {
+// filler. The server keeps the list populated (see computeMarketMovers). During
+// the very first load (no data yet) it instead holds its space with a skeleton,
+// so it doesn't pop in above the Users card and shove it down once data arrives.
+export function MoversStrip({ movers, isLoading }: MoversStripProps) {
   // Collapsed by default; the viewer can expand to the full qualified list and
   // collapse back. Only offered when the server returned more than DISPLAY_COUNT
   // (i.e. there are qualified movers beyond the default rows to reveal).
@@ -160,29 +167,56 @@ export function MoversStrip({ movers }: MoversStripProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movers, expanded]);
 
-  if (shown.length === 0) return null;
+  // Folder tab jutting from the card's top-left: flame + label. No bottom
+  // border, and z-10 so it paints OVER the card body below — the card's top
+  // border is hidden beneath the tab and the two read as one connected
+  // notepad-tab shape. A FIXED width (w-36) is shared by all three landing-page
+  // tabs (movers / upcoming / users) — sized to the widest label ("Top movers")
+  // — so the stacked tabs line up at a constant width instead of each sizing to
+  // its own label; content stays left-aligned so the tab icons align in a column
+  // down the stack. The lucide Flame is a single-color thin-stroke amber flame
+  // (no second shade), identical across platforms — the look the user preferred
+  // over the native 🔥. Shared by the real strip and the loading skeleton below.
+  const tab = (
+    <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+      <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
+      <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
+        Top movers
+      </span>
+    </div>
+  );
+
+  // No movers to show: render nothing on a settled quiet day, but hold the
+  // strip's space with a skeleton while the first load is still in flight, so it
+  // doesn't pop in above the Users card and shove it down once data lands.
+  // (isLoading is React Query's first-load flag — false on background refetches,
+  // so a populated strip never flashes a skeleton.)
+  if (shown.length === 0) {
+    if (!isLoading) return null;
+    return (
+      <div className="mb-3 md:mb-6" aria-hidden>
+        {tab}
+        <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
+          <div className="grid grid-cols-[auto_auto_1fr] items-center gap-x-3 gap-y-2.5 animate-pulse">
+            {Array.from({ length: DISPLAY_COUNT }).map((_, i) => (
+              <Fragment key={i}>
+                <div className="h-3.5 w-12 rounded bg-card-hover" />
+                <div className="h-3.5 w-10 justify-self-end rounded bg-card-hover" />
+                <div className="h-3 w-32 rounded bg-card-hover" />
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       className="mb-3 md:mb-6"
       aria-label="Today's movers among tracked holdings"
     >
-      {/* Folder tab jutting from the card's top-left: flame + label. No bottom
-          border, and z-10 so it paints OVER the card body below — the card's top
-          border is hidden beneath the tab and the two read as one connected
-          notepad-tab shape. A FIXED width (w-36) is shared by all three
-          landing-page tabs (movers / upcoming / users) — sized to the widest
-          label ("Top movers") — so the stacked tabs line up at a constant width
-          instead of each sizing to its own label; content stays left-aligned so
-          the tab icons align in a column down the stack. The lucide Flame is a
-          single-color thin-stroke amber flame (no second shade), identical
-          across platforms — the look the user preferred over the native 🔥. */}
-      <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
-        <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
-        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
-          Top movers
-        </span>
-      </div>
+      {tab}
 
       {/* Card body. Top-left squared (rounded-tl-none) so its left border lines
           up flush beneath the tab's left border; pulled up 1px (-mt-px) to

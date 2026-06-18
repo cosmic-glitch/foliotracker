@@ -66,9 +66,11 @@ function eventEmoji(e: { type: string; title: string }): string {
 // title all the space.
 //
 // Renders nothing when there are no future events (an empty strip would just be
-// filler) or while the query is loading/errored — it never shows a broken card.
+// filler) or on error — it never shows a broken card. While the first load is
+// still in flight it holds its space with a skeleton instead, so it doesn't pop
+// in above the Users card and shove it down once the feed arrives.
 export function UpcomingEvents() {
-  const { data } = useUpcomingEvents();
+  const { data, isLoading } = useUpcomingEvents();
   const [expanded, setExpanded] = useState(false);
 
   // Show the next events across all importance levels — no client-side filter.
@@ -80,24 +82,50 @@ export function UpcomingEvents() {
   const canExpand = events.length > DISPLAY_COUNT;
   const shown = expanded && canExpand ? events : events.slice(0, DISPLAY_COUNT);
 
-  if (shown.length === 0) return null;
+  // Folder tab jutting from the card's top-left — calendar + label, no bottom
+  // border, z-10 so it paints over the card body's top border into one connected
+  // notepad-tab shape. Matches the movers strip's tab, including the shared fixed
+  // width (w-36) that keeps all three landing-page tabs at a constant width.
+  // Shared by the real strip and the loading skeleton below.
+  const tab = (
+    <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+      <CalendarDays className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
+      <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
+        Upcoming
+      </span>
+    </div>
+  );
+
+  // No events to show: render nothing once the feed has settled empty, but hold
+  // the strip's space with a skeleton while the first load is in flight so it
+  // doesn't pop in above the Users card and shove it down once the feed arrives.
+  // (isLoading is React Query's first-load flag — false on refetch/error, so an
+  // empty or errored feed still renders nothing rather than a stuck skeleton.)
+  if (shown.length === 0) {
+    if (!isLoading) return null;
+    return (
+      <div className="mb-3 md:mb-6" aria-hidden>
+        {tab}
+        <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 animate-pulse">
+            {Array.from({ length: DISPLAY_COUNT }).map((_, i) => (
+              <Fragment key={i}>
+                <div className="h-3.5 w-16 rounded bg-card-hover" />
+                <div className="h-3.5 w-40 rounded bg-card-hover" />
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       className="mb-3 md:mb-6"
       aria-label="Upcoming market events"
     >
-      {/* Folder tab jutting from the card's top-left — calendar + label, no
-          bottom border, z-10 so it paints over the card body's top border into
-          one connected notepad-tab shape. Matches the movers strip's tab,
-          including the shared fixed width (w-36) that keeps all three
-          landing-page tabs at a constant width. */}
-      <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
-        <CalendarDays className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
-        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
-          Upcoming
-        </span>
-      </div>
+      {tab}
 
       {/* Card body: top-left squared to line up flush under the tab, pulled up
           1px to overlap the tab's missing bottom border. */}

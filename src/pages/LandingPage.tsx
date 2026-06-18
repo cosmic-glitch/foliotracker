@@ -469,6 +469,7 @@ export function LandingPage() {
                   ? data?.movers?.extended
                   : data?.movers?.regular) ?? []
               }
+              isLoading={isLoading}
             />
 
             {/* Upcoming macro releases + held-ticker earnings. Self-fetching

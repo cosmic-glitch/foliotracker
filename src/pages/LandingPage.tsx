@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy, Medal } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -174,11 +174,11 @@ function PortfolioListRow({
   rank,
   rankedCount,
 }: PortfolioListRowProps) {
-  // Top-3 podium: gold trophy for the champion, then silver/bronze medals for
-  // 2nd/3rd. Gated on ≥2 ranked rows (a board of one isn't a leaderboard); below
-  // that #1 just shows a plain "1". Ranks 4+ and unranked rows fall through to
-  // the number / blank. (rank 2 only exists when count ≥2, rank 3 when ≥3, so
-  // the single showPodium gate suffices for all three.)
+  // Top-3 podium: 🥇/🥈/🥉 medal emoji for 1st/2nd/3rd. Gated on ≥2 ranked rows
+  // (a board of one isn't a leaderboard); below that #1 just shows a plain "1".
+  // Ranks 4+ and unranked rows fall through to the number / blank. (rank 2 only
+  // exists when count ≥2, rank 3 when ≥3, so the single showPodium gate suffices
+  // for all three.)
   const showPodium = rankedCount >= 2;
   const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -196,24 +196,24 @@ function PortfolioListRow({
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
     // replaced by a trailing chevron). No per-row wash and no own-row accent —
-    // every row reads the same; the top 3 are marked by the podium icon + top
+    // every row reads the same; the top 3 are marked by the podium medal + top
     // position alone.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
       className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-card-hover"
     >
-      {/* Rank — fixed-width so the chips line up down the list. The top 3 show
-          podium icons instead of a number: gold trophy (1st), silver medal
-          (2nd), bronze medal (3rd). Ranks 4+ show the number; unranked rows (no
-          real %) are blank here and render "—" on the right. */}
+      {/* Rank — fixed-width so the medals/numbers line up down the list. The top
+          3 show medal emoji instead of a number: 🥇 (1st), 🥈 (2nd), 🥉 (3rd).
+          Ranks 4+ show the number; unranked rows (no real %) are blank here and
+          render "—" on the right. */}
       <span className="flex w-5 shrink-0 justify-end text-xs tabular-nums text-text-secondary">
         {showPodium && rank === 1 ? (
-          <Trophy className="w-3.5 h-3.5 text-amber-500" aria-label="Top today" />
+          <span role="img" aria-label="Top today" className="text-sm leading-none">🥇</span>
         ) : showPodium && rank === 2 ? (
-          <Medal className="w-3.5 h-3.5 text-slate-400" aria-label="2nd today" />
+          <span role="img" aria-label="2nd today" className="text-sm leading-none">🥈</span>
         ) : showPodium && rank === 3 ? (
-          <Medal className="w-3.5 h-3.5 text-amber-700" aria-label="3rd today" />
+          <span role="img" aria-label="3rd today" className="text-sm leading-none">🥉</span>
         ) : (
           rank ?? ''
         )}

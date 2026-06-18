@@ -330,15 +330,17 @@ function PortfolioListRow({
       </div>
 
       {/* Percentage column — today's % move, pulled out of the dollar line into
-          its own column so each figure reads cleanly. ml-auto pushes it toward
-          the right (into the space that used to sit empty between the figures and
-          the chevron). NOT self-center: it top-aligns with the row (items-start),
-          so its cap-top lines up with the name and the dollar value — same
-          text-lg + leading-tight as the value, so the three tops sit on one line.
-          Rendered at the value's size (text-lg/semibold) so it reads as a co-equal
-          headline figure, color-carrying the up/down signal; `—` when the % isn't
-          known (unknown 1D move / no 30D anchor). */}
-      <div className="ml-auto w-16 shrink-0 text-right leading-tight">
+          its own column so each figure reads cleanly. Sits directly to the right
+          of the dollar column (separated only by the row's gap-2), NOT pushed to
+          the far edge — the chevron's ml-auto (below) absorbs all the slack, so
+          the two figure columns stay clustered and the % no longer hugs the
+          chevron. NOT self-center: it top-aligns with the row (items-start), so
+          its cap-top lines up with the name and the dollar value — same text-lg +
+          leading-tight as the value, so the three tops sit on one line. Rendered
+          at the value's size (text-lg/semibold) so it reads as a co-equal headline
+          figure, color-carrying the up/down signal; `—` when the % isn't known
+          (unknown 1D move / no 30D anchor). */}
+      <div className="w-16 shrink-0 text-right leading-tight">
         {shouldBlurValues ? (
           <span className="text-lg font-semibold leading-tight text-positive blur-sm select-none">+0.00%</span>
         ) : hasPct ? (
@@ -351,13 +353,16 @@ function PortfolioListRow({
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
-          Pinned to the row's right edge (the % column's ml-auto absorbs the slack
-          before it, so this sits just right of the %). Top-aligned like every
-          other column (inherits the row's items-start, no self-center) so its top
-          sits on the same line as the name, value, and %. Restricted viewers
-          still land on the allocation-only detail page, or hit the password
-          prompt — the same destination the old "View" had. */}
-      <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          ml-auto pins it to the row's right edge and absorbs ALL the free space
+          between it and the figure cluster, so the name/$/%columns stay grouped on
+          the left and the chevron stands alone on the far right (was: the % column
+          carried ml-auto, dragging the % out to hug the chevron and leaving a huge
+          empty gap after the dollars — worst on wide desktop rows). Top-aligned
+          like every other column (inherits the row's items-start, no self-center)
+          so its top sits on the same line as the name, value, and %. Restricted
+          viewers still land on the allocation-only detail page, or hit the
+          password prompt — the same destination the old "View" had. */}
+      <ChevronRight className="ml-auto w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }

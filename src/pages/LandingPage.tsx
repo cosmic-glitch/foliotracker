@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -13,7 +13,6 @@ import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
-import { usePeakReveal } from '../hooks/usePeakReveal';
 import { Footer } from '../components/Footer';
 import { loginToPortfolio } from '../lib/auth';
 import { formatCurrency } from '../utils/formatters';
@@ -176,18 +175,17 @@ interface PortfolioListRowProps {
   // color). It is NOT the ranking key: the board still ranks by % move (see the
   // caption + getRankMetric); the dollar is just shown with full visual weight
   // because it's a headline number visitors care about. Rendered compact
-  // (`$21.68M`); tap-to-reveal animates it up to the 52w peak.
+  // (`$21.68M`). On the landing page it's static — the tap-to-reveal 52w-peak
+  // count-up lives only on the portfolio detail page (TotalValue), so the whole
+  // row stays a single tap target to the detail page.
   displayValue: number;
-  // 52-week-high "peak potential" total; tapping the value counts up to this.
-  peakPotentialValue: number;
-  // Today's dollar move, rendered beside the % as the secondary colored figure
-  // (`-$612k`). null when the active timeframe has no figure or the viewer is
-  // allocation-only restricted ($ anonymized) — the row then shows just the %.
+  // Today's dollar move, rendered as its own right-aligned column (`-$25k`).
+  // null when the active timeframe has no figure or the viewer is allocation-only
+  // restricted ($ anonymized) — the dollar column is then blank.
   displayChange: number | null;
-  // Today's move % — the ranked metric, rendered as a smaller colored delta to
-  // the right of the dollar total (color carries the up/down signal; the dollar
-  // is the dominant figure). null when the active timeframe has no figure
-  // (renders "—").
+  // Today's move % — the ranked metric, rendered as a separate right-aligned
+  // column to the right of the dollar move (color carries the up/down signal).
+  // null when the active timeframe has no figure (renders "—").
   displayChangePercent: number | null;
   shouldBlurValues: boolean;
   // When true, the row is restricted but allocation_public is ON: hide the $
@@ -206,7 +204,6 @@ interface PortfolioListRowProps {
 function PortfolioListRow({
   portfolio,
   displayValue,
-  peakPotentialValue,
   displayChange,
   displayChangePercent,
   shouldBlurValues,
@@ -220,11 +217,6 @@ function PortfolioListRow({
   // exists when count ≥2, rank 3 when ≥3, so the single showPodium gate suffices
   // for all three.)
   const showPodium = rankedCount >= 2;
-  const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
-    displayValue,
-    peakPotentialValue,
-  );
-  const canReveal = !shouldBlurValues && peakPotentialValue > displayValue;
   const pct = displayChangePercent;
   const hasPct = pct !== null;
   const pctColor = !hasPct
@@ -241,13 +233,15 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-card-hover"
+      className="flex items-center gap-2 pl-3 pr-4 py-2.5 transition-colors hover:bg-card-hover"
     >
-      {/* Rank — fixed-width so the medals/numbers line up down the list. The top
-          3 show medal emoji instead of a number: 🥇 (1st), 🥈 (2nd), 🥉 (3rd).
-          Ranks 4+ show the number; unranked rows (no real %) are blank here and
-          render "—" on the right. */}
-      <span className="flex w-6 shrink-0 justify-end text-sm tabular-nums text-text-secondary">
+      {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
+          same column center as the plain digits below them (right-aligning made
+          the narrow digits drift right of the medals). The top 3 show medal emoji
+          instead of a number: 🥇 (1st), 🥈 (2nd), 🥉 (3rd). Ranks 4+ show the
+          number; unranked rows (no real %) are blank here and render "—" on the
+          right. */}
+      <span className="flex w-6 shrink-0 justify-center text-sm tabular-nums text-text-secondary">
         {showPodium && rank === 1 ? (
           <span role="img" aria-label="Top today" className="text-base leading-none">🥇</span>
         ) : showPodium && rank === 2 ? (
@@ -267,16 +261,17 @@ function PortfolioListRow({
         {portfolio.id.toUpperCase()}
       </span>
 
-      {/* Right cluster, pushed to the row's edge and split into two right-aligned
-          columns so the figures line up vertically down the list: the portfolio
-          total (dominant — bold, primary, compact `$21.68M`) then today's move as
-          `-$612k (-2.34%)` (the colored dollar delta + ranked % in parens; color
-          carries the up/down signal). The move column is a FIXED width and the
-          total a min-width, both text-right — so the total's right edge is stable
-          regardless of how long the move reads, and the M's line up in one column
-          with the %'s in another. The total is tap-to-reveal: it counts up to the
-          52w peak and the move slot swaps to a "52w high" cue while revealing. */}
-      <div className="ml-auto flex shrink-0 items-baseline gap-3">
+      {/* Right cluster, pushed to the row's edge and split into THREE
+          right-aligned columns so the figures line up vertically down the list:
+          the portfolio total (dominant — bold, primary, compact `$21.68M`), then
+          today's dollar move (`-$25k`) and the ranked % (`-0.55%`) as two
+          separate columns. Color on both move columns carries the up/down signal.
+          The dollar + percent columns are fixed-width and the total a min-width,
+          all text-right — so each column's right edge is stable regardless of how
+          long its neighbors read, stacking the M's, the $-moves, and the %'s into
+          three clean columns. The total is static here (no tap-to-reveal — that
+          lives only on the detail page), so the whole row is one tap target. */}
+      <div className="ml-auto flex shrink-0 items-baseline gap-2.5">
         {/* Total column — min-width + right-aligned so every row's `M` lines up. */}
         <div className="min-w-[4.5rem] text-right">
           {shouldBlurValues ? (
@@ -288,59 +283,39 @@ function PortfolioListRow({
             // (a lock) — the % to its right is the only figure this viewer sees.
             <Lock className="inline-block w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
           ) : (
-            // The row is a link, so the reveal handlers preventDefault +
-            // stopPropagation to intercept the tap (count up to the 52w peak)
-            // instead of navigating to the portfolio.
-            <span
-              className={`text-base font-semibold tabular-nums whitespace-nowrap ${
-                isRevealing ? 'text-amber-400' : 'text-text-primary'
-              } ${canReveal ? 'cursor-pointer select-none' : ''}`}
-              onClick={
-                canReveal
-                  ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      triggerReveal();
-                    }
-                  : undefined
-              }
-              role={canReveal ? 'button' : undefined}
-              tabIndex={canReveal ? 0 : undefined}
-              onKeyDown={
-                canReveal
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-                      onKeyDown(e);
-                    }
-                  : undefined
-              }
-            >
-              {formatCurrency(animatedValue, true)}
+            <span className="text-base font-semibold tabular-nums whitespace-nowrap text-text-primary">
+              {formatCurrency(displayValue, true)}
             </span>
           )}
         </div>
 
-        {/* Move column — fixed width + right-aligned. The fixed width anchors the
-            total's right edge (above) and lines the %'s up under the chevron. */}
-        <div className="w-28 text-right">
+        {/* Dollar-move column — fixed width + right-aligned. Blank for
+            allocation-only viewers (the $ figure is anonymized server-side,
+            displayChange === null) and for rows whose move isn't known yet — the
+            % column to the right carries those. */}
+        <div className="w-16 text-right">
           {shouldBlurValues ? (
             <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
-              +$XXXk (+0.00%)
+              +$XXk
             </span>
-          ) : isRevealing ? (
-            <span className="inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-amber-400 animate-[fadeIn_0.2s_ease-out]">
-              <Sparkles className="w-3 h-3" />
-              52w high
+          ) : hasPct && displayChange !== null ? (
+            <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+              {formatCompactChange(displayChange)}
+            </span>
+          ) : null}
+        </div>
+
+        {/* Percent-move column — the ranked metric, fixed width + right-aligned so
+            the %'s line up under the chevron. "—" when the active timeframe has no
+            figure (unknown stale-NAV move in 1D, no 30D anchor). */}
+        <div className="w-16 text-right">
+          {shouldBlurValues ? (
+            <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
+              +0.00%
             </span>
           ) : hasPct ? (
-            // The colored move: dollar delta + the ranked % in parens
-            // (`-$612k (-2.34%)`). Allocation-only viewers have no $ figure
-            // (anonymized server-side, displayChange === null) — they see just the
-            // %. Both share the green/red color and the same sign as the %.
             <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
-              {displayChange !== null ? `${formatCompactChange(displayChange)} (` : ''}
               {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
-              {displayChange !== null ? ')' : ''}
             </span>
           ) : (
             <span className="text-sm font-semibold text-text-secondary">—</span>
@@ -579,10 +554,6 @@ export function LandingPage() {
                       const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
                       const shouldBlurValues = isRestricted && !portfolio.allocation_public;
                       const displayValue = getDisplayValue(portfolio, showExtendedHours);
-                      const peakPotentialValue = Math.max(
-                        portfolio.peakPotentialValue ?? 0,
-                        displayValue,
-                      );
                       // Today's move % — the ranked metric. Null (unknown move /
                       // no 30D anchor) flows through so the row renders "—".
                       const displayChangePercent = getDisplayChangePercent(
@@ -604,7 +575,6 @@ export function LandingPage() {
                           key={portfolio.id}
                           portfolio={portfolio}
                           displayValue={displayValue}
-                          peakPotentialValue={peakPotentialValue}
                           displayChange={displayChange}
                           displayChangePercent={displayChangePercent}
                           shouldBlurValues={shouldBlurValues}

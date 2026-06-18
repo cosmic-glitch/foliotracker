@@ -289,15 +289,17 @@ function PortfolioListRow({
           )}
         </div>
 
-        {/* Dollar-move column — fixed width + right-aligned. Blank for
-            allocation-only viewers (the $ figure is anonymized server-side,
-            displayChange === null) and for rows whose move isn't known yet — the
-            % column to the right carries those. */}
+        {/* Dollar-move column — fixed width + right-aligned. Allocation-only
+            viewers get the same lock as the total column (the $ move is
+            anonymized server-side); rows whose move isn't known yet stay blank
+            here and render "—" in the % column to the right. */}
         <div className="w-16 text-right">
           {shouldBlurValues ? (
             <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
               +$XXk
             </span>
+          ) : restrictedAllocOnly ? (
+            <Lock className="inline-block w-3.5 h-3.5 text-text-secondary" aria-label="Change hidden" />
           ) : hasPct && displayChange !== null ? (
             <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
               {formatCompactChange(displayChange)}

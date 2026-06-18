@@ -174,17 +174,19 @@ interface PortfolioListRowProps {
   // Portfolio total — the row's prominent dollar figure (larger, bold, primary
   // color). It is NOT the ranking key: the board still ranks by % move (see the
   // caption + getRankMetric); the dollar is just shown with full visual weight
-  // because it's a headline number visitors care about. Rendered compact
-  // (`$21.68M`). On the landing page it's static — the tap-to-reveal 52w-peak
+  // because it's a headline number visitors care about. Rendered full and
+  // un-abbreviated (`$21,956,179`) as the dominant top tier of the row's right
+  // cluster. On the landing page it's static — the tap-to-reveal 52w-peak
   // count-up lives only on the portfolio detail page (TotalValue), so the whole
   // row stays a single tap target to the detail page.
   displayValue: number;
-  // Today's dollar move, rendered as its own right-aligned column (`-$25k`).
-  // null when the active timeframe has no figure or the viewer is allocation-only
-  // restricted ($ anonymized) — the dollar column is then blank.
+  // Today's dollar move, rendered on the smaller secondary tier beneath the
+  // value as `-$25k (-0.55%)`. null when the active timeframe has no figure or
+  // the viewer is allocation-only restricted ($ anonymized) — the secondary
+  // line then shows just the % (or "—").
   displayChange: number | null;
-  // Today's move % — the ranked metric, rendered as a separate right-aligned
-  // column to the right of the dollar move (color carries the up/down signal).
+  // Today's move % — the ranked metric, rendered in parentheses beside the
+  // dollar move on the secondary tier (color carries the up/down signal).
   // null when the active timeframe has no figure (renders "—").
   displayChangePercent: number | null;
   shouldBlurValues: boolean;
@@ -233,14 +235,14 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-center gap-2 pl-3 pr-4 py-2.5 transition-colors hover:bg-card-hover"
+      className="flex items-center gap-2 pl-3 pr-4 py-2 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
-          same column center as the plain digits below them (right-aligning made
-          the narrow digits drift right of the medals). The top 3 show medal emoji
-          instead of a number: 🥇 (1st), 🥈 (2nd), 🥉 (3rd). Ranks 4+ show the
-          number; unranked rows (no real %) are blank here and render "—" on the
-          right. */}
+          same column center across rows. ONLY the top 3 are marked, with a medal
+          emoji: 🥇 (1st), 🥈 (2nd), 🥉 (3rd). Everyone else — ranks 4+ and
+          unranked rows alike — is intentionally blank here (no numbers); the
+          fixed-width spacer is kept empty so their names still line up under the
+          medaled rows above. */}
       <span className="flex w-6 shrink-0 justify-center text-sm tabular-nums text-text-secondary">
         {showPodium && rank === 1 ? (
           <span role="img" aria-label="Top today" className="text-base leading-none">🥇</span>
@@ -248,9 +250,7 @@ function PortfolioListRow({
           <span role="img" aria-label="2nd today" className="text-base leading-none">🥈</span>
         ) : showPodium && rank === 3 ? (
           <span role="img" aria-label="3rd today" className="text-base leading-none">🥉</span>
-        ) : (
-          rank ?? ''
-        )}
+        ) : null}
       </span>
 
       {/* Handle — plain text, no box. Users are told apart by the name alone;
@@ -261,68 +261,57 @@ function PortfolioListRow({
         {portfolio.id.toUpperCase()}
       </span>
 
-      {/* Right cluster, pushed to the row's edge and split into THREE
-          right-aligned columns so the figures line up vertically down the list:
-          the portfolio total (dominant — bold, primary, compact `$21.68M`), then
-          today's dollar move (`-$25k`) and the ranked % (`-0.55%`) as two
-          separate columns. Color on both move columns carries the up/down signal.
-          The dollar + percent columns are fixed-width and the total a min-width,
-          all text-right — so each column's right edge is stable regardless of how
-          long its neighbors read, stacking the M's, the $-moves, and the %'s into
-          three clean columns. The total is static here (no tap-to-reveal — that
+      {/* Right cluster — two tiers stacked, right-aligned, so the dollar value
+          dominates and the move reads as secondary context. The board still
+          ranks by % move (see the caption + getRankMetric); the value is just
+          the headline figure visitors care about, so it gets the visual weight.
+          Top tier: the portfolio total, large + bold + FULL (un-abbreviated
+          `$4,487,000`) — the unmistakable focal point of each row. Bottom tier:
+          today's move on one smaller, muted line `-$25k (-0.55%)`, color-carrying
+          the up/down signal. (This collapses the old three same-weight columns —
+          the source of the "wall of numbers" clutter — into a clear dominant /
+          secondary hierarchy.) The total is static here (no tap-to-reveal — that
           lives only on the detail page), so the whole row is one tap target. */}
-      <div className="ml-auto flex shrink-0 items-baseline gap-2.5">
-        {/* Total column — min-width + right-aligned so every row's `M` lines up. */}
-        <div className="min-w-[4.5rem] text-right">
-          {shouldBlurValues ? (
-            <span className="text-base font-semibold tabular-nums text-text-secondary blur-sm select-none">
-              $XX.XXM
-            </span>
-          ) : restrictedAllocOnly ? (
-            // No owner-level access, but allocation_public is ON: hide the $ total
-            // (a lock) — the % to its right is the only figure this viewer sees.
-            <Lock className="inline-block w-3.5 h-3.5 text-text-secondary" aria-label="Value hidden" />
-          ) : (
-            <span className="text-base font-semibold tabular-nums whitespace-nowrap text-text-primary">
-              {formatCurrency(displayValue, true)}
-            </span>
-          )}
-        </div>
+      <div className="ml-auto flex shrink-0 flex-col items-end leading-tight">
+        {/* Value — the dominant figure, full and un-abbreviated. */}
+        {shouldBlurValues ? (
+          <span className="text-lg font-bold tabular-nums text-text-secondary blur-sm select-none">
+            $XX,XXX,XXX
+          </span>
+        ) : restrictedAllocOnly ? (
+          // No owner-level access, but allocation_public is ON: hide the $ total
+          // (a lock) — the % below is the only figure this viewer sees.
+          <Lock className="w-4 h-4 text-text-secondary" aria-label="Value hidden" />
+        ) : (
+          <span className="text-lg font-bold tabular-nums whitespace-nowrap text-text-primary">
+            {formatCurrency(displayValue, false)}
+          </span>
+        )}
 
-        {/* Dollar-move column — fixed width + right-aligned. Allocation-only
-            viewers get the same lock as the total column (the $ move is
-            anonymized server-side); rows whose move isn't known yet stay blank
-            here and render "—" in the % column to the right. */}
-        <div className="w-16 text-right">
-          {shouldBlurValues ? (
-            <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
-              +$XXk
-            </span>
-          ) : restrictedAllocOnly ? (
-            <Lock className="inline-block w-3.5 h-3.5 text-text-secondary" aria-label="Change hidden" />
-          ) : hasPct && displayChange !== null ? (
-            <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
-              {formatCompactChange(displayChange)}
-            </span>
-          ) : null}
-        </div>
-
-        {/* Percent-move column — the ranked metric, fixed width + right-aligned so
-            the %'s line up under the chevron. "—" when the active timeframe has no
-            figure (unknown stale-NAV move in 1D, no 30D anchor). */}
-        <div className="w-16 text-right">
-          {shouldBlurValues ? (
-            <span className="text-sm font-semibold tabular-nums text-positive blur-sm select-none">
-              +0.00%
-            </span>
-          ) : hasPct ? (
-            <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${pctColor}`}>
+        {/* Move — smaller, muted secondary line. Normally `-$25k (-0.55%)`; just
+            the % for allocation-only rows (the $ move is anonymized server-side);
+            "—" when the move isn't known yet (stale-NAV 1D) or has no anchor
+            (brand-new 30D). Color carries the up/down signal. */}
+        {shouldBlurValues ? (
+          <span className="text-xs font-medium tabular-nums text-positive blur-sm select-none">
+            +$XXk (+0.00%)
+          </span>
+        ) : restrictedAllocOnly ? (
+          hasPct ? (
+            <span className={`text-xs font-medium tabular-nums whitespace-nowrap ${pctColor}`}>
               {pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%
             </span>
           ) : (
-            <span className="text-sm font-semibold text-text-secondary">—</span>
-          )}
-        </div>
+            <span className="text-xs font-medium text-text-secondary">—</span>
+          )
+        ) : hasPct ? (
+          <span className={`text-xs font-medium tabular-nums whitespace-nowrap ${pctColor}`}>
+            {displayChange !== null ? `${formatCompactChange(displayChange)} ` : ''}
+            ({pct! >= 0 ? '+' : ''}{pct!.toFixed(2)}%)
+          </span>
+        ) : (
+          <span className="text-xs font-medium text-text-secondary">—</span>
+        )}
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".

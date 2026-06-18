@@ -11,6 +11,7 @@ import { UserMenu } from '../components/UserMenu';
 import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
+import { useCountUp } from '../hooks/usePeakReveal';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
 import { Footer } from '../components/Footer';
@@ -176,9 +177,10 @@ interface PortfolioListRowProps {
   // caption + getRankMetric); the dollar is just shown with full visual weight
   // because it's a headline number visitors care about. Rendered full and
   // un-abbreviated (`$21,956,179`) as the dominant top tier of the row's right
-  // cluster. On the landing page it's static — the tap-to-reveal 52w-peak
-  // count-up lives only on the portfolio detail page (TotalValue), so the whole
-  // row stays a single tap target to the detail page.
+  // cluster. Counts up to its fresh figure on price refetch (standalone
+  // useCountUp in the row) so the landing numbers feel live; the tap-to-reveal
+  // 52w-peak state machine, however, lives only on the portfolio detail page
+  // (TotalValue), so the whole row stays a single tap target to the detail page.
   displayValue: number;
   // Today's dollar move, rendered on the smaller secondary tier beneath the
   // value as `-$25k (-0.55%)`. null when the active timeframe has no figure or
@@ -213,6 +215,13 @@ function PortfolioListRow({
   rank,
   rankedCount,
 }: PortfolioListRowProps) {
+  // Count the dollar total up to its fresh figure when prices refetch (focus /
+  // visibility / poll). Standalone useCountUp — NOT usePeakReveal: the row is a
+  // single tap target to the detail page, so there's no tap-to-reveal 52w-peak
+  // here (that easter egg lives only on the detail page). On first paint it sits
+  // at the real value (no count-from-zero); the tween only fires when a refresh
+  // changes displayValue, which is what makes the landing numbers feel live.
+  const animatedValue = useCountUp(displayValue);
   // Top-3 podium: 🥇/🥈/🥉 medal emoji for 1st/2nd/3rd. Gated on ≥2 ranked rows
   // (a board of one isn't a leaderboard); below that #1 just shows a plain "1".
   // Ranks 4+ and unranked rows fall through to the number / blank. (rank 2 only
@@ -275,8 +284,10 @@ function PortfolioListRow({
           today's move on one smaller, muted line `-$25k (-0.55%)`, color-carrying
           the up/down signal. (This collapses the old three same-weight columns —
           the source of the "wall of numbers" clutter — into a clear dominant /
-          secondary hierarchy.) The total is static here (no tap-to-reveal — that
-          lives only on the detail page), so the whole row is one tap target.
+          secondary hierarchy.) The total counts up to its fresh figure on price
+          refetch (standalone useCountUp) but has no tap-to-reveal — that 52w-peak
+          easter egg lives only on the detail page, so the whole row is one tap
+          target.
           Fixed width (w-32) + right-aligned (items-end) so every row's figures
           stack into one column; NOT ml-auto'd — it sits just right of the name,
           with the chevron alone pinned to the row's right edge. */}
@@ -298,7 +309,7 @@ function PortfolioListRow({
           </span>
         ) : (
           <span className="text-lg font-semibold leading-tight whitespace-nowrap text-text-primary">
-            {formatCurrency(displayValue, false)}
+            {formatCurrency(animatedValue, false)}
           </span>
         )}
 

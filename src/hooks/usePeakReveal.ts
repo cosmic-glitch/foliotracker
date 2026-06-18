@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 
-const COUNT_DURATION_MS = 900;
+export const COUNT_DURATION_MS = 900;
 const HOLD_DURATION_MS = 3000;
 
 // Animates the displayed value toward `target` using ease-out cubic.
 // Restarts whenever `target` changes, beginning from whatever value is
-// currently on screen (so mid-animation retargets look smooth).
-function useCountUp(target: number, duration: number): number {
+// currently on screen (so mid-animation retargets look smooth). On first
+// mount it starts AT `target` (no count-from-zero) — the tween only fires when
+// `target` later changes, e.g. a price refetch. The landing leaderboard uses
+// it standalone (no peak-reveal state machine) to count each row's total to
+// its fresh figure when prices refresh; see usePeakReveal for the detail-page
+// 52-week-peak easter egg built on top of it.
+export function useCountUp(target: number, duration: number = COUNT_DURATION_MS): number {
   const [value, setValue] = useState(target);
   const valueRef = useRef(value);
 

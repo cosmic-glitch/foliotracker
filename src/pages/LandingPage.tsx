@@ -74,24 +74,6 @@ async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosRes
   return response.json();
 }
 
-// Deterministic identity tint for a handle. A hashed hue gives each user a
-// stable color, rendered as a *low-opacity background tint* (not a solid fill)
-// so the handle reads as a quiet, soft pill rather than a loud block. The name
-// itself stays neutral (text-text-primary) — identity is a hint, not the row's
-// focus, so the dollar total and the green/red % move carry the visual weight
-// (the arbitrary identity hue shouldn't compete with the meaningful up/down
-// color). Legible on both themes: a faint tint over the card background reads
-// the same whether the card is light or dark. Still "Option B" — the color
-// lives on the name, no separate avatar duplicating it — just de-weighted.
-function identityTint(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue} 60% 55% / 0.16)`;
-}
-
 // The day-change % a row actually displays, honoring the extended-hours basis
 // and the active 1D/30D timeframe. Factored out so the "Top today" leader calc
 // and the per-row render below read from one source and can't drift apart.
@@ -225,14 +207,14 @@ function PortfolioListRow({
         )}
       </span>
 
-      {/* Identity chip (Option B) — the handle itself on a faint tint of the
-          user's color: a soft pill, not a solid block, so it stays quiet next
-          to the numbers. The name reads as neutral text; the tint is just
-          enough to tell users apart. */}
-      <span
-        className="max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-text-primary"
-        style={{ backgroundColor: identityTint(portfolio.id) }}
-      >
+      {/* Identity chip — the handle in a transparent pill with one faint,
+          neutral border (same outline for every user). The border is pure
+          containment, not identity: there's no per-user color, so users are
+          told apart by the name text alone. Deliberately uncolored — an
+          arbitrary identity hue shouldn't compete with the meaningful
+          green/red move color, and a single border reads quietly down the
+          list. Legible on both themes (border-border tracks the card edge). */}
+      <span className="max-w-[8rem] shrink-0 truncate rounded-md border border-border px-2 py-0.5 text-xs font-semibold text-text-primary">
         {portfolio.id.toUpperCase()}
       </span>
 

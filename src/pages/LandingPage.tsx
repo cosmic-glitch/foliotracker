@@ -207,13 +207,13 @@ function PortfolioListRow({
           3 show medal emoji instead of a number: 🥇 (1st), 🥈 (2nd), 🥉 (3rd).
           Ranks 4+ show the number; unranked rows (no real %) are blank here and
           render "—" on the right. */}
-      <span className="flex w-5 shrink-0 justify-end text-xs tabular-nums text-text-secondary">
+      <span className="flex w-6 shrink-0 justify-end text-sm tabular-nums text-text-secondary">
         {showPodium && rank === 1 ? (
-          <span role="img" aria-label="Top today" className="text-sm leading-none">🥇</span>
+          <span role="img" aria-label="Top today" className="text-base leading-none">🥇</span>
         ) : showPodium && rank === 2 ? (
-          <span role="img" aria-label="2nd today" className="text-sm leading-none">🥈</span>
+          <span role="img" aria-label="2nd today" className="text-base leading-none">🥈</span>
         ) : showPodium && rank === 3 ? (
-          <span role="img" aria-label="3rd today" className="text-sm leading-none">🥉</span>
+          <span role="img" aria-label="3rd today" className="text-base leading-none">🥉</span>
         ) : (
           rank ?? ''
         )}
@@ -226,7 +226,7 @@ function PortfolioListRow({
           arbitrary identity hue shouldn't compete with the meaningful
           green/red move color, and a single border reads quietly down the
           list. Legible on both themes (border-border tracks the card edge). */}
-      <span className="max-w-[8rem] shrink-0 truncate rounded-md border border-border px-2 py-0.5 text-xs font-semibold text-text-primary">
+      <span className="max-w-[8rem] shrink-0 truncate rounded-md border border-border px-2 py-0.5 text-sm font-semibold text-text-primary">
         {portfolio.id.toUpperCase()}
       </span>
 

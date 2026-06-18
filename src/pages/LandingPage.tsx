@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Sparkles, Trophy, Medal } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -157,10 +157,11 @@ interface PortfolioListRowProps {
   // Leaderboard rank by today's move (1..N). null for rows with no real % —
   // they sink to the bottom and render "—".
   rank: number | null;
-  // True for the day's leader (rank 1, when there are ≥2 ranked rows): gold
-  // trophy in the rank slot. No row wash — the trophy + top position already say
-  // "winner"; a third cue for the same fact is redundant.
-  isLeader: boolean;
+  // How many rows are ranked (have a real %). The top-3 podium icons only show
+  // when ≥2 rows qualify — a leaderboard of one isn't a leaderboard. No row wash
+  // for the leaders — the podium icon + top position already say "placed"; a
+  // third cue for the same fact is redundant.
+  rankedCount: number;
 }
 
 function PortfolioListRow({
@@ -171,8 +172,14 @@ function PortfolioListRow({
   shouldBlurValues,
   restrictedAllocOnly,
   rank,
-  isLeader,
+  rankedCount,
 }: PortfolioListRowProps) {
+  // Top-3 podium: gold trophy for the champion, then silver/bronze medals for
+  // 2nd/3rd. Gated on ≥2 ranked rows (a board of one isn't a leaderboard); below
+  // that #1 just shows a plain "1". Ranks 4+ and unranked rows fall through to
+  // the number / blank. (rank 2 only exists when count ≥2, rank 3 when ≥3, so
+  // the single showPodium gate suffices for all three.)
+  const showPodium = rankedCount >= 2;
   const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
     peakPotentialValue,
@@ -189,19 +196,24 @@ function PortfolioListRow({
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
     // replaced by a trailing chevron). No per-row wash and no own-row accent —
-    // every row reads the same; the leader is marked by the trophy + top
+    // every row reads the same; the top 3 are marked by the podium icon + top
     // position alone.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
       className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-card-hover"
     >
-      {/* Rank — fixed-width so the chips line up down the list. The day's leader
-          shows a gold trophy instead of "1"; unranked rows (no real %) are
-          blank here and render "—" on the right. */}
+      {/* Rank — fixed-width so the chips line up down the list. The top 3 show
+          podium icons instead of a number: gold trophy (1st), silver medal
+          (2nd), bronze medal (3rd). Ranks 4+ show the number; unranked rows (no
+          real %) are blank here and render "—" on the right. */}
       <span className="flex w-5 shrink-0 justify-end text-xs tabular-nums text-text-secondary">
-        {isLeader ? (
+        {showPodium && rank === 1 ? (
           <Trophy className="w-3.5 h-3.5 text-amber-500" aria-label="Top today" />
+        ) : showPodium && rank === 2 ? (
+          <Medal className="w-3.5 h-3.5 text-slate-400" aria-label="2nd today" />
+        ) : showPodium && rank === 3 ? (
+          <Medal className="w-3.5 h-3.5 text-amber-700" aria-label="3rd today" />
         ) : (
           rank ?? ''
         )}
@@ -385,10 +397,10 @@ export function LandingPage() {
     }, null as Date | null);
   }, [portfolios]);
 
-  // How many rows have a real % (are ranked). The day's leader (rank 1) only
-  // earns the trophy when at least two rows qualify — a leaderboard of one isn't
-  // a leaderboard. The caption names the ranking basis so the order (and the
-  // unsorted-looking dollar column beside it) reads as intentional.
+  // How many rows have a real % (are ranked). The top-3 podium icons only show
+  // when at least two rows qualify — a leaderboard of one isn't a leaderboard.
+  // The caption names the ranking basis so the order (and the unsorted-looking
+  // dollar column beside it) reads as intentional.
   const rankedCount = Object.keys(rankById).length;
   const rankBasisLabel =
     timeframe === '30d' ? 'Ranked by 30-day move' : "Ranked by today's move";
@@ -536,7 +548,7 @@ export function LandingPage() {
                           shouldBlurValues={shouldBlurValues}
                           restrictedAllocOnly={restrictedAllocOnly}
                           rank={rank}
-                          isLeader={rank === 1 && rankedCount >= 2}
+                          rankedCount={rankedCount}
                         />
                       );
                     })}

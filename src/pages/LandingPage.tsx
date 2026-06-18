@@ -74,17 +74,22 @@ async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosRes
   return response.json();
 }
 
-// Deterministic identity color for a handle. A hashed hue gives each user a
-// stable color; the fixed saturation/lightness keep white text legible on both
-// themes. Used to tint the handle chip in each row — the handle itself carries
-// the color (Option B), so there's no separate avatar duplicating the name.
-function identityColor(id: string): string {
+// Deterministic identity tint for a handle. A hashed hue gives each user a
+// stable color, rendered as a *low-opacity background tint* (not a solid fill)
+// so the handle reads as a quiet, soft pill rather than a loud block. The name
+// itself stays neutral (text-text-primary) — identity is a hint, not the row's
+// focus, so the dollar total and the green/red % move carry the visual weight
+// (the arbitrary identity hue shouldn't compete with the meaningful up/down
+// color). Legible on both themes: a faint tint over the card background reads
+// the same whether the card is light or dark. Still "Option B" — the color
+// lives on the name, no separate avatar duplicating it — just de-weighted.
+function identityTint(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue} 48% 38%)`;
+  return `hsl(${hue} 60% 55% / 0.16)`;
 }
 
 // The day-change % a row actually displays, honoring the extended-hours basis
@@ -225,14 +230,15 @@ function PortfolioListRow({
         )}
       </span>
 
-      {/* Identity chip (Option B) — the handle itself, tinted with the user's
-          color, so the color lives on the name rather than a separate avatar
-          that just repeats it. Accent ring on your own row. */}
+      {/* Identity chip (Option B) — the handle itself on a faint tint of the
+          user's color: a soft pill, not a solid block, so it stays quiet next
+          to the numbers. The name reads as neutral text; the tint is just
+          enough to tell users apart. Accent ring on your own row. */}
       <span
-        className={`max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-white ${
+        className={`max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-text-primary ${
           isViewer ? 'ring-2 ring-accent' : ''
         }`}
-        style={{ backgroundColor: identityColor(portfolio.id) }}
+        style={{ backgroundColor: identityTint(portfolio.id) }}
       >
         {portfolio.id.toUpperCase()}
       </span>

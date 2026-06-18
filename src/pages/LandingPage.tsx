@@ -179,10 +179,6 @@ interface PortfolioListRowProps {
   // trophy in the rank slot. No row wash — the trophy + top position already say
   // "winner"; a third cue for the same fact is redundant.
   isLeader: boolean;
-  // True for the logged-in viewer's own row: accent ring on the chip + a faint
-  // accent row wash so you can spot yourself. No "You" tag — you know who you
-  // are, and dropping it keeps every row's left edge consistent.
-  isViewer: boolean;
 }
 
 function PortfolioListRow({
@@ -194,7 +190,6 @@ function PortfolioListRow({
   restrictedAllocOnly,
   rank,
   isLeader,
-  isViewer,
 }: PortfolioListRowProps) {
   const { animatedValue, isRevealing, triggerReveal, onKeyDown } = usePeakReveal(
     displayValue,
@@ -211,9 +206,9 @@ function PortfolioListRow({
 
   return (
     // One row, the whole thing a tap target (the per-row "View" button is gone,
-    // replaced by a trailing chevron). No per-row wash — the list is small enough
-    // that the viewer finds their own row via the accent-ringed identity chip; the
-    // leader is marked by the trophy + top position alone.
+    // replaced by a trailing chevron). No per-row wash and no own-row accent —
+    // every row reads the same; the leader is marked by the trophy + top
+    // position alone.
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
@@ -233,11 +228,9 @@ function PortfolioListRow({
       {/* Identity chip (Option B) — the handle itself on a faint tint of the
           user's color: a soft pill, not a solid block, so it stays quiet next
           to the numbers. The name reads as neutral text; the tint is just
-          enough to tell users apart. Accent ring on your own row. */}
+          enough to tell users apart. */}
       <span
-        className={`max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-text-primary ${
-          isViewer ? 'ring-2 ring-accent' : ''
-        }`}
+        className="max-w-[8rem] shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-semibold text-text-primary"
         style={{ backgroundColor: identityTint(portfolio.id) }}
       >
         {portfolio.id.toUpperCase()}
@@ -549,9 +542,6 @@ export function LandingPage() {
                         showExtendedHours,
                         timeframe,
                       );
-                      const isViewer =
-                        loggedInAs != null &&
-                        portfolio.id.toLowerCase() === loggedInAs.toLowerCase();
                       const rank = rankById[portfolio.id] ?? null;
 
                       return (
@@ -565,7 +555,6 @@ export function LandingPage() {
                           restrictedAllocOnly={restrictedAllocOnly}
                           rank={rank}
                           isLeader={rank === 1 && rankedCount >= 2}
-                          isViewer={isViewer}
                         />
                       );
                     })}

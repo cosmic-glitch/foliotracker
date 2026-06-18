@@ -245,11 +245,11 @@ function PortfolioListRow({
           medaled rows above. */}
       <span className="flex w-6 shrink-0 justify-center text-sm tabular-nums text-text-secondary">
         {showPodium && rank === 1 ? (
-          <span role="img" aria-label="Top today" className="text-base leading-none">🥇</span>
+          <span role="img" aria-label="Top today" className="text-lg leading-none">🥇</span>
         ) : showPodium && rank === 2 ? (
-          <span role="img" aria-label="2nd today" className="text-base leading-none">🥈</span>
+          <span role="img" aria-label="2nd today" className="text-lg leading-none">🥈</span>
         ) : showPodium && rank === 3 ? (
-          <span role="img" aria-label="3rd today" className="text-base leading-none">🥉</span>
+          <span role="img" aria-label="3rd today" className="text-lg leading-none">🥉</span>
         ) : null}
       </span>
 

@@ -235,7 +235,7 @@ function PortfolioListRow({
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-center gap-2 pl-3 pr-4 py-1 transition-colors hover:bg-card-hover"
+      className="flex items-start gap-2 pl-3 pr-4 py-1 transition-colors hover:bg-card-hover"
     >
       {/* Rank — fixed-width, center-aligned so the wider medal emoji sit over the
           same column center across rows. ONLY the top 3 are marked, with a medal
@@ -259,8 +259,10 @@ function PortfolioListRow({
           constant x across rows — that keeps the values in a clean column AND
           lets them sit just to the right of the name rather than being flung to
           the far edge (the chevron, ml-auto'd below, is the only thing pinned to
-          the right). */}
-      <span className="w-24 shrink-0 truncate text-sm font-semibold text-text-primary">
+          the right). Sized text-base (a touch bigger than the move line — there's
+          room in the column) and leading-tight so its cap-top lines up with the
+          value's top via the row's items-start. */}
+      <span className="w-24 shrink-0 truncate text-base font-semibold leading-tight text-text-primary">
         {portfolio.id.toUpperCase()}
       </span>
 
@@ -328,10 +330,12 @@ function PortfolioListRow({
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
           ml-auto pins it to the row's right edge while the figure cluster stays
-          left, next to the name. Restricted viewers still land on the
-          allocation-only detail page, or hit the password prompt — the same
-          destination the old "View" had. */}
-      <ChevronRight className="ml-auto w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          left, next to the name; self-center keeps it vertically centered against
+          the two-line row (the row is items-start so the name top-aligns with the
+          value). Restricted viewers still land on the allocation-only detail
+          page, or hit the password prompt — the same destination the old "View"
+          had. */}
+      <ChevronRight className="ml-auto self-center w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }
@@ -432,11 +436,7 @@ export function LandingPage() {
 
   // How many rows have a real % (are ranked). The top-3 podium icons only show
   // when at least two rows qualify — a leaderboard of one isn't a leaderboard.
-  // The caption names the ranking basis so the order (and the unsorted-looking
-  // dollar column beside it) reads as intentional.
   const rankedCount = Object.keys(rankById).length;
-  const rankBasisLabel =
-    timeframe === '30d' ? 'Ranked by 30-day move' : "Ranked by today's move";
 
   const handleSignIn = async (userId: string, password: string) => {
     // Verify credentials via login endpoint — get token back
@@ -542,14 +542,7 @@ export function LandingPage() {
                   No portfolios yet. Be the first to create one!
                 </div>
               ) : (
-                <>
-                  {/* Caption: names the ranking basis so the order — and the
-                      intentionally-unsorted dollar column beside it — reads as a
-                      "today's move" leaderboard, not a net-worth one. */}
-                  <div className="border-b border-border px-4 py-2 text-xs text-text-secondary">
-                    {rankBasisLabel}
-                  </div>
-                  <div className="divide-y divide-border">
+                <div className="divide-y divide-border">
                     {portfolios.map((portfolio) => {
                       // Restricted = visibility !== public AND server omitted
                       // the dollar total. Owner-side: server returned full
@@ -589,8 +582,7 @@ export function LandingPage() {
                         />
                       );
                     })}
-                  </div>
-                </>
+                </div>
               )}
               </div>
             </div>

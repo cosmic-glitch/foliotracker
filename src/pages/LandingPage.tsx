@@ -352,12 +352,12 @@ function PortfolioListRow({
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
           Pinned to the row's right edge (the % column's ml-auto absorbs the slack
-          before it, so this sits just right of the %); self-center keeps it
-          vertically centered against the two-line row (the row is items-start so
-          the name top-aligns with the value). Restricted viewers still land on
-          the allocation-only detail page, or hit the password prompt — the same
-          destination the old "View" had. */}
-      <ChevronRight className="self-center w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          before it, so this sits just right of the %). Top-aligned like every
+          other column (inherits the row's items-start, no self-center) so its top
+          sits on the same line as the name, value, and %. Restricted viewers
+          still land on the allocation-only detail page, or hit the password
+          prompt — the same destination the old "View" had. */}
+      <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }

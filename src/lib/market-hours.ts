@@ -4,6 +4,36 @@ const MARKET_OPEN_MINUTES = 9 * 60 + 30;
 const MARKET_CLOSE_MINUTES = 16 * 60;
 const AFTER_HOURS_CLOSE_MINUTES = 20 * 60;
 
+// ── NYSE market calendar ──────────────────────────────────────────────────
+// Full-day closures and 1:00 p.m. early-close half-days, keyed on ET calendar
+// day (YYYY-MM-DD). Sourced from the official NYSE calendar
+// (nyse.com/markets/hours-calendars), seeded through 2028; weekend-observed
+// dates follow NYSE's rule (a Saturday holiday is observed the preceding
+// Friday as a full closure — e.g. 2026-07-03 for the Sat July 4).
+//
+// DUPLICATED VERBATIM in api/_lib/cache.ts because the serverless API and the
+// Vite client are separate build targets with no shared module. Keep the two
+// copies identical — tests/calendar-sync.spec.ts fails on any drift. Extend
+// both each year from the official calendar before the seeded range runs out.
+export const MARKET_HOLIDAYS: ReadonlySet<string> = new Set([
+  // 2026
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25',
+  '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+  // 2027
+  '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31',
+  '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24',
+  // 2028 (New Year's Day Jan 1 is a Saturday — not observed)
+  '2028-01-17', '2028-02-21', '2028-04-14', '2028-05-29', '2028-06-19',
+  '2028-07-04', '2028-09-04', '2028-11-23', '2028-12-25',
+]);
+
+// date → regular-session close in ET minutes-from-midnight (1:00 p.m. = 780).
+export const MARKET_EARLY_CLOSES: ReadonlyMap<string, number> = new Map([
+  ['2026-11-27', 780], ['2026-12-24', 780], // 2026: day after Thanksgiving, Christmas Eve
+  ['2027-11-26', 780],                       // 2027: day after Thanksgiving
+  ['2028-07-03', 780], ['2028-11-24', 780],  // 2028: day before July 4, day after Thanksgiving
+]);
+
 const ET_PARTS_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: ET_TIMEZONE,
   year: 'numeric',
@@ -21,6 +51,7 @@ const ET_OFFSET_FORMATTER = new Intl.DateTimeFormat('en-US', {
 });
 
 interface ETParts {
+  dateKey: string;
   weekday: number;
   minutesFromMidnight: number;
 }
@@ -41,14 +72,31 @@ function parseWeekday(value: string): number {
 function getETParts(now: Date): ETParts {
   const parts = ET_PARTS_FORMATTER.formatToParts(now);
   const map = new Map(parts.map((part) => [part.type, part.value]));
+  const year = map.get('year') ?? '1970';
+  const month = map.get('month') ?? '01';
+  const day = map.get('day') ?? '01';
   const hour = Number(map.get('hour') ?? '0');
   const minute = Number(map.get('minute') ?? '0');
   const weekday = parseWeekday(map.get('weekday') ?? '');
 
   return {
+    dateKey: `${year}-${month}-${day}`,
     weekday,
     minutesFromMidnight: hour * 60 + minute,
   };
+}
+
+// A date the market trades at all (any session): a weekday that isn't a
+// holiday. Early-close half-days are still trading days.
+function isTradingDay(et: ETParts): boolean {
+  if (et.weekday < 1 || et.weekday > 5) return false;
+  return !MARKET_HOLIDAYS.has(et.dateKey);
+}
+
+// Regular-session close for a date, in ET minutes-from-midnight: 1:00 p.m. on
+// early-close half-days, otherwise the normal 4:00 p.m.
+function regularCloseMinutes(dateKey: string): number {
+  return MARKET_EARLY_CLOSES.get(dateKey) ?? MARKET_CLOSE_MINUTES;
 }
 
 export function getETOffset(now: Date = new Date()): number {
@@ -66,20 +114,20 @@ export function getETOffset(now: Date = new Date()): number {
 
 export function isMarketOpen(now: Date = new Date()): boolean {
   const et = getETParts(now);
-  if (et.weekday < 1 || et.weekday > 5) return false;
-  return et.minutesFromMidnight >= MARKET_OPEN_MINUTES && et.minutesFromMidnight < MARKET_CLOSE_MINUTES;
+  if (!isTradingDay(et)) return false;
+  return et.minutesFromMidnight >= MARKET_OPEN_MINUTES && et.minutesFromMidnight < regularCloseMinutes(et.dateKey);
 }
 
 export function isPreMarket(now: Date = new Date()): boolean {
   const et = getETParts(now);
-  if (et.weekday < 1 || et.weekday > 5) return false;
+  if (!isTradingDay(et)) return false;
   return et.minutesFromMidnight >= PRE_MARKET_OPEN_MINUTES && et.minutesFromMidnight < MARKET_OPEN_MINUTES;
 }
 
 export function isAfterHours(now: Date = new Date()): boolean {
   const et = getETParts(now);
-  if (et.weekday < 1 || et.weekday > 5) return false;
-  return et.minutesFromMidnight >= MARKET_CLOSE_MINUTES && et.minutesFromMidnight < AFTER_HOURS_CLOSE_MINUTES;
+  if (!isTradingDay(et)) return false;
+  return et.minutesFromMidnight >= regularCloseMinutes(et.dateKey) && et.minutesFromMidnight < AFTER_HOURS_CLOSE_MINUTES;
 }
 
 export function isLiveMarketSession(now: Date = new Date()): boolean {

@@ -250,18 +250,27 @@ function PortfolioListRow({
     // replaced by a trailing chevron). No per-row wash and no own-row accent —
     // every row reads the same; the top 3 are marked by a podium medal badge
     // beside the name.
+    //
+    // Layout: four fixed-width columns (name / dollar / % / chevron) spread with
+    // `justify-between`. With four children that splits ALL the row's free space
+    // into THREE EQUAL gaps — name pinned flush-left, chevron flush-right, and
+    // the dollar + % columns equidistant between them. The gaps flex with the
+    // card width (wider device → wider but still-equal gaps), so the desktop no
+    // longer shows a tight name→$ gap next to huge $→% / %→chevron gaps. Every
+    // row has identical box widths, so the computed gaps are identical row-to-row
+    // and the right-aligned $/% columns stay perfectly columnar. (No `gap-*` and
+    // no `ml-auto` — either would reintroduce a fixed/uneven gap.)
     <Link
       to={`/${portfolio.id}`}
       aria-label={`View ${portfolio.id.toUpperCase()} portfolio`}
-      className="flex items-start gap-2 pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
+      className="flex items-start justify-between pl-3 pr-4 py-1.5 transition-colors hover:bg-card-hover"
     >
       {/* Handle + medal — the name leads each row (left-aligned, no preceding
           rank column) with the top-3 podium medal sitting as a badge right after
-          it. Fixed-width container (truncating long handles) so the figure
-          cluster starts at a constant x across rows — that keeps the values in a
-          clean column AND lets them sit just to the right of the name rather than
-          being flung to the far edge (the chevron, ml-auto'd below, is the only
-          thing pinned to the right). The name is text-base (a touch bigger than
+          it. Fixed-width container (truncating long handles) so it occupies a
+          constant slot at the row's left edge and the four columns stay aligned
+          across rows under the row's `justify-between` even spacing. The name is
+          text-base (a touch bigger than
           the move line — there's room in the column) and leading-tight; the
           medal is shrink-0 so the name truncates to make room for it rather than
           pushing it off. items-center pairs the name and badge cleanly. */}
@@ -287,7 +296,8 @@ function PortfolioListRow({
           useCountUp) but has no tap-to-reveal — that 52w-peak easter egg lives
           only on the detail page, so the whole row is one tap target.
           Fixed width + right-aligned (items-end) so every row's dollars stack
-          into one column; sits just right of the name, NOT pinned to the edge. */}
+          into one clean right-aligned column; the row's `justify-between` places
+          it equidistant from the name and the % column. */}
       <div className="flex w-28 shrink-0 flex-col items-end leading-tight">
         {/* Value — the dominant figure, full and un-abbreviated. */}
         {shouldBlurValues ? (
@@ -330,17 +340,16 @@ function PortfolioListRow({
       </div>
 
       {/* Percentage column — today's % move, pulled out of the dollar line into
-          its own column so each figure reads cleanly. Floats in the middle of the
-          row's right side: ml-auto here AND on the chevron means flexbox splits
-          the free space equally, so the % sits roughly halfway between the dollar
-          column and the chevron — clear of both (it neither hugs the value nor the
-          chevron). NOT self-center: it top-aligns with the row (items-start), so
-          its cap-top lines up with the name and the dollar value — same text-lg +
+          its own column so each figure reads cleanly. The row's `justify-between`
+          places it equidistant between the dollar column and the chevron (no
+          `ml-auto` — that would pin it and break the even spacing). NOT
+          self-center: it top-aligns with the row (items-start), so its cap-top
+          lines up with the name and the dollar value — same text-lg +
           leading-tight as the value, so the three tops sit on one line. Rendered
           at the value's size (text-lg/semibold) so it reads as a co-equal headline
           figure, color-carrying the up/down signal; `—` when the % isn't known
           (unknown 1D move / no 30D anchor). */}
-      <div className="ml-auto w-16 shrink-0 text-right leading-tight">
+      <div className="w-16 shrink-0 text-right leading-tight">
         {shouldBlurValues ? (
           <span className="text-lg font-semibold leading-tight text-positive blur-sm select-none">+0.00%</span>
         ) : hasPct ? (
@@ -353,15 +362,13 @@ function PortfolioListRow({
       </div>
 
       {/* Chevron — the row itself is the tap target; this just signals "opens".
-          ml-auto pins it to the row's right edge; paired with the % column's
-          ml-auto, the two auto-margins split the row's free space evenly, leaving
-          equal gaps before the % and before the chevron (so the % floats in the
-          middle rather than hugging either side). Top-aligned like every other
-          column (inherits the row's items-start, no self-center) so its top sits
-          on the same line as the name, value, and %. Restricted viewers still
-          land on the allocation-only detail page, or hit the password prompt —
-          the same destination the old "View" had. */}
-      <ChevronRight className="ml-auto w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
+          The row's `justify-between` pins it flush to the right edge as the last
+          column (no `ml-auto` needed — that would double up with the spacing).
+          Top-aligned like every other column (inherits the row's items-start, no
+          self-center) so its top sits on the same line as the name, value, and %.
+          Restricted viewers still land on the allocation-only detail page, or hit
+          the password prompt — the same destination the old "View" had. */}
+      <ChevronRight className="w-4 h-4 shrink-0 text-text-secondary/60" aria-hidden />
     </Link>
   );
 }

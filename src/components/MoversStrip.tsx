@@ -1,5 +1,26 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Info } from 'lucide-react';
+import {
+  formatLargeValue,
+  formatPERatio,
+  formatMarginOrGrowth,
+  formatPctTo52WeekHigh,
+} from '../utils/formatters';
+
+// Ticker-level fundamentals carried per mover (mirrors MoverFundamentals in
+// api/portfolios.ts — the two are separate build targets, keep them in sync).
+// These are the same public figures the portfolio detail page's holdings popover
+// shows. Any field can be null (ETFs lack revenue/earnings/P/E); the popover
+// omits null rows and the "i" button is hidden when every field is null.
+export interface MoverFundamentals {
+  revenue: number | null;
+  earnings: number | null;
+  forwardPE: number | null;
+  operatingMargin: number | null;
+  revenueGrowth3Y: number | null;
+  epsGrowth3Y: number | null;
+  pctTo52WeekHigh: number | null;
+}
 
 export interface MarketMover {
   ticker: string;
@@ -7,6 +28,25 @@ export interface MarketMover {
   // Handles (portfolio ids) holding this name, in the same order the Users list
   // shows them. See the held-by note below for how they're rendered.
   holders: string[];
+  // Fundamentals shown behind the per-row "i" button. Optional so older cached
+  // payloads (pre-fundamentals) degrade gracefully — the button just hides.
+  fundamentals?: MoverFundamentals;
+}
+
+// Whether a mover has any fundamental worth showing — gates the "i" button so
+// names with no data (or an older payload missing the field) don't sprout an
+// empty popover. Mirrors HoldingsTable's per-holding fundamentals check.
+function hasFundamentals(f: MoverFundamentals | undefined): f is MoverFundamentals {
+  return (
+    !!f &&
+    (f.revenue != null ||
+      f.earnings != null ||
+      f.forwardPE != null ||
+      f.operatingMargin != null ||
+      f.revenueGrowth3Y != null ||
+      f.epsGrowth3Y != null ||
+      f.pctTo52WeekHigh != null)
+  );
 }
 
 interface MoversStripProps {
@@ -107,6 +147,23 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = movers.length > DISPLAY_COUNT;
   const shown = expanded && canExpand ? movers : movers.slice(0, DISPLAY_COUNT);
+
+  // Fundamentals popover, anchored to the clicked "i" button (mirrors the
+  // holdings-table popover on the portfolio detail page): fixed-positioned just
+  // below the button, dismissed by a full-screen backdrop.
+  const [popover, setPopover] = useState<{
+    ticker: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const popoverMover = popover
+    ? movers.find((m) => m.ticker === popover.ticker)
+    : null;
+  const openPopover = (ticker: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setPopover({ ticker, top: rect.bottom + 4, left: rect.left });
+  };
 
   // Per-row: does the full holder-names string fit its column? Default false
   // (count) so the pre-measurement render never overflows; the layout effect
@@ -232,10 +289,28 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
               const useNames = fitNames[i] ?? false;
               const isLast = i === shown.length - 1;
               const heldByLabel = useNames ? namesLabel(mover) : countLabel(mover);
+              const showInfo = hasFundamentals(mover.fundamentals);
               return (
                 <Fragment key={mover.ticker}>
-                  <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
-                    {mover.ticker}
+                  {/* Ticker + optional "i" button. The button opens a
+                      fundamentals popover (revenue, earnings, forward P/E, …) —
+                      same data and look as the holdings table on the detail
+                      page. It shares the ticker's auto grid column, so the move
+                      and held-by columns stay aligned across rows. */}
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <span className="font-semibold text-text-primary text-sm md:text-[15px]">
+                      {mover.ticker}
+                    </span>
+                    {showInfo && (
+                      <button
+                        type="button"
+                        onClick={(e) => openPopover(mover.ticker, e)}
+                        aria-label={`Fundamentals for ${mover.ticker}`}
+                        className="shrink-0 text-text-secondary hover:text-text-primary transition-colors"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </span>
                   <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                     {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
@@ -285,6 +360,66 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
           </div>
         </div>
       </div>
+
+      {/* Fundamentals popover — opened by a row's "i" button, anchored just
+          below it. Same shape and figures as the holdings-table popover on the
+          portfolio detail page; only the rows with data render. A fixed
+          full-screen backdrop closes it on any outside click. */}
+      {popover && popoverMover?.fundamentals && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPopover(null)} />
+          <div
+            className="fixed z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-64"
+            style={{ top: popover.top, left: popover.left }}
+          >
+            <p className="font-semibold text-text-primary text-sm mb-2">{popover.ticker}</p>
+            <div className="grid grid-cols-1 gap-y-1 text-xs">
+              {popoverMover.fundamentals.revenue != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Revenue</span>
+                  <span className="font-medium text-text-primary">{formatLargeValue(popoverMover.fundamentals.revenue)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.earnings != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Earnings</span>
+                  <span className="font-medium text-text-primary">{formatLargeValue(popoverMover.fundamentals.earnings)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.forwardPE != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Forward P/E</span>
+                  <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPE)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.operatingMargin != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Op Margin</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.operatingMargin)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.revenueGrowth3Y != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Revenue Growth (3Y)</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.revenueGrowth3Y)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.epsGrowth3Y != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">EPS Growth (3Y)</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.epsGrowth3Y)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.pctTo52WeekHigh != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">% to 52wk high</span>
+                  <span className="font-medium text-text-primary">{formatPctTo52WeekHigh(popoverMover.fundamentals.pctTo52WeekHigh)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

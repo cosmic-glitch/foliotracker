@@ -384,6 +384,23 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // Because the strip is ordered by |move|, the ranking — not just the displayed
 // percentage — switches with the basis.
 
+// Ticker-level fundamentals carried alongside each mover so the landing strip's
+// "i" button can surface the same figures the portfolio detail page's holdings
+// popover shows (revenue, earnings, forward P/E, etc.). These are public market
+// data (not dollar-denominated portfolio holdings), identical across whoever
+// holds the name, so we capture them from the canonical share-class holding.
+// Any field can be null (ETFs lack revenue/earnings/P/E); the UI omits null rows
+// and hides the "i" button entirely when every field is null.
+interface MoverFundamentals {
+  revenue: number | null;
+  earnings: number | null;
+  forwardPE: number | null;
+  operatingMargin: number | null;
+  revenueGrowth3Y: number | null;
+  epsGrowth3Y: number | null;
+  pctTo52WeekHigh: number | null;
+}
+
 interface MarketMover {
   ticker: string;
   changePercent: number;
@@ -392,6 +409,8 @@ interface MarketMover {
   // verbatim ("held by AB, CD") when they fit a row, and falls back to a count
   // ("held by 3 users") when they don't; either way holders.length is the count.
   holders: string[];
+  // Fundamentals shown behind the per-row "i" button (see MoverFundamentals).
+  fundamentals: MoverFundamentals;
 }
 
 const MOVER_STOCK_MIN_ABS_CHANGE_PCT = 2;
@@ -422,6 +441,7 @@ function computeMarketMovers(
       changeRegular: number;
       fromCanonical: boolean;
       isEtf: boolean;
+      fundamentals: MoverFundamentals;
     }
   >();
 
@@ -452,6 +472,16 @@ function computeMarketMovers(
           ? ((regPrice - h.previousClose) / h.previousClose) * 100
           : 0;
 
+      const fundamentals: MoverFundamentals = {
+        revenue: h.revenue,
+        earnings: h.earnings,
+        forwardPE: h.forwardPE,
+        operatingMargin: h.operatingMargin,
+        revenueGrowth3Y: h.revenueGrowth3Y,
+        epsGrowth3Y: h.epsGrowth3Y,
+        pctTo52WeekHigh: h.pctTo52WeekHigh,
+      };
+
       const canonical = SHARE_CLASS_ALIASES[h.ticker] ?? h.ticker;
       const isCanonical = h.ticker === canonical;
       let entry = byTicker.get(canonical);
@@ -462,14 +492,17 @@ function computeMarketMovers(
           changeRegular,
           fromCanonical: isCanonical,
           isEtf: h.instrumentType === 'ETF',
+          fundamentals,
         };
         byTicker.set(canonical, entry);
       }
       entry.holders.add(portfolio.id);
-      // Share classes drift slightly; report the canonical ticker's own move.
+      // Share classes drift slightly; report the canonical ticker's own move
+      // and its fundamentals.
       if (isCanonical && !entry.fromCanonical) {
         entry.changeExtended = h.dayChangePercent;
         entry.changeRegular = changeRegular;
+        entry.fundamentals = fundamentals;
         entry.fromCanonical = true;
       }
     }
@@ -485,6 +518,7 @@ function computeMarketMovers(
     // Holder handles in insertion (creation) order — matches the Users list.
     holders: Array.from(e.holders),
     isEtf: e.isEtf,
+    fundamentals: e.fundamentals,
   }));
 
   // Rank one price basis: √breadth × |move| (the noteworthiness product). Names
@@ -500,6 +534,7 @@ function computeMarketMovers(
         numPortfolios: c.numPortfolios,
         holders: c.holders,
         isEtf: c.isEtf,
+        fundamentals: c.fundamentals,
       }))
       .sort(
         (a, b) =>
@@ -525,10 +560,11 @@ function computeMarketMovers(
       }
     }
 
-    return result.map(({ ticker, changePercent, holders }) => ({
+    return result.map(({ ticker, changePercent, holders, fundamentals }) => ({
       ticker,
       changePercent,
       holders,
+      fundamentals,
     }));
   };
 

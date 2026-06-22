@@ -13,6 +13,7 @@ import {
   Monitor,
   ChevronDown,
   ChevronRight,
+  Link2,
 } from 'lucide-react';
 import { Footer } from '../components/Footer';
 
@@ -58,6 +59,29 @@ interface LocationDistributionEntry {
   totalViews: number;
 }
 
+// Mirrors api/_lib/db.ts ShareLinkAccessEntry / ShareLinkAccessGroup. Stats are
+// all-time and only count views recorded since share-link attribution shipped.
+type ShareLinkStatus = 'active' | 'expired' | 'revoked';
+
+interface ShareLinkAccessEntry {
+  id: string;
+  label: string | null;
+  tokenSuffix: string;
+  mode: string; // 'full' | 'allocation_only'
+  status: ShareLinkStatus;
+  createdAt: string;
+  expiresAt: string;
+  views: number;
+  uniqueVisitors: number;
+  lastAccessAt: string | null;
+}
+
+interface ShareLinkAccessGroup {
+  portfolio_id: string;
+  totalViews: number;
+  links: ShareLinkAccessEntry[];
+}
+
 interface AnalyticsData {
   totalViews: number;
   totalLogins: number;
@@ -67,6 +91,7 @@ interface AnalyticsData {
   eventsByDay: { date: string; views: number; logins: number }[];
   viewerLocations: ViewerLocationGroup[];
   anonymousLocations: LocationDistributionEntry[];
+  shareLinkAccess: ShareLinkAccessGroup[];
   viewerActivityByDay: {
     viewer_id: string;
     portfolio_id: string;
@@ -685,6 +710,100 @@ function AnonymousLocationsPanel({ data }: { data: LocationDistributionEntry[] }
   );
 }
 
+const SHARE_MODE_LABEL: Record<string, string> = {
+  full: 'Full',
+  allocation_only: 'Allocation',
+};
+
+function ShareLinkStatusBadge({ status }: { status: ShareLinkStatus }) {
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-positive">
+        <span className="w-1.5 h-1.5 rounded-full bg-positive" />
+        Active
+      </span>
+    );
+  }
+  if (status === 'revoked') {
+    return <span className="text-negative">Revoked</span>;
+  }
+  return <span className="text-text-secondary">Expired</span>;
+}
+
+// Per-portfolio sections (mirrors the Visitor Locations layout), each listing the
+// portfolio's share links with all-time attributed-view stats. Only live links and
+// links that have actually been accessed appear (the server drops dead, unused
+// links), so the panel stays an inventory of what matters rather than a graveyard.
+function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
+  if (data.length === 0) {
+    return <p className="text-text-secondary text-sm">No shared-link access yet</p>;
+  }
+  return (
+    <div className="space-y-8">
+      {data.map((group) => (
+        <section key={group.portfolio_id}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-text-secondary">
+              <PortfolioPathLink portfolioId={group.portfolio_id} />
+            </h3>
+            <span className="text-xs text-text-secondary">
+              {group.links.length} {group.links.length === 1 ? 'link' : 'links'} ·{' '}
+              {group.totalViews} {group.totalViews === 1 ? 'view' : 'views'}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-text-secondary border-b border-border">
+                  <th className="pb-2 font-medium">Link</th>
+                  <th className="pb-2 font-medium">Mode</th>
+                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium text-right">Views</th>
+                  <th className="pb-2 font-medium text-right">Visitors</th>
+                  <th className="pb-2 font-medium text-right">Last Access</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.links.map((link) => (
+                  <tr key={link.id} className="border-b border-border last:border-0">
+                    <td className="py-2 text-text-primary">
+                      {link.label ? (
+                        link.label
+                      ) : (
+                        <span className="text-text-secondary font-mono text-xs">
+                          …{link.tokenSuffix}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 text-text-secondary">
+                      {SHARE_MODE_LABEL[link.mode] || link.mode}
+                    </td>
+                    <td className="py-2">
+                      <ShareLinkStatusBadge status={link.status} />
+                    </td>
+                    <td className="py-2 text-text-secondary text-right tabular-nums">
+                      {link.views}
+                    </td>
+                    <td className="py-2 text-text-secondary text-right tabular-nums">
+                      {link.uniqueVisitors}
+                    </td>
+                    <td className="py-2 text-text-secondary text-right whitespace-nowrap">
+                      {link.lastAccessAt ? formatRelativeTime(link.lastAccessAt) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+      <p className="text-text-secondary text-xs">
+        All-time views. Only access recorded since share-link tracking was added is counted.
+      </p>
+    </div>
+  );
+}
+
 export function AnalyticsDashboard() {
   const [password, setPassword] = useState('');
   const [storedPassword, setStoredPassword] = useState(() => readStoredAdminPassword());
@@ -982,6 +1101,15 @@ export function AnalyticsDashboard() {
               ) : (
                 <p className="text-text-secondary text-sm">No portfolio views yet</p>
               )}
+            </div>
+
+            {/* Shared Link Access */}
+            <div className="bg-card rounded-2xl border border-border p-6 mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Link2 className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">Shared Link Access</h2>
+              </div>
+              <ShareLinkAccessPanel data={data.shareLinkAccess || []} />
             </div>
 
             {/* Viewer Device Breakdown */}

@@ -957,6 +957,10 @@ export interface AnalyticsEvent {
   event_type: string;
   portfolio_id?: string;
   viewer_id?: string;
+  // The share_links row a view came through, when the visitor opened a
+  // /:portfolioId?share=<token> link. Null/undefined for organic, logged-in, or
+  // anonymous views not tied to a share link. Powers the Shared Link Access panel.
+  share_link_id?: string;
   ip_address?: string;
   country?: string;
   city?: string;
@@ -1000,6 +1004,33 @@ export interface AnalyticsAggregation {
     portfolio_id: string;
     dailyCounts: Record<string, number>;
   }[];
+  shareLinkAccess: ShareLinkAccessGroup[];
+}
+
+// Per-share-link access, grouped by the portfolio the links belong to. Stats are
+// all-time (not windowed like the rest of the dashboard): share links outlive the
+// 30-day window and the owner wants each link's complete access picture. Only
+// populated for views logged after share-link attribution shipped — historical
+// events carry no share_link_id, so there's no backfill.
+export type ShareLinkStatus = 'active' | 'expired' | 'revoked';
+
+export interface ShareLinkAccessEntry {
+  id: string;
+  label: string | null;
+  tokenSuffix: string;          // last 6 chars of the token, to identify unlabeled links
+  mode: ShareLinkMode;          // 'full' | 'allocation_only'
+  status: ShareLinkStatus;
+  createdAt: string;
+  expiresAt: string;
+  views: number;                // attributed views, all-time
+  uniqueVisitors: number;       // distinct IPs among those views
+  lastAccessAt: string | null;  // most recent attributed view, or null if never used
+}
+
+export interface ShareLinkAccessGroup {
+  portfolio_id: string;
+  totalViews: number;
+  links: ShareLinkAccessEntry[];
 }
 
 // Single pre-formatted display string per location: "Seattle, WA" for US
@@ -1151,6 +1182,84 @@ function getSeattleMidnightToday(): Date {
   return new Date(midnightUTC.getTime() + offsetHours * 60 * 60 * 1000);
 }
 
+function shareLinkStatus(link: DbShareLink): ShareLinkStatus {
+  if (link.revoked_at) return 'revoked';
+  if (new Date(link.expires_at) <= new Date()) return 'expired';
+  return 'active';
+}
+
+// Builds the Shared Link Access panel data: each share link annotated with its
+// all-time attributed-view stats, grouped by portfolio. Pure (no I/O) so the
+// callers fetch the two inputs; share-link views are anonymous (viewer_id null),
+// so the dashboard's excludeViewerIds filter intentionally doesn't apply here.
+export function computeShareLinkAccess(
+  shareLinks: DbShareLink[],
+  linkedEvents: { share_link_id: string | null; ip_address: string | null; created_at: string }[]
+): ShareLinkAccessGroup[] {
+  // share_link_id -> rolled-up access stats
+  const stats = new Map<string, { views: number; ips: Set<string>; lastAccessAt: string }>();
+  for (const e of linkedEvents) {
+    if (!e.share_link_id) continue;
+    let s = stats.get(e.share_link_id);
+    if (!s) {
+      s = { views: 0, ips: new Set(), lastAccessAt: e.created_at };
+      stats.set(e.share_link_id, s);
+    }
+    s.views++;
+    if (e.ip_address) s.ips.add(e.ip_address);
+    if (e.created_at > s.lastAccessAt) s.lastAccessAt = e.created_at;
+  }
+
+  const statusRank: Record<ShareLinkStatus, number> = { active: 0, expired: 1, revoked: 2 };
+  const byPortfolio = new Map<string, ShareLinkAccessEntry[]>();
+
+  for (const link of shareLinks) {
+    const s = stats.get(link.id);
+    const views = s?.views ?? 0;
+    const status = shareLinkStatus(link);
+    // Keep the panel forward-looking and uncluttered: show a link only if it's
+    // still live or has actually been accessed. This hides the pile of revoked/
+    // expired links that recorded no views (e.g. every historical link on the
+    // first deploy, before attribution existed).
+    if (status !== 'active' && views === 0) continue;
+
+    const entry: ShareLinkAccessEntry = {
+      id: link.id,
+      label: link.label,
+      tokenSuffix: link.token.slice(-6),
+      mode: link.mode,
+      status,
+      createdAt: link.created_at,
+      expiresAt: link.expires_at,
+      views,
+      uniqueVisitors: s?.ips.size ?? 0,
+      lastAccessAt: s?.lastAccessAt ?? null,
+    };
+    const list = byPortfolio.get(link.portfolio_id) || [];
+    list.push(entry);
+    byPortfolio.set(link.portfolio_id, list);
+  }
+
+  const groups: ShareLinkAccessGroup[] = Array.from(byPortfolio.entries()).map(
+    ([portfolio_id, links]) => {
+      links.sort(
+        (a, b) =>
+          statusRank[a.status] - statusRank[b.status] ||
+          (b.lastAccessAt || '').localeCompare(a.lastAccessAt || '') ||
+          b.createdAt.localeCompare(a.createdAt)
+      );
+      return {
+        portfolio_id,
+        totalViews: links.reduce((sum, l) => sum + l.views, 0),
+        links,
+      };
+    }
+  );
+  // Busiest portfolios first; ties broken alphabetically for stable ordering.
+  groups.sort((a, b) => b.totalViews - a.totalViews || a.portfolio_id.localeCompare(b.portfolio_id));
+  return groups;
+}
+
 export async function getAnalyticsData(
   days: number = 30,
   options: { excludeViewerIds?: string[] } = {}
@@ -1170,6 +1279,23 @@ export async function getAnalyticsData(
     .order('created_at', { ascending: false });
 
   if (error) throw error;
+
+  // Share Link Access is computed all-time (not windowed), so it pulls its own
+  // inputs: every share link plus every share-link-attributed view. Both sets are
+  // small (one row per minted link / per link-attributed view).
+  const [shareLinksRes, linkedEventsRes] = await Promise.all([
+    supabase.from('share_links').select('*'),
+    supabase
+      .from('analytics_events')
+      .select('share_link_id, ip_address, created_at')
+      .not('share_link_id', 'is', null),
+  ]);
+  if (shareLinksRes.error) throw shareLinksRes.error;
+  if (linkedEventsRes.error) throw linkedEventsRes.error;
+  const shareLinkAccess = computeShareLinkAccess(
+    (shareLinksRes.data || []) as DbShareLink[],
+    linkedEventsRes.data || []
+  );
 
   // Drop events from excluded viewers (e.g. site owner's own test traffic) so
   // every downstream aggregation — totals, by-day, locations, devices — is
@@ -1400,6 +1526,7 @@ export async function getAnalyticsData(
     anonymousActivityByDay,
     viewerDeviceBreakdown,
     portfolioActivityByDay,
+    shareLinkAccess,
   };
 }
 

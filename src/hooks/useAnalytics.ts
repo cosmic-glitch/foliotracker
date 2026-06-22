@@ -5,7 +5,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export function useViewAnalytics(
   portfolioId: string | undefined,
   token: string | null,
-  loggedInAs: string | null
+  loggedInAs: string | null,
+  shareToken: string | null
 ) {
   const hasLoggedInitial = useRef(false);
   const currentPortfolioId = useRef(portfolioId);
@@ -13,14 +14,16 @@ export function useViewAnalytics(
   // Store current values in refs so the callback always has the latest values
   const tokenRef = useRef(token);
   const loggedInAsRef = useRef(loggedInAs);
+  const shareTokenRef = useRef(shareToken);
 
   // Keep refs updated
   useEffect(() => {
     tokenRef.current = token;
     loggedInAsRef.current = loggedInAs;
-  }, [token, loggedInAs]);
+    shareTokenRef.current = shareToken;
+  }, [token, loggedInAs, shareToken]);
 
-  // Stable logView function that uses refs for token/loggedInAs
+  // Stable logView function that uses refs for token/loggedInAs/shareToken
   const logView = useCallback(async () => {
     if (!portfolioId) return;
 
@@ -32,6 +35,9 @@ export function useViewAnalytics(
           portfolio_id: portfolioId,
           token: tokenRef.current || undefined,
           logged_in_as: loggedInAsRef.current || undefined,
+          // Attribute the view to the share link the visitor arrived through, so
+          // the Analytics Dashboard's Shared Link Access panel can count it.
+          share_token: shareTokenRef.current || undefined,
         }),
       });
     } catch (err) {

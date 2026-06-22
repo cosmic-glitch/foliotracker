@@ -123,8 +123,9 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  // Analytics hook - logs views on initial load and tab visibility change
-  useViewAnalytics(portfolioId, storedToken, loggedInAs);
+  // Analytics hook - logs views on initial load and tab visibility change.
+  // shareToken attributes views that arrived via a share link to that link.
+  useViewAnalytics(portfolioId, storedToken, loggedInAs, shareToken);
 
   const handleUnlock = async (password: string) => {
     if (!portfolioId) return;

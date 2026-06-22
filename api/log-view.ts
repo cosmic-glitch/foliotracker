@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, logAnalyticsEvent, getGeoFromIP } from './_lib/db.js';
+import { getPortfolio, logAnalyticsEvent, getGeoFromIP, getShareLinkByToken } from './_lib/db.js';
 
 export default async function handler(
   req: VercelRequest,
@@ -21,7 +21,7 @@ export default async function handler(
   }
 
   try {
-    const { portfolio_id, logged_in_as } = req.body;
+    const { portfolio_id, logged_in_as, share_token } = req.body;
 
     // Missing portfolio_id means a landing-page view — recorded with portfolio_id=null.
     if (portfolio_id) {
@@ -32,6 +32,19 @@ export default async function handler(
       }
     }
 
+    // Attribute the view to a share link when the visitor arrived via
+    // /:portfolioId?share=<token>. Scoped to the portfolio so a token can't
+    // attribute views to the wrong portfolio. We record the link even if it's
+    // expired/revoked — the access attempt is still meaningful — but never
+    // attribute one portfolio's link to another's view.
+    let share_link_id: string | undefined;
+    if (share_token) {
+      const link = await getShareLinkByToken(share_token);
+      if (link && (!portfolio_id || link.portfolio_id === String(portfolio_id).toLowerCase())) {
+        share_link_id = link.id;
+      }
+    }
+
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
     const geo = await getGeoFromIP(ip);
 
@@ -39,6 +52,7 @@ export default async function handler(
       event_type: 'view',
       portfolio_id: portfolio_id || undefined,
       viewer_id: logged_in_as || undefined,
+      share_link_id,
       ip_address: ip,
       country: geo?.country,
       city: geo?.city,

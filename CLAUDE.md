@@ -51,7 +51,7 @@ vercel --prod    # Deploy to production
 - `api/events.ts` - `GET /api/events` returns the landing-page Upcoming Events feed (future-dated rows from `upcoming_events`, ranked)
 - `api/refresh-prices.ts` - Background endpoint to refresh all portfolio snapshots
 - `api/login.ts` - Password verification + session token issuance. Emits the `login` analytics event.
-- `api/log-view.ts` - Emits `view` analytics events. Missing `portfolio_id` means a landing-page view (recorded with `portfolio_id = null`).
+- `api/log-view.ts` - Emits `view` analytics events. Missing `portfolio_id` means a landing-page view (recorded with `portfolio_id = null`). A `share_token` in the body is resolved (via `getShareLinkByToken`, scoped to the portfolio) to a `share_link_id` so the view is attributed to the share link it came through.
 - `api/permissions.ts` - Portfolio viewer permissions (selective visibility)
 - `api/share-links.ts` - Generate and resolve shareable view links
 - `api/_lib/db.ts` - Supabase client and database operations (incl. analytics aggregations, `ticker_news_summaries`, and `upcoming_events`)
@@ -75,7 +75,7 @@ vercel --prod    # Deploy to production
 - `daily_prices` table: ticker, date, close_price (historical daily closing prices)
 - `portfolio_snapshots` table: Pre-computed portfolio data with holdings, history, and benchmark (JSONB)
 - `sessions` table: token, portfolio_id, is_admin, expires_at, created_at (issued by `api/login.ts`)
-- `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), ip_address, user_agent, country/city/region, referer, created_at
+- `analytics_events` table: event_type (`view`/`login`), portfolio_id (nullable; null = landing page), viewer_id (nullable; null = anonymous), share_link_id (nullable uuid; the `share_links` row a view came through, null = not via a share link), ip_address, user_agent, country/city/region, referer, created_at
 - `ticker_news_summaries` table: ticker, AI summary markdown, sources (JSONB), summary_date — AI-generated per-ticker news, written by `scripts/generate-news.sh` and served by `api/news.ts`
 - `upcoming_events` table: id, event_type (`macro`/`earnings`), event_date, event_time, title, detail, importance, tickers/holders (JSONB), holder_count, source (JSONB), position — the landing-page Upcoming Events feed (one ranked global list, replaced wholesale by `scripts/generate-events.sh`, served by `api/events.ts`)
 
@@ -102,6 +102,7 @@ vercel --prod    # Deploy to production
   - Every page open fires `POST /api/log-view`. Portfolio routes use `useViewAnalytics` (mounted in `App.tsx`); the landing page uses `useLandingViewAnalytics` (mounted in `LandingPage.tsx`). Both fire on initial mount and on `visibilitychange → visible`.
   - `log-view` writes `event_type = 'view'` only. The `login` event type is emitted exclusively by `api/login.ts` at password verification — do not write `'login'` from anywhere else.
   - `portfolio_id = null` ⇒ landing-page view. `viewer_id = null` ⇒ anonymous visitor. In analytics aggregations, anonymous visitors are clustered by `ip_address` alone (browser/device merged into one row) so each network shows up as a single identity — labeled `location • masked-IP` — in the Viewer Activity (Anonymous) panel.
+  - `share_link_id` attributes a view to the share link it arrived through (`/:portfolioId?share=<token>`). Threaded from `App.tsx` → `useViewAnalytics` (4th arg) → `log-view`. Powers the **Shared Link Access** panel on the dashboard (`computeShareLinkAccess` in `api/_lib/db.ts` → `shareLinkAccess` field), which groups each portfolio's share links with **all-time** attributed-view stats (views, unique IPs, last access, status). Unlike the rest of the dashboard this is *not* windowed by `days` and *not* affected by the `excludeViewers`/"Include AV" toggle (share-link views are anonymous). Only live links and links with ≥1 attributed view are shown (dead/unused links are dropped). No backfill — only views logged after this shipped carry `share_link_id`.
   - The Analytics Dashboard at `/analytics` is gated by `ADMIN_PASSWORD`.
 - **Storage-backed hooks must hydrate synchronously.** Hooks that read from `localStorage`/`sessionStorage` (`useLoggedInPortfolio`, `useUnlockedPortfolios`) must initialize state via `useState(() => readStorage())` — **not** in a post-mount `useEffect`. Otherwise the first render sees a logged-out app, and any side effects firing in that window (analytics events, identified data fetches) carry no identity. This bug silently broke view-event attribution for weeks; don't reintroduce the pattern when adding new storage-backed hooks.
 

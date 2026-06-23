@@ -74,6 +74,7 @@ interface ShareLinkAccessEntry {
   views: number;
   uniqueVisitors: number;
   lastAccessAt: string | null;
+  locations: ViewerLocationOccurrence[];
 }
 
 interface ShareLinkAccessGroup {
@@ -735,6 +736,19 @@ function ShareLinkStatusBadge({ status }: { status: ShareLinkStatus }) {
 // links that have actually been accessed appear (the server drops dead, unused
 // links), so the panel stays an inventory of what matters rather than a graveyard.
 function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
+  // Expansion keyed by link.id (unique across all portfolios), so one link's
+  // location drill-down opens independently of the others.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (linkId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(linkId)) next.delete(linkId);
+      else next.add(linkId);
+      return next;
+    });
+  };
+
   if (data.length === 0) {
     return <p className="text-text-secondary text-sm">No shared-link access yet</p>;
   }
@@ -755,43 +769,99 @@ function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-text-secondary border-b border-border">
+                  <th className="pb-2 font-medium w-8"></th>
                   <th className="pb-2 font-medium">Link</th>
                   <th className="pb-2 font-medium">Mode</th>
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium text-right">Views</th>
                   <th className="pb-2 font-medium text-right">Visitors</th>
+                  <th className="pb-2 font-medium text-right">Location</th>
                   <th className="pb-2 font-medium text-right">Last Access</th>
                 </tr>
               </thead>
               <tbody>
-                {group.links.map((link) => (
-                  <tr key={link.id} className="border-b border-border last:border-0">
-                    <td className="py-2 text-text-primary">
-                      {link.label ? (
-                        link.label
-                      ) : (
-                        <span className="text-text-secondary font-mono text-xs">
-                          …{link.tokenSuffix}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-text-secondary">
-                      {SHARE_MODE_LABEL[link.mode] || link.mode}
-                    </td>
-                    <td className="py-2">
-                      <ShareLinkStatusBadge status={link.status} />
-                    </td>
-                    <td className="py-2 text-text-secondary text-right tabular-nums">
-                      {link.views}
-                    </td>
-                    <td className="py-2 text-text-secondary text-right tabular-nums">
-                      {link.uniqueVisitors}
-                    </td>
-                    <td className="py-2 text-text-secondary text-right whitespace-nowrap">
-                      {link.lastAccessAt ? formatRelativeTime(link.lastAccessAt) : '—'}
-                    </td>
-                  </tr>
-                ))}
+                {group.links.map((link) => {
+                  const isOpen = expanded.has(link.id);
+                  const hasLocations = link.locations.length > 0;
+                  const topLocation = link.locations[0];
+                  return (
+                    <Fragment key={link.id}>
+                      <tr
+                        className={`border-b border-border last:border-0 ${hasLocations ? 'cursor-pointer hover:bg-background/50' : ''}`}
+                        onClick={() => hasLocations && toggle(link.id)}
+                      >
+                        <td className="py-2 text-text-secondary">
+                          {hasLocations ? (
+                            isOpen ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )
+                          ) : null}
+                        </td>
+                        <td className="py-2 text-text-primary">
+                          {link.label ? (
+                            link.label
+                          ) : (
+                            <span className="text-text-secondary font-mono text-xs">
+                              …{link.tokenSuffix}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 text-text-secondary">
+                          {SHARE_MODE_LABEL[link.mode] || link.mode}
+                        </td>
+                        <td className="py-2">
+                          <ShareLinkStatusBadge status={link.status} />
+                        </td>
+                        <td className="py-2 text-text-secondary text-right tabular-nums">
+                          {link.views}
+                        </td>
+                        <td className="py-2 text-text-secondary text-right tabular-nums">
+                          {link.uniqueVisitors}
+                        </td>
+                        <td className="py-2 text-text-secondary text-right whitespace-nowrap">
+                          {hasLocations ? (
+                            <span className="inline-flex items-center justify-end gap-1.5">
+                              <span>{topLocation.display}</span>
+                              {link.locations.length > 1 && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-xs">
+                                  +{link.locations.length - 1}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-2 text-text-secondary text-right whitespace-nowrap">
+                          {link.lastAccessAt ? formatRelativeTime(link.lastAccessAt) : '—'}
+                        </td>
+                      </tr>
+                      {isOpen && hasLocations ? (
+                        <tr className="border-b border-border last:border-0 bg-background/30">
+                          <td></td>
+                          <td colSpan={7} className="py-2 pr-2">
+                            <ul className="space-y-1">
+                              {link.locations.map((loc) => (
+                                <li
+                                  key={loc.display}
+                                  className="flex items-center justify-between text-xs"
+                                >
+                                  <span className="text-text-primary">{loc.display}</span>
+                                  <span className="text-text-secondary">
+                                    {loc.count} {loc.count === 1 ? 'view' : 'views'} · last{' '}
+                                    {formatRelativeTime(loc.lastSeenAt)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

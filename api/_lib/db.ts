@@ -1025,6 +1025,7 @@ export interface ShareLinkAccessEntry {
   views: number;                // attributed views, all-time
   uniqueVisitors: number;       // distinct IPs among those views
   lastAccessAt: string | null;  // most recent attributed view, or null if never used
+  locations: ViewerLocationOccurrence[]; // where the attributed views came from, most-recent first
 }
 
 export interface ShareLinkAccessGroup {
@@ -1194,20 +1195,44 @@ function shareLinkStatus(link: DbShareLink): ShareLinkStatus {
 // so the dashboard's excludeViewerIds filter intentionally doesn't apply here.
 export function computeShareLinkAccess(
   shareLinks: DbShareLink[],
-  linkedEvents: { share_link_id: string | null; ip_address: string | null; created_at: string }[]
+  linkedEvents: {
+    share_link_id: string | null;
+    ip_address: string | null;
+    created_at: string;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+  }[]
 ): ShareLinkAccessGroup[] {
-  // share_link_id -> rolled-up access stats
-  const stats = new Map<string, { views: number; ips: Set<string>; lastAccessAt: string }>();
+  // share_link_id -> rolled-up access stats. `locations` keys by city|region|country
+  // (same key shape as the Visitor Locations panel) so each distinct place is one row.
+  type LinkLocAgg = { city: string | null; region: string | null; country: string | null; count: number; lastSeenAt: string };
+  const stats = new Map<
+    string,
+    { views: number; ips: Set<string>; lastAccessAt: string; locations: Map<string, LinkLocAgg> }
+  >();
   for (const e of linkedEvents) {
     if (!e.share_link_id) continue;
     let s = stats.get(e.share_link_id);
     if (!s) {
-      s = { views: 0, ips: new Set(), lastAccessAt: e.created_at };
+      s = { views: 0, ips: new Set(), lastAccessAt: e.created_at, locations: new Map() };
       stats.set(e.share_link_id, s);
     }
     s.views++;
     if (e.ip_address) s.ips.add(e.ip_address);
     if (e.created_at > s.lastAccessAt) s.lastAccessAt = e.created_at;
+
+    const city = e.city || null;
+    const region = e.region || null;
+    const country = e.country || null;
+    const locKey = `${city ?? ''}|${region ?? ''}|${country ?? ''}`;
+    const loc = s.locations.get(locKey);
+    if (loc) {
+      loc.count++;
+      if (e.created_at > loc.lastSeenAt) loc.lastSeenAt = e.created_at;
+    } else {
+      s.locations.set(locKey, { city, region, country, count: 1, lastSeenAt: e.created_at });
+    }
   }
 
   const statusRank: Record<ShareLinkStatus, number> = { active: 0, expired: 1, revoked: 2 };
@@ -1234,6 +1259,15 @@ export function computeShareLinkAccess(
       views,
       uniqueVisitors: s?.ips.size ?? 0,
       lastAccessAt: s?.lastAccessAt ?? null,
+      locations: s
+        ? Array.from(s.locations.values())
+            .map((v) => ({
+              display: formatLocationLong(v.city, v.region, v.country),
+              count: v.count,
+              lastSeenAt: v.lastSeenAt,
+            }))
+            .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+        : [],
     };
     const list = byPortfolio.get(link.portfolio_id) || [];
     list.push(entry);
@@ -1287,7 +1321,7 @@ export async function getAnalyticsData(
     supabase.from('share_links').select('*'),
     supabase
       .from('analytics_events')
-      .select('share_link_id, ip_address, created_at')
+      .select('share_link_id, ip_address, created_at, city, region, country')
       .not('share_link_id', 'is', null),
   ]);
   if (shareLinksRes.error) throw shareLinksRes.error;

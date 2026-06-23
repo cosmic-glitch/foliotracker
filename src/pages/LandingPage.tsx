@@ -269,12 +269,17 @@ function PortfolioListRow({
           rank column) with the top-3 podium medal sitting as a badge right after
           it. Fixed-width container (truncating long handles) so it occupies a
           constant slot at the row's left edge and the four columns stay aligned
-          across rows under the row's `justify-between` even spacing. The name is
-          text-base (a touch bigger than
-          the move line — there's room in the column) and leading-tight; the
-          medal is shrink-0 so the name truncates to make room for it rather than
-          pushing it off. items-center pairs the name and badge cleanly. */}
-      <span className="flex w-20 shrink-0 items-center gap-1.5">
+          across rows under the row's `justify-between` even spacing. Width is
+          `w-28` (not narrower): the medal is shrink-0, so it eats from the name's
+          truncation budget — a tighter box (w-20 clipped a 6-char handle like
+          "BAXTER" to "BAX…" once a podium medal sat beside it). Because every
+          surplus pixel of row width flows into the `justify-between` gaps, NOT
+          this box, the column can't borrow space back from a wide desktop — so
+          it has to be sized to fit handle + medal outright. The name is text-base
+          (a touch bigger than the move line — there's room in the column) and
+          leading-tight; the medal is shrink-0 so the name truncates to make room
+          for it rather than pushing it off. items-center pairs name and badge. */}
+      <span className="flex w-28 shrink-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-base font-semibold leading-tight text-text-primary">
           {portfolio.id.toUpperCase()}
         </span>

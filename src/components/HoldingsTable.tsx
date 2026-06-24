@@ -309,10 +309,19 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
             const { change, percent } = activeChange(holding, timeframe);
             return (
               <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-                {/* Ticker/name + info — static names span the price column too */}
+                {/* Ticker/name + info — static names span the price column too.
+                    A long static name (e.g. "US Real Estate") would otherwise
+                    bleed across the empty price slot, dropping prose where the
+                    numbers column lives. Clip static names to ~ticker width
+                    (5-6 chars) so the price area reads blank, not as text;
+                    `title` keeps the full name discoverable. Tradeable tickers
+                    are already short, so they keep the looser cap. */}
                 <td colSpan={holding.isStatic ? 2 : 1} className="pl-3 pr-2 py-2 whitespace-nowrap align-middle">
                   <div className="flex items-center gap-1">
-                    <span className="font-semibold text-text-primary block truncate max-w-[55vw]">{holding.ticker}</span>
+                    <span
+                      title={holding.ticker}
+                      className={`font-semibold text-text-primary block truncate ${holding.isStatic ? 'max-w-[7ch]' : 'max-w-[55vw]'}`}
+                    >{holding.ticker}</span>
                     {holdingHasFundamentals && (
                       <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors shrink-0">
                         <Info className="w-3.5 h-3.5" />

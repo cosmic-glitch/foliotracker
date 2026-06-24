@@ -88,10 +88,6 @@ function getSortValue(
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const { timeframe } = useTimeframe();
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
-  const maxTickerLength = useMemo(() => {
-    const tradeable = consolidatedHoldings.filter((h) => !h.isStatic);
-    return tradeable.length ? Math.max(...tradeable.map((h) => h.ticker.length)) : 4;
-  }, [consolidatedHoldings]);
   const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
   const [sortConfig, setSortConfig] = useState<{ column: SortColumn; direction: SortDirection }>({
     column: 'value',
@@ -296,36 +292,37 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         </table>
       </div>
 
-      {/* Mobile Cards */}
-      <div className="md:hidden divide-y divide-border">
-        {sortedHoldings.map((holding) => {
-          const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
-          const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
-          const { change, percent } = activeChange(holding, timeframe);
-          return (
-            <div key={holding.ticker} className="px-3 py-2">
-              {/* Grid (not flex) so the value column has the same left edge on
-                  every row: a fixed ticker track + two equal minmax(0,1fr)
-                  tracks that never grow with content. Static holdings have long
-                  names (e.g. "US Real Estate") and no price — their name spans
-                  the ticker+price tracks while the value stays in the last
-                  track, aligned with every other row's value. */}
-              <div
-                className="grid items-center gap-2"
-                style={{ gridTemplateColumns: `${maxTickerLength + 4}ch minmax(0,1fr) minmax(0,1fr)` }}
-              >
-                {/* Left: ticker/name + info */}
-                <div className={`flex items-center gap-1 min-w-0 ${holding.isStatic ? 'col-span-2' : ''}`}>
-                  <p className="font-semibold text-text-primary truncate">{holding.ticker}</p>
-                  {holdingHasFundamentals && (
-                    <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors shrink-0">
-                      <Info className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                {/* Middle: unit price + % change (tradeable only) */}
+      {/* Mobile Table — an auto-sizing <table> (not a fixed grid) so each
+          column is exactly as wide as its content: the ticker and price
+          columns shrink to fit, and the value column carries `w-full` to
+          absorb the remaining width. This packs the row optimally (no wasted
+          50/50 slack) so the value + $-change never gets clipped by the
+          card's overflow-hidden, while the table's uniform column widths keep
+          every value left-aligned in one column. Static holdings have no price
+          — their name spans the ticker+price columns via colSpan, with the
+          value still landing in the aligned final column. */}
+      <table className="md:hidden w-full">
+        <tbody>
+          {sortedHoldings.map((holding) => {
+            const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
+            const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
+            const { change, percent } = activeChange(holding, timeframe);
+            return (
+              <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
+                {/* Ticker/name + info — static names span the price column too */}
+                <td colSpan={holding.isStatic ? 2 : 1} className="pl-3 pr-2 py-2 whitespace-nowrap align-middle">
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold text-text-primary block truncate max-w-[55vw]">{holding.ticker}</span>
+                    {holdingHasFundamentals && (
+                      <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors shrink-0">
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+                {/* Unit price + % change (tradeable only) */}
                 {!holding.isStatic && (
-                  <div className="text-left whitespace-nowrap overflow-hidden">
+                  <td className="pr-2 py-2 whitespace-nowrap text-left align-middle">
                     <span
                       onClick={() => handleSort('currentPrice')}
                       className="text-text-primary text-sm cursor-pointer select-none"
@@ -346,10 +343,10 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                         )}
                       </span>
                     )}
-                  </div>
+                  </td>
                 )}
-                {/* Right: value + $ change */}
-                <div className="text-left whitespace-nowrap">
+                {/* Value + $ change — w-full absorbs the leftover width */}
+                <td className="w-full pr-3 py-2 whitespace-nowrap text-left align-middle">
                   <span
                     onClick={() => handleSort('value')}
                     className="font-semibold text-text-primary cursor-pointer select-none"
@@ -370,12 +367,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       )}
                     </span>
                   )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
 
       {popover && popoverHolding && (
         <>

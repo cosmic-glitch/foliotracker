@@ -73,6 +73,10 @@ interface PortfoliosResponse {
   // or `regular` depending on the Extended Hours toggle, matching the holdings
   // table and totals.
   movers?: { regular: MarketMover[]; extended: MarketMover[] };
+  // Total view events recorded site-wide today (Pacific day). Shown as a
+  // social-proof hook on the movers strip's tab row. Optional so older cached
+  // payloads degrade to no counter.
+  viewsToday?: number;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -539,6 +543,7 @@ export function LandingPage() {
                   ? data?.movers?.extended
                   : data?.movers?.regular) ?? []
               }
+              viewsToday={data?.viewsToday}
               isLoading={isLoading}
             />
 

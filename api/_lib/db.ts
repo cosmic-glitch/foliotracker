@@ -1183,6 +1183,27 @@ function getSeattleMidnightToday(): Date {
   return new Date(midnightUTC.getTime() + offsetHours * 60 * 60 * 1000);
 }
 
+// Total `view` analytics events recorded so far today (Pacific day, the same
+// window the analytics dashboard's todayViews uses). A cheap head+count query —
+// no rows fetched — surfaced on the public portfolios list so the landing page
+// can show a "N views today" social-proof hook beside the movers strip. Counts
+// every view event (landing + portfolio detail pages), not unique visitors.
+// Returns 0 on error so the hook degrades to hidden rather than breaking the
+// list response.
+export async function getTodayViewCount(): Promise<number> {
+  const todayStart = getSeattleMidnightToday().toISOString();
+  const { count, error } = await supabase
+    .from('analytics_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('event_type', 'view')
+    .gte('created_at', todayStart);
+  if (error) {
+    console.error('Failed to count today views:', error);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 function shareLinkStatus(link: DbShareLink): ShareLinkStatus {
   if (link.revoked_at) return 'revoked';
   if (new Date(link.expires_at) <= new Date()) return 'expired';

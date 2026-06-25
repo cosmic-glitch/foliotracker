@@ -17,6 +17,7 @@ import {
   deletePortfolioSnapshot,
   recordSnapshotError,
   getAnalyticsData,
+  getTodayViewCount,
   type Visibility,
   type DbPortfolioListItem,
   type DbPortfolioSnapshot,
@@ -855,6 +856,11 @@ export default async function handler(
         })
       );
 
+      // Total views today across the whole site — a social-proof hook shown
+      // beside the movers strip on the landing page. Cheap count query; not
+      // cached in Redis so the number stays live (it's a single head+count).
+      const viewsToday = await getTodayViewCount();
+
       console.log(`[TIMING] portfolios.ts GET total: ${Date.now() - requestStart}ms`);
       res.status(200).json({
         portfolios: portfoliosWithSummary,
@@ -862,6 +868,7 @@ export default async function handler(
         maxPortfolios: MAX_PORTFOLIOS,
         canCreate: count < MAX_PORTFOLIOS,
         movers: computeMarketMovers(portfolios, snapshotMap),
+        viewsToday,
       });
       return;
     }

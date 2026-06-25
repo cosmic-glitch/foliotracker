@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Flame, Info } from 'lucide-react';
+import { Flame, Info, Eye } from 'lucide-react';
 import {
   formatLargeValue,
   formatPERatio,
@@ -51,6 +51,11 @@ function hasFundamentals(f: MoverFundamentals | undefined): f is MoverFundamenta
 
 interface MoversStripProps {
   movers: MarketMover[];
+  // Total view events site-wide today (Pacific day), from the portfolios query.
+  // Rendered as a low-key "N views today" social-proof hook in the empty band to
+  // the right of the "Top movers" tab. Optional/undefined (older payload or API
+  // error) and zero both render no counter — never a bare "0 views today".
+  viewsToday?: number;
   // First-load flag from the portfolios query. While true with no movers yet,
   // the strip holds its space with a skeleton instead of rendering nothing, so it
   // doesn't pop in above the Users card and shove it down once data lands. Once
@@ -140,7 +145,7 @@ function countLabel(m: MarketMover): string {
 // filler. The server keeps the list populated (see computeMarketMovers). During
 // the very first load (no data yet) it instead holds its space with a skeleton,
 // so it doesn't pop in above the Users card and shove it down once data arrives.
-export function MoversStrip({ movers, isLoading }: MoversStripProps) {
+export function MoversStrip({ movers, viewsToday, isLoading }: MoversStripProps) {
   // Collapsed by default; the viewer can expand to the full qualified list and
   // collapse back. Only offered when the server returned more than DISPLAY_COUNT
   // (i.e. there are qualified movers beyond the default rows to reveal).
@@ -243,6 +248,28 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
     </div>
   );
 
+  // Views-today hook — a low-key counter that floats in the empty band to the
+  // RIGHT of the fixed-width tab, on the same horizontal line as "Top movers"
+  // (the tab is only w-36, so the rest of that row is dead space). It's
+  // site-wide social proof, deliberately NOT tied to the movers data — muted
+  // eye icon + secondary text so it stays clearly subordinate to the tab label.
+  // Hidden when the count is absent (older payload / API error) or zero, so it
+  // never renders a bare "0 views today". `pr-4` insets it from the card's right
+  // edge to match the card body's horizontal padding. NOTE: this lives on the
+  // movers strip, so on a genuinely quiet day when the strip self-hides (no
+  // movers, not loading) the counter goes with it — acceptable since that's also
+  // when there's no "Top movers" row to sit beside.
+  const viewsCounter =
+    typeof viewsToday === 'number' && viewsToday > 0 ? (
+      <span className="flex items-center gap-1.5 pr-4 text-xs md:text-[13px] text-text-secondary whitespace-nowrap">
+        <Eye className="h-3.5 w-3.5" aria-hidden />
+        <span className="tabular-nums font-medium text-text-primary">
+          {viewsToday.toLocaleString()}
+        </span>
+        <span>views today</span>
+      </span>
+    ) : null;
+
   // No movers to show: render nothing on a settled quiet day, but hold the
   // strip's space with a skeleton while the first load is still in flight, so it
   // doesn't pop in above the Users card and shove it down once data lands.
@@ -273,7 +300,15 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
       className="mb-3 md:mb-6"
       aria-label="Today's movers among tracked holdings"
     >
-      {tab}
+      {/* Tab row: the folder tab on the left, the views-today counter floated
+          into the dead space on its right (same horizontal line). justify-between
+          pins them to the two edges; when there's no counter the tab simply stays
+          left. items-center vertically centers the counter against the taller tab
+          so it reads as the same row as "Top movers". */}
+      <div className="flex items-center justify-between">
+        {tab}
+        {viewsCounter}
+      </div>
 
       {/* Card body. Top-left squared (rounded-tl-none) so its left border lines
           up flush beneath the tab's left border; pulled up 1px (-mt-px) to

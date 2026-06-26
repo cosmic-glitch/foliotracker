@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Eye } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -519,12 +519,8 @@ export function LandingPage() {
                   FolioTracker
                 </h1>
                 {typeof data?.viewsToday === 'number' && data.viewsToday > 0 && (
-                  <span className="mt-0.5 flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap">
-                    <Eye className="h-3 w-3" aria-hidden />
-                    <span className="tabular-nums font-medium text-text-primary">
-                      {data.viewsToday.toLocaleString()}
-                    </span>
-                    <span>views today</span>
+                  <span className="mt-0.5 text-xs font-normal text-text-secondary whitespace-nowrap tabular-nums">
+                    {data.viewsToday.toLocaleString()} views today
                   </span>
                 )}
               </div>

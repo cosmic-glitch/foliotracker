@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Eye } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -507,9 +507,27 @@ export function LandingPage() {
               <div className="p-2 bg-accent/10 rounded-lg">
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
-              <h1 className="text-xl font-semibold text-text-primary whitespace-nowrap">
-                FolioTracker
-              </h1>
+              {/* Title + a small "views today" social-proof line stacked beside
+                  the icon. The button stays items-center, so with no subtitle
+                  (first load / zero / older payload) the title sits vertically
+                  centered against the icon exactly as before — no regression.
+                  When the count shows, the two-line stack ≈ the icon's height, so
+                  the title rises to align near the icon's top line and the count
+                  fills the space beneath it. */}
+              <div className="flex flex-col items-start leading-tight">
+                <h1 className="text-xl font-semibold text-text-primary whitespace-nowrap leading-tight">
+                  FolioTracker
+                </h1>
+                {typeof data?.viewsToday === 'number' && data.viewsToday > 0 && (
+                  <span className="mt-0.5 flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap">
+                    <Eye className="h-3 w-3" aria-hidden />
+                    <span className="tabular-nums font-medium text-text-primary">
+                      {data.viewsToday.toLocaleString()}
+                    </span>
+                    <span>views today</span>
+                  </span>
+                )}
+              </div>
             </button>
             <div className="flex items-center gap-1.5 md:gap-3">
               {loggedInAs && (
@@ -543,7 +561,6 @@ export function LandingPage() {
                   ? data?.movers?.extended
                   : data?.movers?.regular) ?? []
               }
-              viewsToday={data?.viewsToday}
               isLoading={isLoading}
             />
 

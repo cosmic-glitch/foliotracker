@@ -32,6 +32,27 @@ function eventEmoji(e: { type: string; title: string }): string {
   return '📅';
 }
 
+// How many holder handles to name inline on an earnings row before collapsing to
+// a bare count. Past the cap the label drops the names ("held by 5 holders")
+// rather than measuring per-row width the way the movers strip does — the
+// generator caps the feed at a dozen events and the title eats most of the line,
+// so a deterministic small cap keeps every row one line without a ResizeObserver.
+const HOLDER_NAME_CAP = 3;
+
+// The muted "held by …" suffix appended to an earnings title — the portfolio
+// handles that own the name, uppercased to match the movers strip ("held by AB,
+// CD") and the Users leaderboard. Returns null for macro events (holders === null)
+// or an empty holder list, so the caller renders title-only. Up to HOLDER_NAME_CAP
+// handles are named; beyond that it collapses to "held by N holders" so a
+// widely-held name can't blow the line out.
+function holderLabel(holders: string[] | null): string | null {
+  if (!holders || holders.length === 0) return null;
+  if (holders.length <= HOLDER_NAME_CAP) {
+    return `held by ${holders.map((h) => h.toUpperCase()).join(', ')}`;
+  }
+  return `held by ${holders.length} holders`;
+}
+
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
 // and the same notepad-tab-with-label + inline expand link (a blue "N more" at
 // the bottom-right of the last row) pattern as the movers strip, so the two read
@@ -49,8 +70,12 @@ function eventEmoji(e: { type: string; title: string }): string {
 // held earnings), ranked chronologically — so it answers "what's coming next?"
 // rather than "what's most severe?", and an importance dot would just add noise
 // to a plain date | title statement. Earnings titles are already self-contained
-// ("Micron Q3 FY26 earnings"), so a separate ticker chip was redundant too; the
-// title alone reads cleanly.
+// ("Micron Q3 FY26 earnings"), so a separate ticker chip was redundant too.
+// Earnings rows DO carry a muted "held by AV, VD" suffix after the title — the
+// portfolio handles that own the name (same handles as the movers strip / Users
+// list), via holderLabel above. It's appended inline within the title cell, not
+// as a separate column (see the meta-column note below). Macro rows have no
+// holders and render title-only.
 //
 // Each title is prefixed with a single category emoji (eventEmoji above) — 🏦
 // Fed/rates, 📈 inflation, 💼 jobs, 📊 growth, 🛍️ retail, 🏭 manufacturing, 💰
@@ -58,12 +83,15 @@ function eventEmoji(e: { type: string; title: string }): string {
 // from the event (not stored), and is purely decorative (aria-hidden) — it cues
 // category, not severity (which the strip deliberately doesn't encode).
 //
-// No right-column meta either: the clock time and holder handles are both
-// deliberately omitted. On a narrow (mobile) layout the screen is too cramped
-// for them, and — because this is a CSS grid — a meta column would reserve its
+// No right-column meta: the clock time is deliberately omitted, and the holder
+// handles are shown INLINE (appended to the title) rather than in their own
+// column. On a narrow (mobile) layout the screen is too cramped for a meta
+// column, and — because this is a CSS grid — a meta column would reserve its
 // widest cell's width across every row, starving the title column and forcing
-// truncation even on rows whose own meta is empty. Dropping the column gives the
-// title all the space.
+// truncation even on macro rows whose meta is empty. Appending "held by …" inside
+// the title cell (earnings only) keeps macro rows full-width and only spends
+// space on the rows that actually have holders; the cell truncates as one unit,
+// so a long holder list clips after the title rather than reserving a column.
 //
 // Renders nothing when there are no future events (an empty strip would just be
 // filler) or on error — it never shows a broken card. While the first load is
@@ -148,12 +176,23 @@ export function UpcomingEvents() {
             // was rejected because it reads as a link next to the genuinely-blue
             // "more"/"less" toggle.
             const dateLabel = formatEventDate(e.date);
+            // Earnings rows name who owns the stock, inline after the title (macro
+            // rows have no holders → null → title-only). The label is the
+            // lower-priority text: it sits last in the truncating cell, so a tight
+            // mobile row clips the holders before eating into the title.
+            const holders =
+              e.type === 'earnings' ? holderLabel(e.holders) : null;
             const title = (
               <>
                 <span className="mr-1.5" aria-hidden>
                   {eventEmoji(e)}
                 </span>
                 {e.title}
+                {holders && (
+                  <span className="ml-2 font-normal text-text-secondary">
+                    {holders}
+                  </span>
+                )}
               </>
             );
             return (

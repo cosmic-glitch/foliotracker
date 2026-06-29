@@ -1315,6 +1315,30 @@ export function computeShareLinkAccess(
   return groups;
 }
 
+// PostgREST caps each response at the project's "Max rows" setting (1000 by
+// default), so an unpaginated select silently drops rows once the result
+// exceeds that. The analytics window routinely holds far more than 1000 events,
+// which previously truncated the fetch to the most-recent ~1000 rows and zeroed
+// out every day beyond them on the dashboard. Page through with a build callback
+// that re-applies the same filters/ordering per page; callers must supply a
+// total ordering (e.g. created_at then the uuid id) so no row is skipped or
+// duplicated across page boundaries.
+const ANALYTICS_PAGE_SIZE = 1000;
+
+async function fetchAllAnalyticsRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += ANALYTICS_PAGE_SIZE) {
+    const { data, error } = await build(offset, offset + ANALYTICS_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < ANALYTICS_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export async function getAnalyticsData(
   days: number = 30,
   options: { excludeViewerIds?: string[] } = {}
@@ -1326,30 +1350,38 @@ export async function getAnalyticsData(
   const todayStart = getSeattleMidnightToday();
   const todayStartStr = todayStart.toISOString();
 
-  // Fetch all events in the date range
-  const { data: events, error } = await supabase
-    .from('analytics_events')
-    .select('*')
-    .gte('created_at', startDateStr)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-
-  // Share Link Access is computed all-time (not windowed), so it pulls its own
-  // inputs: every share link plus every share-link-attributed view. Both sets are
-  // small (one row per minted link / per link-attributed view).
-  const [shareLinksRes, linkedEventsRes] = await Promise.all([
-    supabase.from('share_links').select('*'),
+  // Fetch all events in the date range, paging past PostgREST's 1000-row cap so
+  // older days aren't silently dropped (see fetchAllAnalyticsRows).
+  const events = await fetchAllAnalyticsRows<any>((from, to) =>
     supabase
       .from('analytics_events')
-      .select('share_link_id, ip_address, created_at, city, region, country')
-      .not('share_link_id', 'is', null),
+      .select('*')
+      .gte('created_at', startDateStr)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, to)
+  );
+
+  // Share Link Access is computed all-time (not windowed), so it pulls its own
+  // inputs: every share link plus every share-link-attributed view. Share links
+  // are few, but attributed views can exceed the 1000-row cap over time, so page
+  // those too.
+  const [shareLinksRes, linkedEvents] = await Promise.all([
+    supabase.from('share_links').select('*'),
+    fetchAllAnalyticsRows<any>((from, to) =>
+      supabase
+        .from('analytics_events')
+        .select('share_link_id, ip_address, created_at, city, region, country, id')
+        .not('share_link_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to)
+    ),
   ]);
   if (shareLinksRes.error) throw shareLinksRes.error;
-  if (linkedEventsRes.error) throw linkedEventsRes.error;
   const shareLinkAccess = computeShareLinkAccess(
     (shareLinksRes.data || []) as DbShareLink[],
-    linkedEventsRes.data || []
+    linkedEvents
   );
 
   // Drop events from excluded viewers (e.g. site owner's own test traffic) so

@@ -57,12 +57,14 @@ export function formatChartDate(dateString: string): string {
   }).format(date);
 }
 
-// Near-term events read better as a relative label ("Today", "Tomorrow", "In 2
-// days") than an absolute date; once an event is further out the absolute date
-// is clearer, so this falls back to formatChartDate beyond 3 days. Comparison is
-// calendar-day based (both dates pinned to local midnight) so "Tomorrow" means
-// the next calendar date regardless of clock time, and Math.round absorbs
-// DST-induced 23/25h days.
+// Near-term events read better as a relative label ("Today", "1 day", "2 days")
+// than an absolute date; once an event is further out the absolute date is
+// clearer, so this falls back to formatChartDate beyond 3 days. The labels are
+// kept terse on purpose — they set the width of the Upcoming strip's left
+// (auto-sized) date column, so a short "1 day"/"2 days" leaves more room for the
+// title + holders on the narrow mobile row. Comparison is calendar-day based
+// (both dates pinned to local midnight) so "1 day" means the next calendar date
+// regardless of clock time, and Math.round absorbs DST-induced 23/25h days.
 export function formatEventDate(dateString: string): string {
   const datePart = dateString.split('T')[0];
   const [year, month, day] = datePart.split('-').map(Number);
@@ -72,8 +74,7 @@ export function formatEventDate(dateString: string): string {
   const diffDays = Math.round((eventDate.getTime() - today.getTime()) / 86_400_000);
 
   if (diffDays <= 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays <= 3) return `In ${diffDays} days`;
+  if (diffDays <= 3) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'}`;
   return formatChartDate(dateString);
 }
 

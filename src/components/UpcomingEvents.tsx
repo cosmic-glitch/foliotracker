@@ -53,29 +53,53 @@ function holderLabel(holders: string[] | null): string | null {
   return `held by ${holders.length} holders`;
 }
 
+// Display title for an earnings row. The generator stores the full company name
+// ("Goldman Sachs Q2 earnings") but on the narrow mobile strip that leaves no
+// room for the inline "held by …" suffix, so we render the TICKER instead
+// ("GS Q2 earnings") — short, and consistent with the movers strip directly
+// above (which is ticker-keyed too). The ticker comes from the event's own
+// `tickers` field; we keep the quarter/earnings tail from the stored title
+// (format is "<Company> Q# FY## earnings", so everything from "Q#" on) and strip
+// any redundant 4-digit year ("Q2 2026 earnings" → "Q2 earnings") so rows read
+// uniformly. Falls back to the stored title if there's no ticker or the tail
+// doesn't match (generator drift) — never renders an empty/garbled title.
+function earningsDisplayTitle(e: {
+  title: string;
+  tickers: string[];
+}): string {
+  const ticker = e.tickers[0];
+  if (!ticker) return e.title;
+  const tail = e.title.match(/Q\d.*/i)?.[0] ?? 'earnings';
+  return `${ticker} ${tail.replace(/\s+20\d{2}/, '')}`;
+}
+
 // "Upcoming" strip directly below MoversStrip on the landing page. Same shell
 // and the same notepad-tab-with-label + inline expand link (a blue "N more" at
 // the bottom-right of the last row) pattern as the movers strip, so the two read
 // as a matched pair: what moved / what's coming. A
 // folder tab (calendar + "Upcoming") juts from the card's top-left; rows fill
 // the full width below. One event per row, rendered as a plain statement:
-// date | title. Near-term events (≤ 3 days out) show a relative label ("Today" /
-// "Tomorrow" / "In N days") in place of the absolute date; further-out events
-// keep the "Jun 24" form (see formatEventDate in utils/formatters). All dates
+// date | title. Near-term events (≤ 3 days out) show a terse relative label
+// ("Today" / "1 day" / "2 days") in place of the absolute date; further-out
+// events keep the "Jun 24" form (see formatEventDate in utils/formatters). All dates
 // share one color — deliberately NOT the accent blue, which on this page reads
 // as a link (the "N more"/"less" toggle is blue).
 //
-// Spare by design: no color-coded impact dot and no ticker chip. The strip shows
-// the next events across all importance levels (high/medium/low macro + every
-// held earnings), ranked chronologically — so it answers "what's coming next?"
-// rather than "what's most severe?", and an importance dot would just add noise
-// to a plain date | title statement. Earnings titles are already self-contained
-// ("Micron Q3 FY26 earnings"), so a separate ticker chip was redundant too.
-// Earnings rows DO carry a muted "held by AV, VD" suffix after the title — the
-// portfolio handles that own the name (same handles as the movers strip / Users
-// list), via holderLabel above. It's appended inline within the title cell, not
-// as a separate column (see the meta-column note below). Macro rows have no
-// holders and render title-only.
+// Spare by design: no color-coded impact dot. The strip shows the next events
+// across all importance levels (high/medium/low macro + every held earnings),
+// ranked chronologically — so it answers "what's coming next?" rather than
+// "what's most severe?", and an importance dot would just add noise to a plain
+// date | title statement.
+//
+// Earnings rows render the TICKER, not the company name ("GS Q2 earnings", not
+// "Goldman Sachs Q2 earnings") via earningsDisplayTitle below — short enough to
+// fit the inline holder suffix on one mobile line, and consistent with the
+// movers strip directly above (also ticker-keyed). They carry a muted
+// "held by AV, VD" suffix after the title — the portfolio handles that own the
+// name (same handles as the movers strip / Users list), via holderLabel above —
+// appended inline within the title cell, not as a separate column (see the
+// meta-column note below). Macro rows keep their full title and render
+// title-only (no holders).
 //
 // Each title is prefixed with a single category emoji (eventEmoji above) — 🏦
 // Fed/rates, 📈 inflation, 💼 jobs, 📊 growth, 🛍️ retail, 🏭 manufacturing, 💰
@@ -182,12 +206,14 @@ export function UpcomingEvents() {
             // mobile row clips the holders before eating into the title.
             const holders =
               e.type === 'earnings' ? holderLabel(e.holders) : null;
+            const titleText =
+              e.type === 'earnings' ? earningsDisplayTitle(e) : e.title;
             const title = (
               <>
                 <span className="mr-1.5" aria-hidden>
                   {eventEmoji(e)}
                 </span>
-                {e.title}
+                {titleText}
                 {holders && (
                   <span className="ml-2 font-normal text-text-secondary">
                     {holders}

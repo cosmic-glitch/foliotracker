@@ -1019,7 +1019,6 @@ export interface ShareLinkAccessEntry {
   label: string | null;
   tokenSuffix: string;          // last 6 chars of the token, to identify unlabeled links
   mode: ShareLinkMode;          // 'full' | 'allocation_only'
-  status: ShareLinkStatus;
   createdAt: string;
   expiresAt: string;
   views: number;                // attributed views, all-time
@@ -1256,25 +1255,21 @@ export function computeShareLinkAccess(
     }
   }
 
-  const statusRank: Record<ShareLinkStatus, number> = { active: 0, expired: 1, revoked: 2 };
   const byPortfolio = new Map<string, ShareLinkAccessEntry[]>();
 
   for (const link of shareLinks) {
     const s = stats.get(link.id);
     const views = s?.views ?? 0;
-    const status = shareLinkStatus(link);
-    // Keep the panel forward-looking and uncluttered: show a link only if it's
-    // still live or has actually been accessed. This hides the pile of revoked/
-    // expired links that recorded no views (e.g. every historical link on the
-    // first deploy, before attribution existed).
-    if (status !== 'active' && views === 0) continue;
+    // Only show currently-active links. Expired and revoked links are hidden
+    // regardless of past access, keeping the panel a live inventory rather than
+    // a history of dead links.
+    if (shareLinkStatus(link) !== 'active') continue;
 
     const entry: ShareLinkAccessEntry = {
       id: link.id,
       label: link.label,
       tokenSuffix: link.token.slice(-6),
       mode: link.mode,
-      status,
       createdAt: link.created_at,
       expiresAt: link.expires_at,
       views,
@@ -1299,7 +1294,6 @@ export function computeShareLinkAccess(
     ([portfolio_id, links]) => {
       links.sort(
         (a, b) =>
-          statusRank[a.status] - statusRank[b.status] ||
           (b.lastAccessAt || '').localeCompare(a.lastAccessAt || '') ||
           b.createdAt.localeCompare(a.createdAt)
       );

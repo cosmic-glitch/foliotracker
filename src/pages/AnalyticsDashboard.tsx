@@ -61,14 +61,12 @@ interface LocationDistributionEntry {
 
 // Mirrors api/_lib/db.ts ShareLinkAccessEntry / ShareLinkAccessGroup. Stats are
 // all-time and only count views recorded since share-link attribution shipped.
-type ShareLinkStatus = 'active' | 'expired' | 'revoked';
-
+// Only currently-active links are returned by the server.
 interface ShareLinkAccessEntry {
   id: string;
   label: string | null;
   tokenSuffix: string;
   mode: string; // 'full' | 'allocation_only'
-  status: ShareLinkStatus;
   createdAt: string;
   expiresAt: string;
   views: number;
@@ -716,25 +714,10 @@ const SHARE_MODE_LABEL: Record<string, string> = {
   allocation_only: 'Allocation',
 };
 
-function ShareLinkStatusBadge({ status }: { status: ShareLinkStatus }) {
-  if (status === 'active') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-positive">
-        <span className="w-1.5 h-1.5 rounded-full bg-positive" />
-        Active
-      </span>
-    );
-  }
-  if (status === 'revoked') {
-    return <span className="text-negative">Revoked</span>;
-  }
-  return <span className="text-text-secondary">Expired</span>;
-}
-
 // Per-portfolio sections (mirrors the Visitor Locations layout), each listing the
-// portfolio's share links with all-time attributed-view stats. Only live links and
-// links that have actually been accessed appear (the server drops dead, unused
-// links), so the panel stays an inventory of what matters rather than a graveyard.
+// portfolio's share links with all-time attributed-view stats. Only currently-active
+// links appear (the server drops expired/revoked links), so the panel stays a live
+// inventory rather than a graveyard.
 function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
   // Expansion keyed by link.id (unique across all portfolios), so one link's
   // location drill-down opens independently of the others.
@@ -772,7 +755,6 @@ function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
                   <th className="pb-2 font-medium w-8"></th>
                   <th className="pb-2 font-medium">Link</th>
                   <th className="pb-2 font-medium">Mode</th>
-                  <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium text-right">Views</th>
                   <th className="pb-2 font-medium text-right">Visitors</th>
                   <th className="pb-2 font-medium text-right">Location</th>
@@ -811,9 +793,6 @@ function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
                         <td className="py-2 text-text-secondary">
                           {SHARE_MODE_LABEL[link.mode] || link.mode}
                         </td>
-                        <td className="py-2">
-                          <ShareLinkStatusBadge status={link.status} />
-                        </td>
                         <td className="py-2 text-text-secondary text-right tabular-nums">
                           {link.views}
                         </td>
@@ -841,7 +820,7 @@ function ShareLinkAccessPanel({ data }: { data: ShareLinkAccessGroup[] }) {
                       {isOpen && hasLocations ? (
                         <tr className="border-b border-border last:border-0 bg-background/30">
                           <td></td>
-                          <td colSpan={7} className="py-2 pr-2">
+                          <td colSpan={6} className="py-2 pr-2">
                             <ul className="space-y-1">
                               {link.locations.map((loc) => (
                                 <li

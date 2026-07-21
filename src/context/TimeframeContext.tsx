@@ -8,7 +8,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 // Deliberately session-only (in-memory, no storage): the toggle lives in a
 // hidden menu, so a persisted 30D pick could leave someone silently stuck in
 // 30-day view across visits without realizing why. Switching applies for the
-// current page session; every fresh load starts back at the 1D default.
+// current page session; every fresh load starts back at the 1D default, and
+// returning to an already-loaded page (visibilitychange → visible, e.g.
+// app-switching back to the iOS home-screen app, where the page stays alive)
+// also resets — the same signal that counts a new view in useAnalytics, so
+// "counted as a view" and "back at the default" stay in lockstep.
 //
 // Logged-out viewers don't see UserMenu today (same as Theme and Extended
 // Hours), so they always get the 1D default — an accepted limitation,
@@ -33,6 +37,16 @@ export function TimeframeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setTimeframe('day');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   const toggleTimeframe = () => {

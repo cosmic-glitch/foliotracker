@@ -167,8 +167,11 @@ deployment no longer needs the Pro plan's 60s function window. The
 `/api/refresh-prices` endpoint is still deployed as a manual fallback
 but is not called on any schedule.
 
-`scripts/refresh-snapshots.sh` sources `.env.local`, takes a `flock` so
-overlapping ticks can't double-run, and invokes
+`scripts/refresh-snapshots.sh` takes a `flock` so overlapping ticks can't
+double-run, runs the same `git pull --ff-only origin main` self-sync as
+the news/events jobs (but every tick — so a bad push to `main` reaches
+the refresh within a minute; revert on `main` to undo; quiet in the log
+on no-op ticks), sources `.env.local`, and invokes
 `scripts/refresh-snapshots.ts`. The tsx script calls
 `refreshAllSnapshots()` and `deleteExpiredSessions()` directly against
 Supabase, and gates cadence via `isLiveMarketSession`: every tick during

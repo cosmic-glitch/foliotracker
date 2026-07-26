@@ -22,6 +22,17 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# Self-sync with main so code changes propagate without manual SSH (same
+# pattern as generate-news.sh / generate-events.sh). Runs every tick, so a
+# bad push to main reaches the refresh within a minute — revert on main to
+# undo. Failures are logged and non-fatal: a network hiccup shouldn't skip
+# the refresh. Quiet on no-op ticks to keep the every-minute log readable.
+PULL_OUT="$(git pull --ff-only origin main 2>&1)" || \
+  echo "[$(date -u +%FT%TZ)] git pull FAILED at $(git rev-parse --short HEAD); proceeding: $PULL_OUT" >> "$LOG_FILE"
+if [ -n "${PULL_OUT:-}" ] && [ "$PULL_OUT" != "Already up to date." ]; then
+  echo "[$(date -u +%FT%TZ)] git pull updated to $(git rev-parse --short HEAD)" >> "$LOG_FILE"
+fi
+
 set -a
 # shellcheck source=/dev/null
 source "$PROJECT_DIR/.env.local"

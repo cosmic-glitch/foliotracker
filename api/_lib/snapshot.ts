@@ -31,6 +31,19 @@ interface PriceData {
 
 const FUNDAMENTALS_STALE_HOURS = 12;
 
+// companiesmarketcap.org's scraper dedupes share classes to one canonical
+// symbol per company, so a held ticker may not exist there at all (GOOG →
+// only GOOGL is served; BRK-B → only BRK-A). Without this map those tickers
+// silently never refresh and their cache rows fossilize. Request the
+// canonical symbol instead and write the result back under the held ticker.
+// perShareRatio converts per-share fields (forward EPS, 52wk high): canonical
+// shares per one aliased share — BRK-A:BRK-B is a fixed 1:1500 economic
+// ratio, GOOG:GOOGL is 1:1. Company-level fields copy unscaled.
+const FUNDAMENTALS_SHARE_CLASS_ALIASES: Record<string, { canonical: string; perShareRatio: number }> = {
+  GOOG: { canonical: 'GOOGL', perShareRatio: 1 },
+  'BRK-B': { canonical: 'BRK-A', perShareRatio: 1500 },
+};
+
 // Fetch fundamentals from companiesmarketcap API, using cache when fresh
 async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFundamentalsCache>> {
   if (tickers.length === 0) return new Map();
@@ -51,7 +64,10 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
   if (staleTickers.length > 0) {
     console.log(`Fetching fundamentals for ${staleTickers.length} stale tickers...`);
     try {
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${staleTickers.join(',')}&fields=revenue,earnings,forwardEPS,forwardEPSNext,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
+      const requestSymbols = Array.from(new Set(
+        staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
+      ));
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,forwardEPS,forwardEPSNext,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -69,15 +85,17 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
         }> = [];
 
         for (const ticker of staleTickers) {
-          const data = companies[ticker];
+          const alias = FUNDAMENTALS_SHARE_CLASS_ALIASES[ticker];
+          const data = companies[alias?.canonical ?? ticker];
           if (data) {
+            const ratio = alias?.perShareRatio ?? 1;
             const entry = {
               ticker,
               revenue: data.revenue ?? null,
               earnings: data.earnings ?? null,
-              forward_eps: data.forwardEPS ?? null,
-              forward_eps_next: data.forwardEPSNext ?? null,
-              week_52_high: data.week52High ?? null,
+              forward_eps: data.forwardEPS != null ? data.forwardEPS / ratio : null,
+              forward_eps_next: data.forwardEPSNext != null ? data.forwardEPSNext / ratio : null,
+              week_52_high: data.week52High != null ? data.week52High / ratio : null,
               operating_margin: data.operatingMargin ?? null,
               revenue_growth_3y: data.revenueGrowth3Y ?? null,
               eps_growth_3y: data.epsGrowth3Y ?? null,

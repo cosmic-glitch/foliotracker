@@ -396,6 +396,7 @@ interface MoverFundamentals {
   revenue: number | null;
   earnings: number | null;
   forwardPE: number | null;
+  forwardPENext: number | null;
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
@@ -477,6 +478,7 @@ function computeMarketMovers(
         revenue: h.revenue,
         earnings: h.earnings,
         forwardPE: h.forwardPE,
+        forwardPENext: h.forwardPENext ?? null,
         operatingMargin: h.operatingMargin,
         revenueGrowth3Y: h.revenueGrowth3Y,
         epsGrowth3Y: h.epsGrowth3Y,

@@ -588,6 +588,7 @@ export interface DbFundamentalsCache {
   revenue: number | null;
   earnings: number | null;
   forward_eps: number | null;
+  forward_eps_next: number | null;
   week_52_high: number | null;
   operating_margin: number | null;
   revenue_growth_3y: number | null;
@@ -620,6 +621,7 @@ export async function upsertFundamentalsCache(
     revenue: number | null;
     earnings: number | null;
     forward_eps: number | null;
+    forward_eps_next: number | null;
     week_52_high: number | null;
     operating_margin: number | null;
     revenue_growth_3y: number | null;
@@ -844,6 +846,10 @@ export interface SnapshotHolding {
   revenue: number | null;
   earnings: number | null;
   forwardPE: number | null;
+  // Forward P/E on next fiscal year's EPS estimate (pure projection — no
+  // reported quarters mixed in), vs forwardPE's ongoing-FY blend.
+  // Optional: snapshots written before this field was introduced lack it.
+  forwardPENext?: number | null;
   pctTo52WeekHigh: number | null;
   week52High: number | null;
   operatingMargin: number | null;

@@ -36,6 +36,7 @@ type SortColumn =
   | 'revenue'
   | 'earnings'
   | 'forwardPE'
+  | 'forwardPENext'
   | 'operatingMargin'
   | 'revenueGrowth3Y'
   | 'epsGrowth3Y'
@@ -72,6 +73,8 @@ function getSortValue(
       return holding.earnings;
     case 'forwardPE':
       return holding.forwardPE;
+    case 'forwardPENext':
+      return holding.forwardPENext;
     case 'operatingMargin':
       return holding.operatingMargin;
     case 'revenueGrowth3Y':
@@ -136,7 +139,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
   }, [consolidatedHoldings, sortConfig, timeframe]);
 
   const hasAnyFundamentals = consolidatedHoldings.some(
-    (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
+    (h) => h.revenue != null || h.earnings != null || h.forwardPE != null || h.forwardPENext != null || h.pctTo52WeekHigh != null || h.operatingMargin != null || h.revenueGrowth3Y != null || h.epsGrowth3Y != null
   );
 
   const renderSortIcon = (column: SortColumn) => {
@@ -209,9 +212,15 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()}>
+                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()} title="Forward P/E on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)">
                       <span>FwdPE</span>
                       {renderSortIcon('forwardPE')}
+                    </button>
+                  </th>
+                  <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
+                    <button type="button" onClick={() => handleSort('forwardPENext')} className={getHeaderButtonClass()} title="Forward P/E on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)">
+                      <span>FwdPE+1</span>
+                      {renderSortIcon('forwardPENext')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
@@ -280,6 +289,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenue != null ? formatLargeValue(holding.revenue) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.earnings != null ? formatLargeValue(holding.earnings) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}</td>
+                      <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.forwardPENext != null ? formatPERatio(holding.forwardPENext) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.operatingMargin != null ? formatMarginOrGrowth(holding.operatingMargin) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.revenueGrowth3Y != null ? formatMarginOrGrowth(holding.revenueGrowth3Y) : ''}</td>
                       <td className="text-left px-4 py-2 text-sm text-text-primary">{holding.epsGrowth3Y != null ? formatMarginOrGrowth(holding.epsGrowth3Y) : ''}</td>
@@ -304,7 +314,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       <table className="md:hidden w-full">
         <tbody>
           {sortedHoldings.map((holding) => {
-            const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
+            const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.forwardPENext != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
             const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
             const { change, percent } = activeChange(holding, timeframe);
             return (
@@ -408,6 +418,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Forward P/E</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPE)}</span>
+                </div>
+              )}
+              {popoverHolding.forwardPENext != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Fwd P/E Next FY</span>
+                  <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPENext)}</span>
                 </div>
               )}
               {popoverHolding.operatingMargin != null && (

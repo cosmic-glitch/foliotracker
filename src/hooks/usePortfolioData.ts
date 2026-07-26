@@ -58,6 +58,7 @@ interface ApiPortfolioResponse {
     revenue?: number | null;
     earnings?: number | null;
     forwardPE?: number | null;
+    forwardPENext?: number | null;
     pctTo52WeekHigh?: number | null;
     week52High?: number | null;
     operatingMargin?: number | null;
@@ -269,6 +270,7 @@ export function usePortfolioData(
       revenue: h.revenue ?? null,
       earnings: h.earnings ?? null,
       forwardPE: h.forwardPE ?? null,
+      forwardPENext: h.forwardPENext ?? null,
       pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
       week52High: h.week52High ?? null,
       operatingMargin: h.operatingMargin ?? null,

@@ -16,6 +16,9 @@ export interface MoverFundamentals {
   revenue: number | null;
   earnings: number | null;
   forwardPE: number | null;
+  // Next fiscal year's forward P/E (pure projection). Optional so older
+  // cached payloads (pre-field) degrade gracefully — the row just hides.
+  forwardPENext?: number | null;
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
@@ -42,6 +45,7 @@ function hasFundamentals(f: MoverFundamentals | undefined): f is MoverFundamenta
     (f.revenue != null ||
       f.earnings != null ||
       f.forwardPE != null ||
+      f.forwardPENext != null ||
       f.operatingMargin != null ||
       f.revenueGrowth3Y != null ||
       f.epsGrowth3Y != null ||
@@ -390,6 +394,12 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Forward P/E</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPE)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.forwardPENext != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Fwd P/E Next FY</span>
+                  <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPENext)}</span>
                 </div>
               )}
               {popoverMover.fundamentals.operatingMargin != null && (

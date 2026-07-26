@@ -26,11 +26,16 @@ fi
 # pattern as generate-news.sh / generate-events.sh). Runs every tick, so a
 # bad push to main reaches the refresh within a minute — revert on main to
 # undo. Failures are logged and non-fatal: a network hiccup shouldn't skip
-# the refresh. Quiet on no-op ticks to keep the every-minute log readable.
-PULL_OUT="$(git pull --ff-only origin main 2>&1)" || \
+# the refresh. Quiet on no-op ticks to keep the every-minute log readable —
+# detected by comparing HEAD before/after, since git pull's fetch chatter
+# makes its output non-empty even when nothing changed.
+PRE_PULL_HEAD="$(git rev-parse HEAD)"
+if PULL_OUT="$(git pull --ff-only origin main 2>&1)"; then
+  if [ "$(git rev-parse HEAD)" != "$PRE_PULL_HEAD" ]; then
+    echo "[$(date -u +%FT%TZ)] git pull updated to $(git rev-parse --short HEAD)" >> "$LOG_FILE"
+  fi
+else
   echo "[$(date -u +%FT%TZ)] git pull FAILED at $(git rev-parse --short HEAD); proceeding: $PULL_OUT" >> "$LOG_FILE"
-if [ -n "${PULL_OUT:-}" ] && [ "$PULL_OUT" != "Already up to date." ]; then
-  echo "[$(date -u +%FT%TZ)] git pull updated to $(git rev-parse --short HEAD)" >> "$LOG_FILE"
 fi
 
 set -a

@@ -5,9 +5,9 @@ import { formatEventDate } from '../utils/formatters';
 
 // How many events the strip shows collapsed (one per row). Kept deliberately
 // tight at 1 so the landing page leads with just the single most imminent event
-// and stays uncluttered; the rest hide behind the "N more" toggle. The
-// generator emits events.json already ranked (date → importance → breadth), so
-// the first row is the most imminent/important.
+// and stays uncluttered; the rest hide behind the "N more" toggle. The feed is
+// ranked date → macro-first → breadth (stamped into `position` by
+// scripts/save-events.ts), so the first row is the next thing happening.
 const DISPLAY_COUNT = 1;
 
 // Category emoji shown before each event title. Derived here in the component
@@ -85,11 +85,13 @@ function earningsDisplayTitle(e: {
 // share one color — deliberately NOT the accent blue, which on this page reads
 // as a link (the "N more"/"less" toggle is blue).
 //
-// Spare by design: no color-coded impact dot. The strip shows the next events
-// across all importance levels (high/medium/low macro + every held earnings),
-// ranked chronologically — so it answers "what's coming next?" rather than
-// "what's most severe?", and an importance dot would just add noise to a plain
-// date | title statement.
+// Spare by design: no color-coded impact dot. The feed carries no severity
+// ranking at all — every macro release on the generator's include list and every
+// held ticker's earnings are equal, ordered only by when they land. The strip
+// answers "what's coming next?" rather than "what's most severe?", so there is
+// nothing for a dot to encode. (`importance` still exists as a column on
+// `upcoming_events` and rides through the API, but it is a constant now and
+// nothing reads it — see scripts/save-events.ts.)
 //
 // Earnings rows render the TICKER, not the company name ("GS Q2 earnings", not
 // "Goldman Sachs Q2 earnings") via earningsDisplayTitle below — short enough to
@@ -125,11 +127,10 @@ export function UpcomingEvents() {
   const { data, isLoading } = useUpcomingEvents();
   const [expanded, setExpanded] = useState(false);
 
-  // Show the next events across all importance levels — no client-side filter.
-  // The feed arrives pre-ranked (date → importance → breadth, stored in
-  // `position`), so slicing the first DISPLAY_COUNT yields the most imminent
-  // events, with importance only breaking ties within a given date. The rest sit
-  // behind the "more" toggle.
+  // No client-side filter. The feed arrives pre-ranked (date → macro-first →
+  // breadth, stored in `position` by save-events.ts) and api/events.ts already
+  // drops past dates, so slicing the first DISPLAY_COUNT yields the most
+  // imminent events. The rest sit behind the "more" toggle.
   const events = data?.events ?? [];
   const canExpand = events.length > DISPLAY_COUNT;
   const shown = expanded && canExpand ? events : events.slice(0, DISPLAY_COUNT);

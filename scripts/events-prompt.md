@@ -37,7 +37,7 @@ Bureau release schedules; Investing.com / TradingEconomics / MarketWatch
 economic calendars as secondary). For each event capture the **exact release
 date** and, when published, the time (almost always ET).
 
-**INCLUDE** (high / medium importance):
+**INCLUDE** — this list is exhaustive; nothing here outranks anything else:
 - FOMC rate decision, statement, SEP/dot-plot, and the Powell presser
 - CPI, Core CPI
 - PCE / Core PCE (the Fed's preferred gauge)
@@ -47,7 +47,7 @@ date** and, when published, the time (almost always ET).
 - GDP (advance / second / third estimates)
 - ISM Manufacturing / Services PMI
 - JOLTS job openings
-- University of Michigan / Conference Board consumer sentiment (medium)
+- University of Michigan / Conference Board consumer sentiment
 - Major Treasury auctions or debt-ceiling / shutdown deadlines **only** if
   market-moving and widely covered
 
@@ -56,17 +56,11 @@ EIA petroleum status, regional Fed indices) unless an unusual event makes one
 genuinely market-moving. Weekly jobless claims: include **only** if nothing
 else lands that day and it is a notably watched print; otherwise skip.
 
-Assign `importance`:
-- `high` — FOMC decision, CPI, PCE, jobs report.
-- `medium` — PPI, retail sales, GDP, ISM, JOLTS, sentiment.
-- `low` — everything else you chose to include.
-
-Note on display: the landing-page strip shows the **next few events
-chronologically across all importance levels** (capped at a few rows, with a
-"more" toggle for the rest), so every macro release you include here can surface,
-not just `high` ones. Importance no longer gates visibility — it only breaks ties
-within a single date when ranking — so classify honestly; don't inflate or
-deflate a release to change whether it shows.
+Do **not** rate or rank what you include. There is no importance/severity field
+— the include/exclude lists above are the whole decision. Everything that passes
+them is equal from here on, and the feed is ordered purely by date (see Step 3).
+The strip shows the next events chronologically, so the only thing that decides
+whether a release surfaces is *when it lands*, not how big you judge it to be.
 
 ## Step 2 — Earnings (per held ticker)
 
@@ -81,14 +75,17 @@ date is **confirmed** or **estimated**, and the session (`before open` /
   e.g. an S&P 500 tracker mislabeled as a stock), **skip it silently**. Most
   mega-caps will be outside the window most of the time; that is expected. A
   quiet earnings list is correct, not a failure.
-- `importance` for earnings = breadth-driven: `high` if `holder_count >= 4`,
-  `medium` if 2–3, `low` if 1. (A widely-held name reporting matters more to
-  this audience than a single-holder name.)
+- **Breadth does not gate inclusion.** A name held by one portfolio reporting
+  tomorrow is as eligible as a name held by six. Emit every held ticker whose
+  date lands in the window; `holder_count` only breaks ties in the ordering.
 
 ## Step 3 — Write `events.json`
 
-A single JSON array, **sorted by `date` ascending**, then by importance
-(high→low), then by `holder_count` descending. Each element:
+A single JSON array. Emit it **sorted by `date` ascending**, macro before
+earnings within a date, then `holder_count` descending — but this is for the
+preview's benefit only: `scripts/save-events.ts` re-sorts by exactly that rule
+before writing, so it is the authority and you cannot get the stored order
+wrong. Each element:
 
 ```json
 {
@@ -98,13 +95,14 @@ A single JSON array, **sorted by `date` ascending**, then by importance
   "time": "14:00 ET",
   "title": "Fed rate decision (FOMC)",
   "detail": "Fed concludes its June meeting; updated dot plot + Powell presser.",
-  "importance": "high",
   "tickers": [],
   "holders": null,
   "holder_count": 0,
   "source": { "title": "Federal Reserve", "url": "https://www.federalreserve.gov/..." }
 }
 ```
+
+There is no `importance` field — do not emit one; it will be ignored.
 
 For earnings, `type: "earnings"`, `tickers: ["ADBE"]`, `holders: ["av","gs","vp"]`,
 `holder_count: 3`, and fold confirmed/estimated + session into `detail`, e.g.
@@ -164,8 +162,20 @@ Field rules:
   earnings.
 - `source`: one `{title,url}` you actually verified the date against.
 
-Cap the list at **12 events**. If more qualify, drop the lowest-importance,
-lowest-breadth, furthest-out ones first, and note what you dropped in stdout.
+Cap the list at **12 events**. If more qualify, keep the **12 nearest by date**
+and drop the furthest-out first — never drop a near event to keep a distant one.
+Note what you dropped in stdout.
+
+This ordering matters more than it looks. The cron runs weekly, so a dropped
+event is gone for good: nothing regenerates the feed before its date passes. The
+old rule dropped by judged importance instead of by date and cut a single-holder
+earnings report landing *that day* in favour of a routine macro print eight days
+out. Date is the only drop criterion.
+
+Sanity check before you stop: the 12 you keep must still include events dated
+**7+ days out**, since the next run is a week away and `api/events.ts` serves
+only future-dated rows — otherwise the strip goes empty mid-week. If the nearest
+12 don't reach that far (a very heavy earnings week), say so in stdout.
 
 ## Step 4 — Write `events.md` (preview only)
 
@@ -176,16 +186,18 @@ date, e.g.:
 ## Upcoming events — generated 2026-06-13
 
 ### Mon Jun 15
-- 🟡 **Retail sales (Census)** — 8:30 ET. May read on the consumer post-tariffs.
+- 📅 **Retail sales (Census)** — 8:30 ET. May read on the consumer post-tariffs.
 
 ### Wed Jun 17
-- 🔴 **Fed rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.
+- 📅 **Fed rate decision (FOMC)** — 14:00 ET. Dot plot + Powell presser.
 
 ### Thu Jun 18
 - 📊 **Adobe Q2 FY26 earnings** — after close, confirmed. Held by av, gs, vp.
 ```
 
-Use 🔴 high / 🟡 medium / ⚪ low for macro, and 📊 for earnings. Keep it terse.
+Use 📅 for macro and 📊 for earnings. Keep it terse. No severity marker — the
+feed doesn't rank events, and a preview that implies it would invite the
+importance judgements this prompt deliberately drops.
 
 ## Execution discipline
 

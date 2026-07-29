@@ -587,6 +587,10 @@ export interface DbFundamentalsCache {
   ticker: string;
   revenue: number | null;
   earnings: number | null;
+  // Trailing P/E served directly by companiesmarketcap.org (a ratio, so no
+  // share-class scaling applies), unlike the forward P/Es which we compute
+  // from forward EPS ÷ live price.
+  pe_ratio: number | null;
   forward_eps: number | null;
   forward_eps_next: number | null;
   week_52_high: number | null;
@@ -620,6 +624,7 @@ export async function upsertFundamentalsCache(
     ticker: string;
     revenue: number | null;
     earnings: number | null;
+    pe_ratio: number | null;
     forward_eps: number | null;
     forward_eps_next: number | null;
     week_52_high: number | null;
@@ -845,6 +850,9 @@ export interface SnapshotHolding {
   profitLossPercent: number | null;
   revenue: number | null;
   earnings: number | null;
+  // Trailing P/E (last four reported quarters), from fundamentals_cache.
+  // Optional: snapshots written before this field was introduced lack it.
+  peRatio?: number | null;
   forwardPE: number | null;
   // Forward P/E on next fiscal year's EPS estimate (pure projection — no
   // reported quarters mixed in), vs forwardPE's ongoing-FY blend.

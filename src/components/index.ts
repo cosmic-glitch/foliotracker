@@ -4,6 +4,7 @@ export { PerformanceChart } from './PerformanceChart';
 export { HoldingsTable } from './HoldingsTable';
 export { HoldingsByType } from './HoldingsByType';
 export { AllocationView } from './AllocationView';
+export { ValuationTable } from './ValuationTable';
 export { CapitalGains } from './CapitalGains';
 export { NewsSection } from './NewsSection';
 export { NewsTicker } from './NewsTicker';

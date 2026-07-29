@@ -6,6 +6,7 @@ import {
   PerformanceChart,
   HoldingsTable,
   AllocationView,
+  ValuationTable,
   CapitalGains,
   NewsSection,
   NewsTicker,
@@ -87,7 +88,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'research' | 'news'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'research' | 'news'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId
@@ -280,6 +281,16 @@ function App() {
                     >
                       Alloc %
                     </button>
+                    <button
+                      onClick={() => setActiveTab('valuation')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        activeTab === 'valuation'
+                          ? 'border-accent text-accent'
+                          : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                      }`}
+                    >
+                      P/E
+                    </button>
                     {data.deepResearch && (
                       <button
                         onClick={() => setActiveTab('research')}
@@ -315,6 +326,10 @@ function App() {
 
                 {activeTab === 'allocation' && (
                   <AllocationView holdings={data.holdings} />
+                )}
+
+                {activeTab === 'valuation' && (
+                  <ValuationTable holdings={data.holdings} />
                 )}
 
                 {activeTab === 'research' && data.deepResearch && (

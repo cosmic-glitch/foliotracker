@@ -57,6 +57,7 @@ interface ApiPortfolioResponse {
     profitLossPercent: number | null;
     revenue?: number | null;
     earnings?: number | null;
+    peRatio?: number | null;
     forwardPE?: number | null;
     forwardPENext?: number | null;
     pctTo52WeekHigh?: number | null;
@@ -269,6 +270,7 @@ export function usePortfolioData(
       thirtyDayAnchorPrice: h.thirtyDayAnchorPrice ?? null,
       revenue: h.revenue ?? null,
       earnings: h.earnings ?? null,
+      peRatio: h.peRatio ?? null,
       forwardPE: h.forwardPE ?? null,
       forwardPENext: h.forwardPENext ?? null,
       pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,

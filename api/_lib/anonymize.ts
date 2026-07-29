@@ -82,6 +82,7 @@ function stripHolding(h: AnyHolding): AnyHolding {
     profitLoss: null,
     revenue: null,
     earnings: null,
+    peRatio: null,
     forwardPE: null,
     forwardPENext: null,
     pctTo52WeekHigh: null,

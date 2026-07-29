@@ -21,6 +21,8 @@ export interface Holding {
   profitLossPercent: number | null;
   revenue: number | null;
   earnings: number | null;
+  // Trailing P/E (last four reported quarters).
+  peRatio: number | null;
   forwardPE: number | null;
   // Forward P/E on next fiscal year's EPS estimate (pure projection), vs
   // forwardPE's ongoing-FY blend of reported quarters + projections.

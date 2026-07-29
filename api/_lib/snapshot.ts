@@ -33,15 +33,18 @@ const FUNDAMENTALS_STALE_HOURS = 12;
 
 // companiesmarketcap.org's scraper dedupes share classes to one canonical
 // symbol per company, so a held ticker may not exist there at all (GOOG →
-// only GOOGL is served; BRK-B → only BRK-A). Without this map those tickers
-// silently never refresh and their cache rows fossilize. Request the
-// canonical symbol instead and write the result back under the held ticker.
-// perShareRatio converts per-share fields (forward EPS, 52wk high): canonical
-// shares per one aliased share — BRK-A:BRK-B is a fixed 1:1500 economic
-// ratio, GOOG:GOOGL is 1:1. Company-level fields copy unscaled.
+// only GOOGL is served). Without this map those tickers silently never
+// refresh and their cache rows fossilize. Request the canonical symbol
+// instead and write the result back under the held ticker. perShareRatio
+// converts per-share fields (forward EPS, 52wk high): canonical shares per
+// one aliased share (GOOG:GOOGL is 1:1); ratios (pe_ratio) and
+// company-level fields copy unscaled. The site's canonical class can flip:
+// Berkshire was served as BRK-A (alias BRK-B→BRK-A, ratio 1500) until
+// ~Jul 2026, when the site switched to serving BRK-B directly and BRK-A
+// went empty — so that alias is gone. If a ticker's fundamentals fossilize,
+// probe the API for which class it serves now.
 const FUNDAMENTALS_SHARE_CLASS_ALIASES: Record<string, { canonical: string; perShareRatio: number }> = {
   GOOG: { canonical: 'GOOGL', perShareRatio: 1 },
-  'BRK-B': { canonical: 'BRK-A', perShareRatio: 1500 },
 };
 
 // Fetch fundamentals from companiesmarketcap API, using cache when fresh
@@ -67,7 +70,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
       const requestSymbols = Array.from(new Set(
         staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
       ));
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,forwardEPS,forwardEPSNext,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -76,6 +79,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
           ticker: string;
           revenue: number | null;
           earnings: number | null;
+          pe_ratio: number | null;
           forward_eps: number | null;
           forward_eps_next: number | null;
           week_52_high: number | null;
@@ -93,6 +97,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
               ticker,
               revenue: data.revenue ?? null,
               earnings: data.earnings ?? null,
+              pe_ratio: data.peRatio ?? null,
               forward_eps: data.forwardEPS != null ? data.forwardEPS / ratio : null,
               forward_eps_next: data.forwardEPSNext != null ? data.forwardEPSNext / ratio : null,
               week_52_high: data.week52High != null ? data.week52High / ratio : null,
@@ -188,6 +193,7 @@ function computeHoldings(
         profitLossPercent,
         revenue: null,
         earnings: null,
+        peRatio: null,
         forwardPE: null,
         forwardPENext: null,
         pctTo52WeekHigh: null,
@@ -222,6 +228,9 @@ function computeHoldings(
         : null;
 
       const fund = fundamentals.get(holding.ticker);
+      // Negative trailing P/E (loss-making company) reads as noise — null it,
+      // matching the positive-EPS guard on the forward P/Es below.
+      const peRatio = (fund?.pe_ratio && fund.pe_ratio > 0) ? fund.pe_ratio : null;
       const forwardPE = (fund?.forward_eps && fund.forward_eps > 0 && price.currentPrice > 0)
         ? price.currentPrice / fund.forward_eps
         : null;
@@ -269,6 +278,7 @@ function computeHoldings(
         profitLossPercent,
         revenue: fund?.revenue ?? null,
         earnings: fund?.earnings ?? null,
+        peRatio,
         forwardPE,
         forwardPENext,
         pctTo52WeekHigh,

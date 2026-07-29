@@ -162,9 +162,11 @@ Field rules:
   earnings.
 - `source`: one `{title,url}` you actually verified the date against.
 
-Cap the list at **12 events**. If more qualify, keep the **12 nearest by date**
+Cap the list at **18 events**. If more qualify, keep the **18 nearest by date**
 and drop the furthest-out first — never drop a near event to keep a distant one.
-Note what you dropped in stdout.
+Note what you dropped in stdout. (The cap only bounds the payload — the strip
+shows one row collapsed, so a longer feed costs nothing visually. 18 absorbs a
+peak-earnings week without dropping the following week's macro prints.)
 
 This ordering matters more than it looks. The cron runs weekly, so a dropped
 event is gone for good: nothing regenerates the feed before its date passes. The
@@ -172,10 +174,10 @@ old rule dropped by judged importance instead of by date and cut a single-holder
 earnings report landing *that day* in favour of a routine macro print eight days
 out. Date is the only drop criterion.
 
-Sanity check before you stop: the 12 you keep must still include events dated
+Sanity check before you stop: the 18 you keep must still include events dated
 **7+ days out**, since the next run is a week away and `api/events.ts` serves
 only future-dated rows — otherwise the strip goes empty mid-week. If the nearest
-12 don't reach that far (a very heavy earnings week), say so in stdout.
+18 don't reach that far (a very heavy earnings week), say so in stdout.
 
 ## Step 4 — Write `events.md` (preview only)
 

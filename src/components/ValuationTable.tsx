@@ -150,6 +150,23 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
           ))}
         </tbody>
       </table>
+      <div className="border-t border-border px-3 md:px-4 py-3 space-y-1.5 text-xs text-text-secondary">
+        <p>
+          <span className="font-medium text-text-primary">P/E</span> — based on EPS of the last
+          four reported quarters; can include one-time items (investment gains, write-offs) that
+          distort the multiple.
+        </p>
+        <p>
+          <span className="font-medium text-text-primary">Fwd P/E</span> — based on estimated EPS
+          of the current fiscal year; since part of the year is already reported, the same
+          distortions can bleed in.
+        </p>
+        <p>
+          <span className="font-medium text-text-primary">Fwd P/E +1</span> — based on estimated
+          EPS of the next fiscal year; free of one-time items, but estimates that far out carry
+          less certainty. The table sorts by this.
+        </p>
+      </div>
     </div>
   );
 }

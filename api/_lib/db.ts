@@ -422,6 +422,132 @@ export async function setHoldings(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Holdings history (append-only, dev-complete without requiring migration)
+// ---------------------------------------------------------------------------
+export type HoldingsHistoryChangeType = 'added' | 'updated' | 'removed';
+
+export interface DbHoldingsHistory {
+  id: string;
+  portfolio_id: string;
+  ticker: string;
+  name: string;
+  shares: number;
+  prev_shares: number | null;
+  is_static: boolean;
+  static_value: number | null;
+  instrument_type: string | null;
+  cost_basis: number | null;
+  change_type: HoldingsHistoryChangeType;
+  recorded_at: string;
+}
+
+export async function getHoldingsHistory(
+  portfolioId: string,
+  limit = 200
+): Promise<DbHoldingsHistory[]> {
+  try {
+    const { data, error } = await supabase
+      .from('holdings_history')
+      .select('*')
+      .eq('portfolio_id', portfolioId.toLowerCase())
+      .order('recorded_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data || []) as DbHoldingsHistory[];
+  } catch (e: unknown) {
+    // Table may not exist yet in dev (migration not applied) — degrade to empty
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('holdings_history') || msg.includes('does not exist') || msg.includes('PGRST205')) {
+      console.warn('[holdings_history] table missing — returning empty history');
+      return [];
+    }
+    throw e;
+  }
+}
+
+export async function recordHoldingsHistory(
+  portfolioId: string,
+  prevHoldings: DbHolding[],
+  nextHoldings: Omit<DbHolding, 'portfolio_id'>[]
+): Promise<void> {
+  const normalizedId = portfolioId.toLowerCase();
+  const prevByTicker = new Map(prevHoldings.map((h) => [h.ticker, h]));
+  const nextByTicker = new Map(nextHoldings.map((h) => [h.ticker, h as DbHolding]));
+
+  const rows: Omit<DbHoldingsHistory, 'id' | 'recorded_at'>[] = [];
+
+  for (const next of nextHoldings) {
+    const prev = prevByTicker.get(next.ticker);
+    if (!prev) {
+      rows.push({
+        portfolio_id: normalizedId,
+        ticker: next.ticker,
+        name: next.name,
+        shares: next.shares,
+        prev_shares: null,
+        is_static: next.is_static,
+        static_value: next.static_value,
+        instrument_type: next.instrument_type,
+        cost_basis: next.cost_basis,
+        change_type: 'added',
+      });
+    } else if (
+      prev.shares !== next.shares ||
+      prev.static_value !== next.static_value ||
+      prev.is_static !== next.is_static ||
+      prev.cost_basis !== next.cost_basis ||
+      prev.name !== next.name ||
+      prev.instrument_type !== next.instrument_type
+    ) {
+      rows.push({
+        portfolio_id: normalizedId,
+        ticker: next.ticker,
+        name: next.name,
+        shares: next.shares,
+        prev_shares: prev.shares,
+        is_static: next.is_static,
+        static_value: next.static_value,
+        instrument_type: next.instrument_type,
+        cost_basis: next.cost_basis,
+        change_type: 'updated',
+      });
+    }
+  }
+
+  for (const prev of prevHoldings) {
+    if (!nextByTicker.has(prev.ticker)) {
+      rows.push({
+        portfolio_id: normalizedId,
+        ticker: prev.ticker,
+        name: prev.name,
+        shares: 0,
+        prev_shares: prev.shares,
+        is_static: prev.is_static,
+        static_value: prev.static_value,
+        instrument_type: prev.instrument_type,
+        cost_basis: prev.cost_basis,
+        change_type: 'removed',
+      });
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  try {
+    const { error } = await supabase.from('holdings_history').insert(rows);
+    if (error) throw error;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('holdings_history') || msg.includes('does not exist') || msg.includes('PGRST205')) {
+      console.warn('[holdings_history] table missing — skipping history write');
+      return;
+    }
+    console.error('[holdings_history] failed to record:', e);
+    // Non-fatal: holdings update succeeded, history is best-effort
+  }
+}
+
 export async function getDailyPrices(
   tickers: string[],
   days: number = 30

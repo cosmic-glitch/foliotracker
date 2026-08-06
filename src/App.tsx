@@ -17,7 +17,9 @@ import {
   AIResearchSection,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
+import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
+import { useHoldingsHistory } from './hooks/useHoldingsHistory';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
@@ -88,7 +90,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'research' | 'news'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'research' | 'news' | 'history'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId
@@ -123,6 +125,16 @@ function App() {
   }, [shareToken, error]);
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
+
+  const isOwner = !!portfolioId && loggedInAs === portfolioId.toLowerCase();
+  const canViewHistory = !isAllocationOnly && (!!storedToken || !!isOwner || !!shareToken) && !!data && !isLoading;
+  const { data: holdingsHistory, isLoading: isHoldingsHistoryLoading } = useHoldingsHistory(
+    portfolioId || '',
+    storedToken,
+    loggedInAs,
+    shareToken,
+    canViewHistory
+  );
 
   // Analytics hook - logs views on initial load and tab visibility change.
   // shareToken attributes views that arrived via a share link to that link.
@@ -313,6 +325,18 @@ function App() {
                     >
                       News
                     </button>
+                    {(!isAllocationOnly && (!!storedToken || !!isOwner || !!shareToken)) && (
+                      <button
+                        onClick={() => setActiveTab('history')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                          activeTab === 'history'
+                            ? 'border-accent text-accent'
+                            : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                        }`}
+                      >
+                        History
+                      </button>
+                    )}
                   </nav>
                 </div>
 
@@ -341,6 +365,10 @@ function App() {
 
                 {activeTab === 'news' && (
                   <NewsSection holdings={data.holdings} />
+                )}
+
+                {activeTab === 'history' && (
+                  <HoldingsHistory history={holdingsHistory || []} isLoading={isHoldingsHistoryLoading} />
                 )}
               </>
             )}

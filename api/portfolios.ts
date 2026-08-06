@@ -6,7 +6,9 @@ import {
   getPortfolioCount,
   createPortfolio,
   deletePortfolio,
+  getHoldings,
   setHoldings,
+  recordHoldingsHistory,
   authenticateRequest,
   verifySessionToken,
   deleteSessionsForPortfolio,
@@ -996,6 +998,10 @@ export default async function handler(
       const validVisibility: Visibility = ['public', 'private', 'selective'].includes(visibility) ? visibility : 'public';
       await createPortfolio(cleanId, password, displayName, validVisibility);
       await setHoldings(cleanId, dbHoldings);
+      // Best-effort holdings history — never blocks create (table may not exist in dev)
+      await recordHoldingsHistory(cleanId, [], dbHoldings).catch((e) =>
+        console.warn('[holdings_history] create record failed:', e)
+      );
 
       // Set viewers if selective visibility
       if (validVisibility === 'selective' && Array.isArray(viewers)) {
@@ -1150,7 +1156,12 @@ export default async function handler(
         await setPortfolioViewers(id, []);
       }
 
+      // Fetch previous holdings for history diff (best-effort)
+      const prevHoldings = await getHoldings(id).catch(() => [] as never[]);
       await setHoldings(id, dbHoldings);
+      await recordHoldingsHistory(id, prevHoldings, dbHoldings).catch((e) =>
+        console.warn('[holdings_history] update record failed:', e)
+      );
 
       // Invalidate Redis caches (visibility or display_name may have changed)
       await invalidatePortfoliosListCache();

@@ -43,23 +43,4 @@ set -a
 source "$PROJECT_DIR/.env.local"
 set +a
 
-# TEMPORARY (2026-08-06): Yahoo's EU quote backend is serving this VM data
-# frozen at the prior session's close, while US vantage points get live quotes.
-# Until that recovers, drive the refresh through the Vercel endpoint (US
-# region) instead of pulling Yahoo from here. Revert this commit to restore
-# the normal local refresh. Note: this bypasses the off-hours 30-min gating in
-# refresh-snapshots.ts, so the refresh runs every minute 24/7 while active.
-# npx tsx "$PROJECT_DIR/scripts/refresh-snapshots.ts" >> "$LOG_FILE" 2>&1
-if [ -z "${REFRESH_SECRET:-}" ]; then
-  echo "[$(date -u +%FT%TZ)] REFRESH_SECRET missing from .env.local; cannot call refresh API" >> "$LOG_FILE"
-  exit 1
-fi
-RESPONSE_FILE="$PROJECT_DIR/scripts/refresh-prices-response.json"
-if HTTP_CODE="$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' --max-time 240 -X POST \
-    -H "Authorization: Bearer $REFRESH_SECRET" \
-    https://foliotracker.vercel.app/api/refresh-prices)"; then
-  echo "[$(date -u +%FT%TZ)] refresh via Vercel API: HTTP $HTTP_CODE $(cat "$RESPONSE_FILE")" >> "$LOG_FILE"
-else
-  echo "[$(date -u +%FT%TZ)] refresh via Vercel API FAILED (curl error)" >> "$LOG_FILE"
-  exit 1
-fi
+npx tsx "$PROJECT_DIR/scripts/refresh-snapshots.ts" >> "$LOG_FILE" 2>&1

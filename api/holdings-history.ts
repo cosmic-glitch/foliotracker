@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       if (link.mode === 'allocation_only') {
-        res.status(403).json({ error: 'History is available to the portfolio owner only', requiresAuth: true });
+        res.status(403).json({ error: 'Changes are available to the portfolio owner only', requiresAuth: true });
         return;
       }
       authenticated = true;
@@ -71,9 +71,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    // Public portfolios still require owner auth for history; it's not public data. Viewers (logged_in_as) do NOT grant history access.
+    // Public portfolios still require owner auth for changes; it's not public data. Viewers (logged_in_as) do NOT grant access.
     if (!authenticated) {
-      res.status(403).json({ error: 'History is available to the portfolio owner only', requiresAuth: true });
+      res.status(403).json({ error: 'Changes are available to the portfolio owner only', requiresAuth: true });
       return;
     }
 

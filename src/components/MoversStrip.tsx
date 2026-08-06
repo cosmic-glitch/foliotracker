@@ -392,13 +392,13 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
               )}
               {popoverMover.fundamentals.forwardPE != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Forward P/E</span>
+                  <span className="text-text-secondary">FwdPE</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPE)}</span>
                 </div>
               )}
               {popoverMover.fundamentals.forwardPENext != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Fwd P/E Next FY</span>
+                  <span className="text-text-secondary">FwdPE Next FY</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPENext)}</span>
                 </div>
               )}

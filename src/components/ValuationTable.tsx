@@ -4,9 +4,9 @@ import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatPERatio } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
-// The "P/E" tab: every market-priced holding's valuation multiples side by
-// side. Same three figures companiesmarketcap.org publishes — trailing P/E,
-// forward P/E (ongoing FY), forward P/E next FY. One table serves both
+// The "PE" tab: every market-priced holding's valuation multiples side by
+// side. Same three figures companiesmarketcap.org publishes — trailing PE,
+// forward PE (ongoing FY), forward PE next FY. One table serves both
 // desktop and mobile; four narrow columns fit a phone without a separate
 // layout, unlike HoldingsTable's wide fundamentals sprawl.
 
@@ -30,18 +30,18 @@ const COLUMNS: Array<{ column: SortColumn; label: string; title?: string }> = [
   { column: 'ticker', label: 'Asset' },
   {
     column: 'peRatio',
-    label: 'P/E',
-    title: 'Trailing P/E on the last four reported quarters',
+    label: 'PE',
+    title: 'Trailing PE on the last four reported quarters',
   },
   {
     column: 'forwardPE',
-    label: 'Fwd P/E',
-    title: "Forward P/E on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)",
+    label: 'FwdPE',
+    title: "FwdPE on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)",
   },
   {
     column: 'forwardPENext',
-    label: 'Fwd P/E +1',
-    title: "Forward P/E on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)",
+    label: 'FwdPE+1',
+    title: "FwdPE on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)",
   },
 ];
 
@@ -105,7 +105,7 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
     return (
       <div className="bg-card rounded-2xl border border-border px-4 py-6">
         <p className="text-text-secondary text-sm">
-          No P/E data is available for this portfolio's holdings.
+          No PE data is available for this portfolio's holdings.
         </p>
       </div>
     );
@@ -152,17 +152,17 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
       </table>
       <div className="border-t border-border px-3 md:px-4 py-3 space-y-1.5 text-xs text-text-secondary">
         <p>
-          <span className="font-medium text-text-primary">P/E</span> — based on EPS of the last
+          <span className="font-medium text-text-primary">PE</span> — based on EPS of the last
           four reported quarters; can include one-time items (investment gains, write-offs) that
           distort the multiple.
         </p>
         <p>
-          <span className="font-medium text-text-primary">Fwd P/E</span> — based on estimated EPS
+          <span className="font-medium text-text-primary">FwdPE</span> — based on estimated EPS
           of the current fiscal year; since part of the year is already reported, the same
           distortions can bleed in.
         </p>
         <p>
-          <span className="font-medium text-text-primary">Fwd P/E +1</span> — based on estimated
+          <span className="font-medium text-text-primary">FwdPE+1</span> — based on estimated
           EPS of the next fiscal year; free of one-time items, but estimates that far out carry
           less certainty. The table sorts by this.
         </p>

@@ -136,7 +136,7 @@ function App() {
     canViewHistory
   );
   // Tab only appears once the fetch has settled with at least one entry, so
-  // portfolios with no recorded history never show an empty History tab.
+  // portfolios with no recorded history never show an empty Changes tab.
   const hasHistory = (holdingsHistory?.length ?? 0) > 0;
 
   // If the visible tab disappears out from under us (e.g. logout or a refetch
@@ -310,7 +310,7 @@ function App() {
                           : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                       }`}
                     >
-                      P/E
+                      PE
                     </button>
                     {data.deepResearch && (
                       <button
@@ -343,7 +343,7 @@ function App() {
                             : 'border-transparent text-text-secondary hover:text-text hover:border-border'
                         }`}
                       >
-                        History
+                        Changes
                       </button>
                     )}
                   </nav>

@@ -212,13 +212,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()} title="Forward P/E on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)">
+                    <button type="button" onClick={() => handleSort('forwardPE')} className={getHeaderButtonClass()} title="FwdPE on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)">
                       <span>FwdPE</span>
                       {renderSortIcon('forwardPE')}
                     </button>
                   </th>
                   <th className="text-left text-text-secondary text-sm font-medium px-4 py-2">
-                    <button type="button" onClick={() => handleSort('forwardPENext')} className={getHeaderButtonClass()} title="Forward P/E on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)">
+                    <button type="button" onClick={() => handleSort('forwardPENext')} className={getHeaderButtonClass()} title="FwdPE on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)">
                       <span>FwdPE+1</span>
                       {renderSortIcon('forwardPENext')}
                     </button>
@@ -416,13 +416,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               )}
               {popoverHolding.forwardPE != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Forward P/E</span>
+                  <span className="text-text-secondary">FwdPE</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPE)}</span>
                 </div>
               )}
               {popoverHolding.forwardPENext != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Fwd P/E Next FY</span>
+                  <span className="text-text-secondary">FwdPE Next FY</span>
                   <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPENext)}</span>
                 </div>
               )}

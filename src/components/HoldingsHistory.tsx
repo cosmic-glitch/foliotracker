@@ -75,7 +75,7 @@ export function HoldingsHistory({ history, isLoading }: Props) {
         <Clock className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
         <p className="text-sm font-medium text-text-primary">No holdings changes yet</p>
         <p className="text-xs text-text-tertiary mt-1">
-          Edits to shares or static values will appear here as an append-only log. History starts when this feature is deployed.
+          Edits to shares or static values will appear here as an append-only log. Changes are tracked from when this feature was deployed.
         </p>
       </div>
     );
@@ -86,7 +86,7 @@ export function HoldingsHistory({ history, isLoading }: Props) {
       <div className="px-4 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
           <Clock className="w-4 h-4 text-accent" />
-          Holdings History
+          Holdings Changes
           <span className="text-xs font-normal text-text-tertiary">({filtered.length} of {history.length})</span>
         </h3>
         <div className="flex items-center gap-2">

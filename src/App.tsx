@@ -135,6 +135,15 @@ function App() {
     shareToken,
     canViewHistory
   );
+  // Tab only appears once the fetch has settled with at least one entry, so
+  // portfolios with no recorded history never show an empty History tab.
+  const hasHistory = (holdingsHistory?.length ?? 0) > 0;
+
+  // If the visible tab disappears out from under us (e.g. logout or a refetch
+  // returning empty), fall back to Holdings rather than rendering nothing.
+  useEffect(() => {
+    if (activeTab === 'history' && !hasHistory) setActiveTab('holdings');
+  }, [activeTab, hasHistory]);
 
   // Analytics hook - logs views on initial load and tab visibility change.
   // shareToken attributes views that arrived via a share link to that link.
@@ -325,7 +334,7 @@ function App() {
                     >
                       News
                     </button>
-                    {(!isAllocationOnly && (!!storedToken || !!isOwner || !!shareToken)) && (
+                    {hasHistory && (
                       <button
                         onClick={() => setActiveTab('history')}
                         className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${

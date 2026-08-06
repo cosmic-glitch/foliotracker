@@ -201,7 +201,7 @@ lockfile skips if the previous tick is still running).
 ## 11. Upcoming Events generation cron
 
 `scripts/generate-events.sh` is the sibling of the news generator (section 7):
-a single daily `claude -p` session that researches the upcoming US macro
+a single weekly `claude -p` session that researches the upcoming US macro
 calendar (~14 days) and the next earnings date for each held stock (~21 days),
 then persists a ranked feed to the `upcoming_events` table via
 `scripts/save-events.ts`. It reuses everything the news job already set up — the

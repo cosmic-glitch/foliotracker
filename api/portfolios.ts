@@ -394,6 +394,7 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // holds the name, so we capture them from the canonical share-class holding.
 // Any field can be null (ETFs lack revenue/earnings/P/E); the UI omits null rows
 // and hides the "i" button entirely when every field is null.
+// Mirrored in src/components/MoversStrip.tsx (separate build targets — keep in sync).
 interface MoverFundamentals {
   revenue: number | null;
   earnings: number | null;

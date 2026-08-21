@@ -387,13 +387,12 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // Because the strip is ordered by |move|, the ranking — not just the displayed
 // percentage — switches with the basis.
 
-// Ticker-level fundamentals carried alongside each mover so the landing strip's
-// "i" button can surface the same figures the portfolio detail page's holdings
-// popover shows (revenue, earnings, forward P/E, etc.). These are public market
-// data (not dollar-denominated portfolio holdings), identical across whoever
-// holds the name, so we capture them from the canonical share-class holding.
-// Any field can be null (ETFs lack revenue/earnings/P/E); the UI omits null rows
-// and hides the "i" button entirely when every field is null.
+// Ticker-level fundamentals remain in the mover contract so the compact strip's
+// temporarily removed detail affordance can be restored without another API
+// migration. These are public market data (not dollar-denominated portfolio
+// holdings), identical across whoever holds the name, so we capture them from
+// the canonical share-class holding. Any field can be null (ETFs commonly lack
+// revenue/earnings/P/E).
 // Mirrored in src/components/MoversStrip.tsx (separate build targets — keep in sync).
 interface MoverFundamentals {
   revenue: number | null;
@@ -408,13 +407,15 @@ interface MoverFundamentals {
 
 interface MarketMover {
   ticker: string;
+  // Latest price on the same basis as changePercent: the regular-session price
+  // for `regular`, and the latest pre/post-market price for `extended`.
+  price: number;
   changePercent: number;
   // The handles (portfolio ids) holding this name, in creation order — the same
-  // order and identity the landing-page Users list shows. The strip lists them
-  // verbatim ("held by AB, CD") when they fit a row, and falls back to a count
-  // ("held by 3 users") when they don't; either way holders.length is the count.
+  // order and identity the landing-page Users list shows. The strip renders as
+  // many as fit in its compact ownership column, then adds "+N" for the rest.
   holders: string[];
-  // Fundamentals shown behind the per-row "i" button (see MoverFundamentals).
+  // Retained for a future compact detail affordance (see MoverFundamentals).
   fundamentals: MoverFundamentals;
 }
 
@@ -442,6 +443,8 @@ function computeMarketMovers(
     string,
     {
       holders: Set<string>;
+      priceExtended: number;
+      priceRegular: number;
       changeExtended: number;
       changeRegular: number;
       fromCanonical: boolean;
@@ -494,6 +497,8 @@ function computeMarketMovers(
       if (!entry) {
         entry = {
           holders: new Set(),
+          priceExtended: h.currentPrice,
+          priceRegular: regPrice,
           changeExtended: h.dayChangePercent,
           changeRegular,
           fromCanonical: isCanonical,
@@ -506,6 +511,8 @@ function computeMarketMovers(
       // Share classes drift slightly; report the canonical ticker's own move
       // and its fundamentals.
       if (isCanonical && !entry.fromCanonical) {
+        entry.priceExtended = h.currentPrice;
+        entry.priceRegular = regPrice;
         entry.changeExtended = h.dayChangePercent;
         entry.changeRegular = changeRegular;
         entry.fundamentals = fundamentals;
@@ -518,6 +525,8 @@ function computeMarketMovers(
   // price bases so each can be ranked independently.
   const candidates = Array.from(byTicker.entries()).map(([ticker, e]) => ({
     ticker,
+    priceExtended: e.priceExtended,
+    priceRegular: e.priceRegular,
     changeExtended: e.changeExtended,
     changeRegular: e.changeRegular,
     numPortfolios: e.holders.size,
@@ -531,12 +540,14 @@ function computeMarketMovers(
   // clearing the per-type threshold lead; quiet days backfill by rank up to
   // MOVER_MIN_COUNT so the strip never comes up short.
   const rankBy = (
-    pick: (c: (typeof candidates)[number]) => number
+    pickChange: (c: (typeof candidates)[number]) => number,
+    pickPrice: (c: (typeof candidates)[number]) => number
   ): MarketMover[] => {
     const scored = candidates
       .map((c) => ({
         ticker: c.ticker,
-        changePercent: pick(c),
+        price: pickPrice(c),
+        changePercent: pickChange(c),
         numPortfolios: c.numPortfolios,
         holders: c.holders,
         isEtf: c.isEtf,
@@ -566,8 +577,9 @@ function computeMarketMovers(
       }
     }
 
-    return result.map(({ ticker, changePercent, holders, fundamentals }) => ({
+    return result.map(({ ticker, price, changePercent, holders, fundamentals }) => ({
       ticker,
+      price,
       changePercent,
       holders,
       fundamentals,
@@ -575,8 +587,14 @@ function computeMarketMovers(
   };
 
   return {
-    regular: rankBy((c) => c.changeRegular),
-    extended: rankBy((c) => c.changeExtended),
+    regular: rankBy(
+      (c) => c.changeRegular,
+      (c) => c.priceRegular
+    ),
+    extended: rankBy(
+      (c) => c.changeExtended,
+      (c) => c.priceExtended
+    ),
   };
 }
 

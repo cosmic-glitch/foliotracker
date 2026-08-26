@@ -1,13 +1,18 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Flame } from 'lucide-react';
-import { formatPrice } from '../utils/formatters';
+import { Flame, Info } from 'lucide-react';
+import {
+  formatPrice,
+  formatLargeValue,
+  formatPERatio,
+  formatMarginOrGrowth,
+  formatPctTo52WeekHigh,
+} from '../utils/formatters';
 
 // Ticker-level fundamentals carried per mover (mirrors MoverFundamentals in
 // api/portfolios.ts — the two are separate build targets, keep them in sync).
 // These are the same public figures the portfolio detail page's holdings popover
-// shows. They remain in the contract while the strip's info affordance is
-// intentionally omitted for space, so it can be restored later without an API
-// migration. Any field can be null (ETFs lack revenue/earnings/P/E).
+// shows. Any field can be null (ETFs lack revenue/earnings/P/E); the popover
+// omits null rows and the "i" button is hidden when every field is null.
 export interface MoverFundamentals {
   revenue: number | null;
   earnings: number | null;
@@ -29,9 +34,26 @@ export interface MarketMover {
   // Handles (portfolio ids) holding this name, in the same order the Users list
   // shows them. See the ownership note below for how they're rendered.
   holders: string[];
-  // Retained for a future compact detail affordance. Optional so older cached
-  // payloads (pre-fundamentals) continue to satisfy the client contract.
+  // Fundamentals shown behind the row's trailing "i" button. Optional so older
+  // cached payloads (pre-fundamentals) degrade gracefully — the button hides.
   fundamentals?: MoverFundamentals;
+}
+
+// Whether a mover has any fundamental worth showing — gates the "i" button so
+// names with no data (or an older payload missing the field) don't sprout an
+// empty popover. Mirrors HoldingsTable's per-holding fundamentals check.
+function hasFundamentals(f: MoverFundamentals | undefined): f is MoverFundamentals {
+  return (
+    !!f &&
+    (f.revenue != null ||
+      f.earnings != null ||
+      f.forwardPE != null ||
+      f.forwardPENext != null ||
+      f.operatingMargin != null ||
+      f.revenueGrowth3Y != null ||
+      f.epsGrowth3Y != null ||
+      f.pctTo52WeekHigh != null)
+  );
 }
 
 interface MoversStripProps {
@@ -67,6 +89,11 @@ const FIT_SLACK_PX = 4;
 // over-reserving only nudges that one row to a count.
 const MORE_LINK_RESERVE_PX = 64;
 
+// Minimum gap (px) kept between the fundamentals popover and the viewport edge.
+// The popover is anchored by its RIGHT edge to the "i" button (which sits at the
+// card's right edge), so this only matters if the button ever lands flush right.
+const POPOVER_VIEWPORT_MARGIN_PX = 8;
+
 // Compact ownership label for the row's flexible final column. Names are shown
 // in Users-list order and separated with middle dots; when only a prefix fits,
 // "+N" preserves the omitted count without spending space on "held by".
@@ -84,12 +111,19 @@ function holderLabel(m: MarketMover, visibleCount = m.holders.length): string {
 // (z-10), so the card's top border is hidden beneath it and the two read as one
 // connected shape (a notepad tab). Moving the label off the old left rail and
 // onto the tab hands the rows the FULL card width. Each mover remains one row:
-// ticker | price | day move | compact owner handles.
+// ticker | day move | price | compact owner handles | "i".
 //
-// Price and day move are right-aligned auto columns so their numerals line up;
-// holders use the flexible final track. The ticker's old info button and the
-// words "held by" are intentionally omitted to make room for price without
-// increasing row height.
+// The day move sits IMMEDIATELY after the ticker — the two are the row's
+// headline ("AAPL +2.3%") and reading them shouldn't cost a saccade across the
+// price. Price follows as the quieter supporting figure (one step down in size,
+// unaccented). Both are right-aligned auto columns so their numerals line up
+// down the strip; holders use the flexible track. The "i" button gets its own trailing auto
+// column at the card's right edge rather than riding beside the ticker (where it
+// used to live): a fixed column keeps the buttons in a straight vertical rail
+// instead of jittering with each ticker's width, and it keeps the ticker/price
+// pair tight. Rows without fundamentals render an empty cell, so the rail — and
+// every column left of it — stays aligned. The words "held by" remain omitted to
+// buy the price column room without growing the row height.
 //
 // The holder label is width-aware. Canvas measurement chooses the longest form
 // that fits ("AV · GS · VD", then "AV · GS +1", and so on), independently
@@ -106,7 +140,8 @@ function holderLabel(m: MarketMover, visibleCount = m.holders.length): string {
 // the backfill only pads UP to the floor, never past it), a blue "N more" link
 // sits at the bottom-right of the last row (sharing that row, not a separate
 // toggle line) and expands the strip to the full qualified set; "less" collapses
-// it back.
+// it back. It sits inside the holders track, so it lands just left of the "i"
+// rail rather than displacing it.
 //
 // Renders nothing on quiet days — an empty strip beats training users that it's
 // filler. The server keeps the list populated (see computeMarketMovers). During
@@ -120,12 +155,39 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
   const canExpand = movers.length > DISPLAY_COUNT;
   const shown = expanded && canExpand ? movers : movers.slice(0, DISPLAY_COUNT);
 
-  // Per-row ownership labels after fitting them to the flexible final column.
+  // Fundamentals popover, anchored to the clicked "i" button (mirrors the
+  // holdings-table popover on the portfolio detail page): fixed-positioned just
+  // below the button, dismissed by a full-screen backdrop.
+  const [popover, setPopover] = useState<{
+    ticker: string;
+    top: number;
+    right: number;
+  } | null>(null);
+  const popoverMover = popover
+    ? movers.find((m) => m.ticker === popover.ticker)
+    : null;
+  const openPopover = (ticker: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Anchored by its RIGHT edge, unlike the detail page's popover: the button
+    // sits at the card's right edge, so a left-anchored panel would hang off
+    // the viewport.
+    setPopover({
+      ticker,
+      top: rect.bottom + 4,
+      right: Math.max(
+        POPOVER_VIEWPORT_MARGIN_PX,
+        window.innerWidth - rect.right
+      ),
+    });
+  };
+
+  // Per-row ownership labels after fitting them to the flexible holders column.
   const [holderLabels, setHolderLabels] = useState<string[]>([]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // One held-by cell per row; cell 0 also tells us where the holders column
-  // starts (its left edge), which is the same for every row (shared grid track).
+  // One held-by cell per row; cell 0 also gives us the holders column's width,
+  // which is the same for every row (shared grid track).
   const heldByRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -135,12 +197,11 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
       const firstCell = heldByRefs.current[0];
       if (!container || !firstCell) return;
 
-      // Holders column starts after the ticker + move columns (and their gaps);
-      // the grid spans the full container from its left edge, so the cell's
-      // offset from the container left is exactly that prefix width.
-      const containerLeft = container.getBoundingClientRect().left;
-      const columnLeft = firstCell.getBoundingClientRect().left;
-      const available = container.clientWidth - (columnLeft - containerLeft);
+      // The holders cell stretches to fill its grid track, so its own width IS
+      // the room available for the label — already net of the ticker/price/move
+      // columns on the left and the "i" rail on the right, without us having to
+      // model any of them.
+      const available = firstCell.clientWidth;
 
       const canvas = (canvasRef.current ??= document.createElement('canvas'));
       const ctx = canvas.getContext('2d');
@@ -209,13 +270,14 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
       <div className="mb-3 md:mb-6" aria-hidden>
         {tab}
         <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
-          <div className="grid grid-cols-[auto_auto_auto_1fr] items-center gap-x-3 gap-y-2.5 animate-pulse">
+          <div className="grid grid-cols-[auto_auto_auto_1fr_auto] items-center gap-x-3 gap-y-2.5 animate-pulse">
             {Array.from({ length: DISPLAY_COUNT }).map((_, i) => (
               <Fragment key={i}>
                 <div className="h-3.5 w-12 rounded bg-card-hover" />
-                <div className="h-3.5 w-14 rounded bg-card-hover" />
                 <div className="h-3.5 w-10 justify-self-end rounded bg-card-hover" />
+                <div className="h-3.5 w-14 justify-self-end rounded bg-card-hover" />
                 <div className="h-3 w-16 rounded bg-card-hover" />
+                <div className="h-3.5 w-3.5 rounded-full bg-card-hover" />
               </Fragment>
             ))}
           </div>
@@ -237,23 +299,25 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
           get the full width now that the label lives on the tab, not a rail. */}
       <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
         <div ref={containerRef} className="w-full min-w-0">
-          {/* ticker | price | move | owners. Price and move are stable auto
-              columns; owners absorb the remaining width and compact as needed. */}
-          <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1">
+          {/* ticker | move | price | owners | "i". Move and price are stable
+              auto columns; owners absorb the remaining width and compact as
+              needed; the trailing auto column is the info-button rail. */}
+          <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1">
             {shown.map((mover, i) => {
               const isPositive = mover.changePercent >= 0;
               const isLast = i === shown.length - 1;
               const ownership = holderLabels[i] ?? holderLabel(mover, 1);
+              const showInfo = hasFundamentals(mover.fundamentals);
               return (
                 <Fragment key={mover.ticker}>
                   <span className="font-semibold text-text-primary text-sm md:text-[15px] whitespace-nowrap">
                     {mover.ticker}
                   </span>
-                  <span className="text-xs md:text-sm tabular-nums text-right text-text-primary whitespace-nowrap">
-                    {formatPrice(mover.price)}
-                  </span>
                   <span className={`text-sm md:text-[15px] tabular-nums text-right whitespace-nowrap ${isPositive ? 'text-positive' : 'text-negative'}`}>
                     {isPositive ? '+' : ''}{mover.changePercent.toFixed(1)}%
+                  </span>
+                  <span className="text-xs md:text-sm tabular-nums text-right text-text-primary whitespace-nowrap">
+                    {formatPrice(mover.price)}
                   </span>
                   {isLast && canExpand ? (
                     // Last row shares its track with the expand/collapse link at
@@ -294,6 +358,24 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
                       {ownership}
                     </span>
                   )}
+                  {/* Trailing info rail: the button opens a fundamentals popover
+                      (revenue, earnings, forward P/E, …) — same data and look as
+                      the holdings table on the detail page. Rows with no data
+                      render an empty cell so the column (and the rail) keeps its
+                      width. self-center rather than the grid's baseline, since a
+                      lone icon has no text baseline to share. */}
+                  {showInfo ? (
+                    <button
+                      type="button"
+                      onClick={(e) => openPopover(mover.ticker, e)}
+                      aria-label={`Fundamentals for ${mover.ticker}`}
+                      className="self-center justify-self-end shrink-0 text-text-secondary hover:text-text-primary transition-colors"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <span aria-hidden />
+                  )}
                 </Fragment>
               );
             })}
@@ -301,6 +383,72 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
         </div>
       </div>
 
+      {/* Fundamentals popover — opened by a row's "i" button, anchored just
+          below it and aligned to its right edge (the button sits at the card's
+          right edge). Same shape and figures as the holdings-table popover on
+          the portfolio detail page; only the rows with data render. A fixed
+          full-screen backdrop closes it on any outside click. */}
+      {popover && popoverMover?.fundamentals && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPopover(null)} />
+          <div
+            className="fixed z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-64"
+            style={{ top: popover.top, right: popover.right }}
+          >
+            <p className="font-semibold text-text-primary text-sm mb-2">{popover.ticker}</p>
+            <div className="grid grid-cols-1 gap-y-1 text-xs">
+              {popoverMover.fundamentals.revenue != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Revenue</span>
+                  <span className="font-medium text-text-primary">{formatLargeValue(popoverMover.fundamentals.revenue)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.earnings != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Earnings</span>
+                  <span className="font-medium text-text-primary">{formatLargeValue(popoverMover.fundamentals.earnings)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.forwardPE != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">FwdPE</span>
+                  <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPE)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.forwardPENext != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">FwdPE Next FY</span>
+                  <span className="font-medium text-text-primary">{formatPERatio(popoverMover.fundamentals.forwardPENext)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.operatingMargin != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Op Margin</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.operatingMargin)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.revenueGrowth3Y != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Revenue Growth (3Y)</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.revenueGrowth3Y)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.epsGrowth3Y != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">EPS Growth (3Y)</span>
+                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverMover.fundamentals.epsGrowth3Y)}</span>
+                </div>
+              )}
+              {popoverMover.fundamentals.pctTo52WeekHigh != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">% to 52wk high</span>
+                  <span className="font-medium text-text-primary">{formatPctTo52WeekHigh(popoverMover.fundamentals.pctTo52WeekHigh)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

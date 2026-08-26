@@ -387,12 +387,14 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // Because the strip is ordered by |move|, the ranking — not just the displayed
 // percentage — switches with the basis.
 
-// Ticker-level fundamentals remain in the mover contract so the compact strip's
-// temporarily removed detail affordance can be restored without another API
-// migration. These are public market data (not dollar-denominated portfolio
-// holdings), identical across whoever holds the name, so we capture them from
-// the canonical share-class holding. Any field can be null (ETFs commonly lack
-// revenue/earnings/P/E).
+// Ticker-level fundamentals carried alongside each mover so the landing strip's
+// trailing "i" button can surface the same figures the portfolio detail page's
+// holdings popover shows (revenue, earnings, forward P/E, etc.). These are
+// public market data (not dollar-denominated portfolio holdings), identical
+// across whoever holds the name, so we capture them from the canonical
+// share-class holding. Any field can be null (ETFs lack revenue/earnings/P/E);
+// the UI omits null rows and hides the "i" button entirely when every field is
+// null.
 // Mirrored in src/components/MoversStrip.tsx (separate build targets — keep in sync).
 interface MoverFundamentals {
   revenue: number | null;
@@ -415,7 +417,7 @@ interface MarketMover {
   // order and identity the landing-page Users list shows. The strip renders as
   // many as fit in its compact ownership column, then adds "+N" for the rest.
   holders: string[];
-  // Retained for a future compact detail affordance (see MoverFundamentals).
+  // Fundamentals shown behind the row's trailing "i" button (see MoverFundamentals).
   fundamentals: MoverFundamentals;
 }
 

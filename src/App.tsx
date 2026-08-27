@@ -281,10 +281,12 @@ function App() {
                 <NewsTicker holdings={data.holdings} />
                 {/* Tab Navigation */}
                 <div className="border-b border-border -mt-2 md:-mt-4">
-                  <nav className="flex gap-1">
+                  {/* overflow-x-auto: with the Changes tab visible, five tabs can
+                      exceed narrow (~320px) viewports — scroll instead of wrapping */}
+                  <nav className="flex gap-1 overflow-x-auto no-scrollbar">
                     <button
                       onClick={() => setActiveTab('holdings')}
-                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                         activeTab === 'holdings'
                           ? 'border-accent text-accent'
                           : 'border-transparent text-text-secondary hover:text-text hover:border-border'
@@ -294,7 +296,7 @@ function App() {
                     </button>
                     <button
                       onClick={() => setActiveTab('allocation')}
-                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                         activeTab === 'allocation'
                           ? 'border-accent text-accent'
                           : 'border-transparent text-text-secondary hover:text-text hover:border-border'
@@ -304,7 +306,7 @@ function App() {
                     </button>
                     <button
                       onClick={() => setActiveTab('valuation')}
-                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                         activeTab === 'valuation'
                           ? 'border-accent text-accent'
                           : 'border-transparent text-text-secondary hover:text-text hover:border-border'
@@ -315,7 +317,7 @@ function App() {
                     {data.deepResearch && (
                       <button
                         onClick={() => setActiveTab('research')}
-                        className={`hidden md:block px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        className={`hidden md:block px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                           activeTab === 'research'
                             ? 'border-accent text-accent'
                             : 'border-transparent text-text-secondary hover:text-text hover:border-border'
@@ -326,7 +328,7 @@ function App() {
                     )}
                     <button
                       onClick={() => setActiveTab('news')}
-                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                         activeTab === 'news'
                           ? 'border-accent text-accent'
                           : 'border-transparent text-text-secondary hover:text-text hover:border-border'
@@ -337,7 +339,7 @@ function App() {
                     {hasHistory && (
                       <button
                         onClick={() => setActiveTab('history')}
-                        className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                           activeTab === 'history'
                             ? 'border-accent text-accent'
                             : 'border-transparent text-text-secondary hover:text-text hover:border-border'

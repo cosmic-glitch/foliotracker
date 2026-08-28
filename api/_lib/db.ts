@@ -493,12 +493,14 @@ export async function recordHoldingsHistory(
         change_type: 'added',
       });
     } else if (
+      // Only position-level fields count as changes. name/instrument_type are
+      // re-resolved from Yahoo on every save (processStructuredInput), so a
+      // diff there is upstream data drift, not a user action — logging it
+      // produced phantom "updated" entries (e.g. Yahoo renaming VUG, Aug 2026).
       prev.shares !== next.shares ||
       prev.static_value !== next.static_value ||
       prev.is_static !== next.is_static ||
-      prev.cost_basis !== next.cost_basis ||
-      prev.name !== next.name ||
-      prev.instrument_type !== next.instrument_type
+      prev.cost_basis !== next.cost_basis
     ) {
       rows.push({
         portfolio_id: normalizedId,

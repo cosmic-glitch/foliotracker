@@ -469,6 +469,22 @@ export async function getHoldingsHistory(
   }
 }
 
+// Owner-initiated removal of one log row. Scoped to the portfolio so a
+// leaked/guessed row id can't touch another portfolio's log. Returns false
+// when nothing matched (wrong portfolio, already gone). Not routed through
+// the "table missing" fallback: deletes only happen from the Changes tab,
+// which only lists rows that exist.
+export async function deleteHoldingsHistoryEntry(portfolioId: string, entryId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('holdings_history')
+    .delete()
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .eq('id', entryId)
+    .select('id');
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 // A static holding's ticker IS its user-typed name, so renaming "Cash Eqvt"
 // to "Cash" diffs as a removal plus an addition. When a removed and an added
 // static row in the same save carry the same value, treat the pair as a

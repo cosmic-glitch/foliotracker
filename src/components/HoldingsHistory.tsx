@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp, Clock, Pencil, Plus, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Clock, Loader2, Trash2, X } from 'lucide-react';
 import type { HoldingsHistoryEntry } from '../hooks/useHoldingsHistory';
 import { formatCurrency } from '../utils/formatters';
 import type { Session } from '../utils/holdingsHistory';
@@ -67,18 +68,11 @@ function sessionSummary(entries: HoldingsHistoryEntry[]): string | null {
   return `${entries.length} changes`;
 }
 
-const KIND_ICON: Record<Kind, { Icon: typeof Plus; className: string }> = {
-  new: { Icon: Plus, className: 'text-positive' },
-  buy: { Icon: ArrowUp, className: 'text-positive' },
-  trim: { Icon: ArrowDown, className: 'text-negative' },
-  exit: { Icon: X, className: 'text-negative' },
-  value: { Icon: Pencil, className: 'text-text-secondary/70' },
-  details: { Icon: Pencil, className: 'text-text-secondary/70' },
-};
-
-function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
+// Rows carry no leading kind icon: the amount's green/red already says
+// buy vs. sell, so the row starts at the ticker and the freed space goes to
+// the owner-only delete control on the right.
+function EntryRow({ entry, onDelete }: { entry: HoldingsHistoryEntry; onDelete?: (entry: HoldingsHistoryEntry) => void }) {
   const kind = entryKind(entry);
-  const { Icon, className } = KIND_ICON[kind];
   const delta = entry.prev_shares != null ? entry.shares - entry.prev_shares : null;
   // Static value edits colour by the direction of the dollar delta, once known.
   const valueDelta =
@@ -145,13 +139,133 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
 
   return (
     <div className="flex items-center gap-2 py-1.5">
-      <Icon className={`w-3.5 h-3.5 shrink-0 ${className}`} />
       <span className="w-14 shrink-0 text-sm font-medium text-text-primary">{entry.ticker}</span>
       <span className="flex-1 truncate text-sm text-text-secondary">
         {verb}
         {detail && <span className="hidden sm:inline text-text-secondary/70"> · {detail}</span>}
       </span>
       {amount && <span className={`shrink-0 font-mono text-xs font-medium ${tone}`}>{amount}</span>}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(entry)}
+          aria-label={`Delete ${entry.ticker} entry`}
+          title="Delete"
+          className="shrink-0 -my-1 -mr-1 p-1 rounded-md text-text-secondary/50 hover:text-negative hover:bg-card-hover transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Owner confirmation before a row is removed. Delete is disabled while the
+// request is in flight; a failure (expired session, row already gone) shows
+// inline and leaves the dialog open so the user can retry or cancel.
+function DeleteEntryDialog({
+  entry,
+  onConfirm,
+  onCancel,
+}: {
+  entry: HoldingsHistoryEntry;
+  onConfirm: (entry: HoldingsHistoryEntry) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isDeleting) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDeleting, onCancel]);
+
+  const handleConfirm = async () => {
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await onConfirm(entry);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete entry');
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      onClick={() => !isDeleting && onCancel()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-history-entry-title"
+        className="bg-card rounded-2xl border border-border max-w-md w-full p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-negative/10 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-negative" />
+            </div>
+            <h3 id="delete-history-entry-title" className="text-lg font-semibold text-text-primary">
+              Delete Entry
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            aria-label="Close"
+            className="p-1 hover:bg-card-hover rounded-lg transition-colors disabled:opacity-50"
+          >
+            <X className="w-5 h-5 text-text-secondary" />
+          </button>
+        </div>
+
+        <p className="text-sm text-text-secondary mb-1">
+          Do you want to delete this entry from your change history?
+        </p>
+        <p className="text-xs text-text-secondary/70 mb-4">
+          <span className="font-medium text-text-primary">{entry.ticker}</span> · {formatDay(entry.recorded_at)}. This
+          only removes the log entry; your holdings are not affected.
+        </p>
+
+        {error && (
+          <div className="bg-negative/10 border border-negative/20 rounded-lg px-4 py-3 text-negative text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="flex-1 bg-card-hover hover:bg-border disabled:opacity-50 text-text-primary font-medium py-2.5 px-4 rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={isDeleting}
+            className="flex-1 bg-negative hover:bg-negative/90 disabled:bg-negative/50 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete'
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -160,9 +274,13 @@ interface Props {
   // Already filtered to material changes and grouped (materialSessions in App).
   sessions: Session[];
   isLoading?: boolean;
+  // Owner-only: when set, each row gets a delete control. Resolves once the
+  // server has removed the row (App wires this to the delete mutation).
+  onDeleteEntry?: (entryId: string) => Promise<void>;
 }
 
-export function HoldingsHistory({ sessions, isLoading }: Props) {
+export function HoldingsHistory({ sessions, isLoading, onDeleteEntry }: Props) {
+  const [pendingDelete, setPendingDelete] = useState<HoldingsHistoryEntry | null>(null);
 
   if (isLoading) {
     return (
@@ -189,21 +307,34 @@ export function HoldingsHistory({ sessions, isLoading }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card divide-y divide-border/50">
-      {sessions.map((session) => {
-        const summary = sessionSummary(session.entries);
-        return (
-          <div key={session.entries[0].id} className="px-4 py-3">
-            <div className="mb-1 text-xs text-text-secondary/70">
-              <span className="font-medium text-text-secondary">{formatDay(session.entries[0].recorded_at)}</span>
-              {summary && <span> · {summary}</span>}
+    <>
+      <div className="rounded-xl border border-border bg-card divide-y divide-border/50">
+        {sessions.map((session) => {
+          const summary = sessionSummary(session.entries);
+          return (
+            <div key={session.entries[0].id} className="px-4 py-3">
+              <div className="mb-1 text-xs text-text-secondary/70">
+                <span className="font-medium text-text-secondary">{formatDay(session.entries[0].recorded_at)}</span>
+                {summary && <span> · {summary}</span>}
+              </div>
+              {session.entries.map((entry) => (
+                <EntryRow key={entry.id} entry={entry} onDelete={onDeleteEntry ? setPendingDelete : undefined} />
+              ))}
             </div>
-            {session.entries.map((entry) => (
-              <EntryRow key={entry.id} entry={entry} />
-            ))}
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+
+      {pendingDelete && onDeleteEntry && (
+        <DeleteEntryDialog
+          entry={pendingDelete}
+          onConfirm={async (entry) => {
+            await onDeleteEntry(entry.id);
+            setPendingDelete(null);
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
+    </>
   );
 }

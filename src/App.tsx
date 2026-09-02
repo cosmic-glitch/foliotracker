@@ -19,7 +19,7 @@ import {
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
-import { useHoldingsHistory } from './hooks/useHoldingsHistory';
+import { useHoldingsHistory, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
 import { materialSessions } from './utils/holdingsHistory';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
@@ -141,6 +141,14 @@ function App() {
   // empty state covers portfolios with no material history) rather than
   // popping in when the fetch settles, which shifted the tab row on mobile.
   const historySessions = useMemo(() => materialSessions(holdingsHistory ?? []), [holdingsHistory]);
+  // Owners (unlocked or logged in — the same signal that sends Edit straight
+  // to the editor) can delete individual entries; the server re-checks the token.
+  const deleteHistoryEntry = useDeleteHoldingsHistoryEntry(portfolioId || '', storedToken);
+  const handleDeleteHistoryEntry = storedToken
+    ? async (entryId: string) => {
+        await deleteHistoryEntry.mutateAsync(entryId);
+      }
+    : undefined;
 
   // If the tab disappears out from under us (viewer drops to allocation-only,
   // e.g. on logout), fall back to Holdings rather than rendering nothing.
@@ -382,7 +390,11 @@ function App() {
                 )}
 
                 {activeTab === 'history' && (
-                  <HoldingsHistory sessions={historySessions} isLoading={isHoldingsHistoryLoading} />
+                  <HoldingsHistory
+                    sessions={historySessions}
+                    isLoading={isHoldingsHistoryLoading}
+                    onDeleteEntry={handleDeleteHistoryEntry}
+                  />
                 )}
               </>
             )}

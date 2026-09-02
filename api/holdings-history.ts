@@ -1,14 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, isAllowedViewer, getDailyPrices, getCachedPrices, type DbHoldingsHistory } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, deleteHoldingsHistoryEntry, isAllowedViewer, getDailyPrices, getCachedPrices, type DbHoldingsHistory } from './_lib/db.js';
 import { getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
+    return;
+  }
+  if (req.method === 'DELETE') {
+    await handleDelete(req, res);
     return;
   }
   if (req.method !== 'GET') {
@@ -93,6 +97,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(200).json({ history: await attachClosePrices(history) });
   } catch (error) {
     console.error('Holdings history API error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// DELETE ?id=<portfolio>&entry_id=<row uuid>&token=… (or the same fields in a
+// JSON body). Owner/admin only — the read-side rules above (public portfolio,
+// invited viewer, share link) never grant deletion. Deleting a row is a plain
+// row delete: it doesn't touch holdings, and the next save diffs against the
+// holdings table, not this log, so future entries are unaffected.
+async function handleDelete(req: VercelRequest, res: VercelResponse): Promise<void> {
+  try {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const pick = (key: string): string | undefined => {
+      const q = req.query[key];
+      if (typeof q === 'string' && q) return q;
+      const b = body[key];
+      return typeof b === 'string' && b ? b : undefined;
+    };
+    const portfolioId = pick('id');
+    const entryId = pick('entry_id');
+    const token = pick('token');
+    const password = pick('password');
+
+    if (!portfolioId || !entryId) {
+      res.status(400).json({ error: 'id and entry_id are required' });
+      return;
+    }
+    if (!UUID_RE.test(entryId)) {
+      res.status(400).json({ error: 'Invalid entry_id' });
+      return;
+    }
+    if (!token && !password) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const portfolio = await getPortfolio(portfolioId);
+    if (!portfolio) {
+      res.status(404).json({ error: 'Portfolio not found' });
+      return;
+    }
+
+    const { authenticated } = await authenticateRequest(portfolioId, token, password);
+    if (!authenticated) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const deleted = await deleteHoldingsHistoryEntry(portfolioId, entryId);
+    if (!deleted) {
+      res.status(404).json({ error: 'Entry not found' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Holdings history delete error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

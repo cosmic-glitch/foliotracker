@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -61,5 +61,35 @@ export function useHoldingsHistory(
     enabled: !!portfolioId && enabled,
     staleTime: 60_000,
     retry: false,
+  });
+}
+
+// Owner-only removal of one entry. Requires the owner/admin session token —
+// the server rejects anything else. On success the row is dropped from every
+// cached history query for this portfolio immediately (no flash of the old
+// list), then the query is invalidated so the cache re-syncs with the server.
+export function useDeleteHoldingsHistoryEntry(portfolioId: string, token: string | null | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (entryId: string) => {
+      if (!token) throw new Error('Sign in to delete history entries');
+      const url = new URL(`${API_BASE_URL}/api/holdings-history`, window.location.origin);
+      url.searchParams.set('id', portfolioId);
+      url.searchParams.set('entry_id', entryId);
+      url.searchParams.set('token', token);
+      const res = await fetch(url.toString(), { method: 'DELETE' });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || 'Failed to delete entry');
+      }
+      return entryId;
+    },
+    onSuccess: (entryId) => {
+      queryClient.setQueriesData<HoldingsHistoryEntry[]>(
+        { queryKey: ['holdingsHistory', portfolioId] },
+        (old) => old?.filter((e) => e.id !== entryId)
+      );
+      void queryClient.invalidateQueries({ queryKey: ['holdingsHistory', portfolioId] });
+    },
   });
 }

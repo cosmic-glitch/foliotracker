@@ -27,12 +27,12 @@ function fmtPct(delta: number, prev: number): string {
   return `${sign}${Math.round(pct)}%`;
 }
 
-// Signed, compact ($45.2k / $1.23M) dollar figure. `approx` marks amounts
-// derived from the day's close rather than an actual fill — every tradeable
-// figure here, since the fill price isn't logged.
+// Unsigned, compact ($45.2k / $1.23M) dollar figure — the row's colour
+// carries direction. `approx` marks amounts derived from the day's close
+// rather than an actual fill — every tradeable figure here, since the fill
+// price isn't logged.
 function fmtDollars(value: number, approx: boolean): string {
-  const sign = value < 0 ? '−' : '+';
-  return `${approx ? '~' : ''}${sign}${formatCurrency(Math.abs(value), true)}`;
+  return `${approx ? '~' : ''}${formatCurrency(Math.abs(value), true)}`;
 }
 
 function formatDay(iso: string): string {
@@ -80,7 +80,17 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
   const kind = entryKind(entry);
   const { Icon, className } = KIND_ICON[kind];
   const delta = entry.prev_shares != null ? entry.shares - entry.prev_shares : null;
-  const tone = kind === 'new' || kind === 'buy' ? 'text-positive' : kind === 'trim' || kind === 'exit' ? 'text-negative' : 'text-text-secondary';
+  // Static value edits colour by the direction of the dollar delta, once known.
+  const valueDelta =
+    kind === 'value' && entry.static_value != null && entry.prev_static_value != null
+      ? entry.static_value - entry.prev_static_value
+      : null;
+  const tone =
+    kind === 'new' || kind === 'buy' || (valueDelta != null && valueDelta > 0)
+      ? 'text-positive'
+      : kind === 'trim' || kind === 'exit' || (valueDelta != null && valueDelta < 0)
+        ? 'text-negative'
+        : 'text-text-secondary';
 
   // `verb` is the plain-language action; `amount` is the dollar figure that
   // pops in green/red; `detail` is muted desktop-only context.
@@ -116,8 +126,14 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
       detail = `${entry.prev_shares! > 0 ? `${fmtPct(delta!, entry.prev_shares!)} · ` : ''}${fmtShares(entry.prev_shares!)} → ${fmtShares(entry.shares)}`;
       break;
     case 'value':
-      verb = 'Value updated';
-      if (entry.static_value != null) amount = formatCurrency(entry.static_value, true);
+      if (valueDelta != null) {
+        verb = `Value ${valueDelta >= 0 ? 'up' : 'down'}`;
+        amount = fmtDollars(valueDelta, false);
+        detail = `${formatCurrency(entry.prev_static_value!, true)} → ${formatCurrency(entry.static_value!, true)}`;
+      } else {
+        verb = 'Value updated';
+        if (entry.static_value != null) amount = formatCurrency(entry.static_value, true);
+      }
       break;
     default:
       verb = 'Details updated';

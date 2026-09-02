@@ -436,6 +436,9 @@ export interface DbHoldingsHistory {
   prev_shares: number | null;
   is_static: boolean;
   static_value: number | null;
+  // Value before an 'updated'/'removed' change (static rows only). Null on
+  // 'added' rows and on rows logged before migration 012.
+  prev_static_value: number | null;
   instrument_type: string | null;
   cost_basis: number | null;
   change_type: HoldingsHistoryChangeType;
@@ -520,6 +523,7 @@ export async function recordHoldingsHistory(
         prev_shares: null,
         is_static: next.is_static,
         static_value: next.static_value,
+        prev_static_value: null,
         instrument_type: next.instrument_type,
         cost_basis: next.cost_basis,
         change_type: 'added',
@@ -542,6 +546,7 @@ export async function recordHoldingsHistory(
         prev_shares: prev.shares,
         is_static: next.is_static,
         static_value: next.static_value,
+        prev_static_value: prev.static_value,
         instrument_type: next.instrument_type,
         cost_basis: next.cost_basis,
         change_type: 'updated',
@@ -559,6 +564,7 @@ export async function recordHoldingsHistory(
         prev_shares: prev.shares,
         is_static: prev.is_static,
         static_value: prev.static_value,
+        prev_static_value: prev.static_value,
         instrument_type: prev.instrument_type,
         cost_basis: prev.cost_basis,
         change_type: 'removed',

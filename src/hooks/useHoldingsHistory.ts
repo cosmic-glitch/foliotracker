@@ -11,6 +11,9 @@ export interface HoldingsHistoryEntry {
   prev_shares: number | null;
   is_static: boolean;
   static_value: number | null;
+  // Value before an 'updated'/'removed' static change. Null on rows logged
+  // before it was recorded; materialSessions derives it from earlier rows.
+  prev_static_value: number | null;
   instrument_type: string | null;
   cost_basis: number | null;
   change_type: 'added' | 'updated' | 'removed';

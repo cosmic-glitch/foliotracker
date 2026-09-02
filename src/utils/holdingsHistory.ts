@@ -59,10 +59,30 @@ function dropStaticRenames(entries: HoldingsHistoryEntry[]): HoldingsHistoryEntr
   return drop.size ? entries.filter((e) => !drop.has(e)) : entries;
 }
 
+// Rows logged before prev_static_value existed have it null. Walk oldest →
+// newest and fill it from the ticker's last known static value, so legacy
+// value edits still render as a delta. Rows with no earlier sighting stay null
+// (the UI falls back to showing the new value).
+function backfillPrevStaticValue(history: HoldingsHistoryEntry[]): HoldingsHistoryEntry[] {
+  const lastValue = new Map<string, number | null>();
+  const out: HoldingsHistoryEntry[] = new Array(history.length);
+  for (let i = history.length - 1; i >= 0; i--) {
+    let e = history[i];
+    if (e.is_static) {
+      if (e.prev_static_value == null && e.change_type !== 'added' && lastValue.has(e.ticker)) {
+        e = { ...e, prev_static_value: lastValue.get(e.ticker) ?? null };
+      }
+      lastValue.set(e.ticker, e.change_type === 'removed' ? null : e.static_value);
+    }
+    out[i] = e;
+  }
+  return out;
+}
+
 // Only investment-material rows: real buys/trims/exits/adds and static value
 // changes. Sessions left empty by the filter disappear entirely.
 export function materialSessions(history: HoldingsHistoryEntry[]): Session[] {
-  return groupSessions(history)
+  return groupSessions(backfillPrevStaticValue(history))
     .map((s) => ({ entries: dropStaticRenames(s.entries.filter((e) => !isBookkeepingOnly(e))) }))
     .filter((s) => s.entries.length > 0);
 }

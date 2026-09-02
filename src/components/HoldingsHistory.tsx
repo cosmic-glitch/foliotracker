@@ -231,7 +231,7 @@ function DeleteEntryDialog({
         </p>
         <p className="text-xs text-text-secondary/70 mb-4">
           <span className="font-medium text-text-primary">{entry.ticker}</span> · {formatDay(entry.recorded_at)}. This
-          only removes the log entry; your holdings are not affected.
+          only changes the change log; your holdings are not affected.
         </p>
 
         {error && (

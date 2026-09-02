@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, isAllowedViewer } from './_lib/db.js';
 import { getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -49,7 +49,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    // Auth: history is owner-only. Valid share_token (full only) or token/password counts as authenticated.
+    // Auth mirrors api/portfolio.ts: anyone who can see dollar values can see
+    // the change log. That means public portfolios (no auth), owner/admin
+    // token or password, invited viewers on selective portfolios, and full-mode
+    // share links. Allocation-only viewers (allocation_only share link, or a
+    // restricted viewer on an allocation_public portfolio) are denied — the
+    // log carries share counts and static values, which are dollar data.
+    const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
     let authenticated = false;
     if (shareToken) {
       const link = await getShareLinkByToken(shareToken);
@@ -58,22 +64,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       if (link.mode === 'allocation_only') {
-        res.status(403).json({ error: 'Changes are available to the portfolio owner only', requiresAuth: true });
+        res.status(403).json({ error: 'Changes require access to portfolio values', requiresAuth: true });
         return;
       }
       authenticated = true;
     } else if (token || password) {
       const result = await authenticateRequest(portfolioId, token, password);
       authenticated = result.authenticated;
-      if ((token || password) && !authenticated) {
+      if (!authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
     }
 
-    // Public portfolios still require owner auth for changes; it's not public data. Viewers (logged_in_as) do NOT grant access.
-    if (!authenticated) {
-      res.status(403).json({ error: 'Changes are available to the portfolio owner only', requiresAuth: true });
+    let restricted = false;
+    if (portfolio.visibility === 'private') {
+      restricted = !authenticated;
+    } else if (portfolio.visibility === 'selective') {
+      const isViewer = !!loggedInAs && (await isAllowedViewer(portfolioId, loggedInAs));
+      restricted = !authenticated && !isViewer;
+    }
+    if (restricted) {
+      res.status(403).json({ error: 'Changes require access to portfolio values', requiresAuth: true });
       return;
     }
 

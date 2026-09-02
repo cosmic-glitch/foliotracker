@@ -126,8 +126,9 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  const isOwner = !!portfolioId && loggedInAs === portfolioId.toLowerCase();
-  const canViewHistory = !isAllocationOnly && (!!storedToken || !!isOwner || !!shareToken) && !!data && !isLoading;
+  // Changes are visible to anyone who can see dollar values (viewMode 'full');
+  // the server applies the same rule, so allocation-only viewers get 403 → [].
+  const canViewHistory = !isAllocationOnly && !!data && !isLoading;
   const { data: holdingsHistory, isLoading: isHoldingsHistoryLoading } = useHoldingsHistory(
     portfolioId || '',
     storedToken,

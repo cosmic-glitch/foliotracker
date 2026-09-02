@@ -35,7 +35,7 @@ async function fetchHoldingsHistory(
 
   const res = await fetch(url.toString(), { cache: 'no-store' });
   if (res.status === 403 || res.status === 401) {
-    // Not authorized for history — treat as empty (owner-only)
+    // Not authorized for history (allocation-only viewer) — treat as empty
     return [];
   }
   if (!res.ok) throw new Error('Failed to fetch holdings history');

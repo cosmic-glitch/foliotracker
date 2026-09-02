@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, isAllowedViewer } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, isAllowedViewer, getDailyPrices, getCachedPrices, type DbHoldingsHistory } from './_lib/db.js';
 import { getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -90,9 +90,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const history = await getHoldingsHistory(portfolioId, limit);
-    res.status(200).json({ history });
+    res.status(200).json({ history: await attachClosePrices(history) });
   } catch (error) {
     console.error('Holdings history API error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+}
+
+const ET_DATE_KEY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+// Attach `price` to each tradeable row: the ticker's close on the ET calendar
+// day the change was recorded (or the last close before it, for weekends and
+// holidays). The FE turns share deltas into ~dollar amounts with it. The
+// actual fill price isn't logged, so this is explicitly an approximation.
+// Falls back to price_cache when daily_prices has nothing on or before that
+// day (a same-day edit before the first snapshot refresh lands), and null when
+// neither exists. Static rows carry their own value and get null.
+async function attachClosePrices(
+  history: DbHoldingsHistory[]
+): Promise<Array<DbHoldingsHistory & { price: number | null }>> {
+  const tradeable = history.filter((h) => !h.is_static);
+  if (tradeable.length === 0) return history.map((h) => ({ ...h, price: null }));
+
+  const tickers = [...new Set(tradeable.map((h) => h.ticker))];
+  const oldestMs = Math.min(...tradeable.map((h) => new Date(h.recorded_at).getTime()));
+  const days = Math.ceil((Date.now() - oldestMs) / 86_400_000) + 7;
+
+  const closesByTicker = new Map<string, Array<{ date: string; close: number }>>();
+  try {
+    // getDailyPrices returns rows ordered by date asc.
+    for (const row of await getDailyPrices(tickers, days)) {
+      const list = closesByTicker.get(row.ticker) ?? [];
+      list.push({ date: row.date, close: row.close_price });
+      closesByTicker.set(row.ticker, list);
+    }
+  } catch (e) {
+    console.warn('[holdings_history] daily price lookup failed:', e);
+  }
+
+  const missing = new Set<string>();
+  const priced = history.map((h) => {
+    if (h.is_static) return { ...h, price: null };
+    const dateKey = ET_DATE_KEY.format(new Date(h.recorded_at));
+    const closes = closesByTicker.get(h.ticker) ?? [];
+    let price: number | null = null;
+    for (let i = closes.length - 1; i >= 0; i--) {
+      if (closes[i].date <= dateKey) {
+        price = closes[i].close;
+        break;
+      }
+    }
+    if (price == null) missing.add(h.ticker);
+    return { ...h, price };
+  });
+
+  if (missing.size > 0) {
+    try {
+      const cached = await getCachedPrices([...missing]);
+      for (const h of priced) {
+        if (h.price == null && !h.is_static) h.price = cached.get(h.ticker)?.current_price ?? null;
+      }
+    } catch (e) {
+      console.warn('[holdings_history] price_cache fallback failed:', e);
+    }
+  }
+  return priced;
 }

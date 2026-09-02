@@ -1,11 +1,7 @@
-import { useMemo } from 'react';
 import { ArrowDown, ArrowUp, Clock, Pencil, Plus, X } from 'lucide-react';
 import type { HoldingsHistoryEntry } from '../hooks/useHoldingsHistory';
 import { formatCurrency } from '../utils/formatters';
-
-// One save writes all its rows in a single insert (shared timestamp), but we
-// chain entries within a 60s gap so quick back-to-back edits read as one session.
-const SESSION_GAP_MS = 60_000;
+import type { Session } from '../utils/holdingsHistory';
 
 type Kind = 'new' | 'buy' | 'trim' | 'exit' | 'value' | 'details';
 
@@ -18,8 +14,10 @@ function entryKind(e: HoldingsHistoryEntry): Kind {
   return 'details';
 }
 
+// Share counts read as "264.9 sh" — one decimal at most; fractional-share
+// precision is noise next to the dollar figure.
 function fmtShares(n: number): string {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
 function fmtPct(delta: number, prev: number): string {
@@ -29,31 +27,19 @@ function fmtPct(delta: number, prev: number): string {
   return `${sign}${Math.round(pct)}%`;
 }
 
+// Signed, compact ($45.2k / $1.23M) dollar figure. `approx` marks amounts
+// derived from the day's close rather than an actual fill — every tradeable
+// figure here, since the fill price isn't logged.
+function fmtDollars(value: number, approx: boolean): string {
+  const sign = value < 0 ? '−' : '+';
+  return `${approx ? '~' : ''}${sign}${formatCurrency(Math.abs(value), true)}`;
+}
+
 function formatDay(iso: string): string {
   const d = new Date(iso);
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
   if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
   return d.toLocaleDateString(undefined, opts);
-}
-
-interface Session {
-  entries: HoldingsHistoryEntry[];
-}
-
-function groupSessions(history: HoldingsHistoryEntry[]): Session[] {
-  const sessions: Session[] = [];
-  let lastMs = 0;
-  for (const entry of history) {
-    const ms = new Date(entry.recorded_at).getTime();
-    const current = sessions[sessions.length - 1];
-    if (current && lastMs - ms <= SESSION_GAP_MS) {
-      current.entries.push(entry);
-    } else {
-      sessions.push({ entries: [entry] });
-    }
-    lastMs = ms;
-  }
-  return sessions;
 }
 
 function tickerList(tickers: string[]): string {
@@ -94,42 +80,44 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
   const kind = entryKind(entry);
   const { Icon, className } = KIND_ICON[kind];
   const delta = entry.prev_shares != null ? entry.shares - entry.prev_shares : null;
+  const tone = kind === 'new' || kind === 'buy' ? 'text-positive' : kind === 'trim' || kind === 'exit' ? 'text-negative' : 'text-text-secondary';
 
+  // `verb` is the plain-language action; `amount` is the dollar figure that
+  // pops in green/red; `detail` is muted desktop-only context.
   let verb: string;
-  let magnitude: React.ReactNode = null;
+  let amount: string | null = null;
+  let detail: string | null = null;
 
   switch (kind) {
     case 'new':
-      verb = entry.is_static ? 'New holding' : 'New position';
-      magnitude = entry.is_static
-        ? entry.static_value != null && formatCurrency(entry.static_value)
-        : `${fmtShares(entry.shares)} sh`;
+      if (entry.is_static) {
+        verb = 'New holding';
+        if (entry.static_value != null) amount = fmtDollars(entry.static_value, false);
+      } else {
+        verb = `Bought ${fmtShares(entry.shares)} sh`;
+        if (entry.price != null) amount = fmtDollars(entry.shares * entry.price, true);
+        detail = 'new position';
+      }
       break;
     case 'exit':
-      verb = entry.is_static ? 'Removed' : 'Sold entire position';
-      magnitude = entry.is_static
-        ? entry.static_value != null && `was ${formatCurrency(entry.static_value)}`
-        : entry.prev_shares != null && `was ${fmtShares(entry.prev_shares)} sh`;
+      if (entry.is_static) {
+        verb = 'Removed';
+        if (entry.static_value != null) amount = fmtDollars(-entry.static_value, false);
+      } else {
+        verb = `Sold ${fmtShares(entry.prev_shares ?? 0)} sh`;
+        if (entry.price != null && entry.prev_shares != null) amount = fmtDollars(-entry.prev_shares * entry.price, true);
+        detail = 'entire position';
+      }
       break;
     case 'buy':
     case 'trim':
-      verb = `${kind === 'buy' ? 'Bought' : 'Trimmed'} ${fmtShares(Math.abs(delta!))} shares`;
-      magnitude = (
-        <>
-          {entry.prev_shares! > 0 && (
-            <span className={kind === 'buy' ? 'text-positive' : 'text-negative'}>
-              {fmtPct(delta!, entry.prev_shares!)}
-            </span>
-          )}
-          <span className="hidden sm:inline text-text-secondary/70">
-            {' '}· {fmtShares(entry.prev_shares!)} → {fmtShares(entry.shares)}
-          </span>
-        </>
-      );
+      verb = `${kind === 'buy' ? 'Bought' : 'Sold'} ${fmtShares(Math.abs(delta!))} sh`;
+      if (entry.price != null) amount = fmtDollars(delta! * entry.price, true);
+      detail = `${entry.prev_shares! > 0 ? `${fmtPct(delta!, entry.prev_shares!)} · ` : ''}${fmtShares(entry.prev_shares!)} → ${fmtShares(entry.shares)}`;
       break;
     case 'value':
       verb = 'Value updated';
-      magnitude = entry.static_value != null && formatCurrency(entry.static_value);
+      if (entry.static_value != null) amount = formatCurrency(entry.static_value, true);
       break;
     default:
       verb = 'Details updated';
@@ -139,19 +127,22 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
     <div className="flex items-center gap-2 py-1.5">
       <Icon className={`w-3.5 h-3.5 shrink-0 ${className}`} />
       <span className="w-14 shrink-0 text-sm font-medium text-text-primary">{entry.ticker}</span>
-      <span className="flex-1 truncate text-sm text-text-secondary">{verb}</span>
-      {magnitude && <span className="shrink-0 font-mono text-xs text-text-secondary">{magnitude}</span>}
+      <span className="flex-1 truncate text-sm text-text-secondary">
+        {verb}
+        {detail && <span className="hidden sm:inline text-text-secondary/70"> · {detail}</span>}
+      </span>
+      {amount && <span className={`shrink-0 font-mono text-xs font-medium ${tone}`}>{amount}</span>}
     </div>
   );
 }
 
 interface Props {
-  history: HoldingsHistoryEntry[];
+  // Already filtered to material changes and grouped (materialSessions in App).
+  sessions: Session[];
   isLoading?: boolean;
 }
 
-export function HoldingsHistory({ history, isLoading }: Props) {
-  const sessions = useMemo(() => groupSessions(history), [history]);
+export function HoldingsHistory({ sessions, isLoading }: Props) {
 
   if (isLoading) {
     return (
@@ -165,7 +156,7 @@ export function HoldingsHistory({ history, isLoading }: Props) {
     );
   }
 
-  if (history.length === 0) {
+  if (sessions.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-center">
         <Clock className="w-8 h-8 mx-auto mb-2 text-text-secondary/70" />

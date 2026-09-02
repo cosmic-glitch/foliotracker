@@ -466,6 +466,38 @@ export async function getHoldingsHistory(
   }
 }
 
+// A static holding's ticker IS its user-typed name, so renaming "Cash Eqvt"
+// to "Cash" diffs as a removal plus an addition. When a removed and an added
+// static row in the same save carry the same value, treat the pair as a
+// rename and log neither — nothing changed from an investment standpoint.
+// Tradeable tickers are exempt: swapping VUG for VTI at equal size is a trade.
+// Mirrored client-side in src/utils/holdingsHistory.ts for rows logged before
+// this filter existed.
+function dropStaticRenames<T extends { is_static: boolean; static_value: number | null; change_type: string }>(
+  rows: T[]
+): T[] {
+  const removedByValue = new Map<number, T[]>();
+  for (const r of rows) {
+    if (r.is_static && r.change_type === 'removed' && r.static_value != null) {
+      const list = removedByValue.get(r.static_value) ?? [];
+      list.push(r);
+      removedByValue.set(r.static_value, list);
+    }
+  }
+  if (removedByValue.size === 0) return rows;
+  const drop = new Set<T>();
+  for (const r of rows) {
+    if (r.is_static && r.change_type === 'added' && r.static_value != null) {
+      const match = removedByValue.get(r.static_value)?.shift();
+      if (match) {
+        drop.add(match);
+        drop.add(r);
+      }
+    }
+  }
+  return drop.size ? rows.filter((r) => !drop.has(r)) : rows;
+}
+
 export async function recordHoldingsHistory(
   portfolioId: string,
   prevHoldings: DbHolding[],
@@ -493,14 +525,14 @@ export async function recordHoldingsHistory(
         change_type: 'added',
       });
     } else if (
-      // Only position-level fields count as changes. name/instrument_type are
-      // re-resolved from Yahoo on every save (processStructuredInput), so a
+      // Only investment-material fields count as changes. name/instrument_type
+      // are re-resolved from Yahoo on every save (processStructuredInput), so a
       // diff there is upstream data drift, not a user action — logging it
       // produced phantom "updated" entries (e.g. Yahoo renaming VUG, Aug 2026).
+      // cost_basis is bookkeeping, not a position change, so it's excluded too.
       prev.shares !== next.shares ||
       prev.static_value !== next.static_value ||
-      prev.is_static !== next.is_static ||
-      prev.cost_basis !== next.cost_basis
+      prev.is_static !== next.is_static
     ) {
       rows.push({
         portfolio_id: normalizedId,
@@ -534,10 +566,11 @@ export async function recordHoldingsHistory(
     }
   }
 
-  if (rows.length === 0) return;
+  const material = dropStaticRenames(rows);
+  if (material.length === 0) return;
 
   try {
-    const { error } = await supabase.from('holdings_history').insert(rows);
+    const { error } = await supabase.from('holdings_history').insert(material);
     if (error) throw error;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

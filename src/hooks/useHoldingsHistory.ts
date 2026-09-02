@@ -15,6 +15,8 @@ export interface HoldingsHistoryEntry {
   cost_basis: number | null;
   change_type: 'added' | 'updated' | 'removed';
   recorded_at: string;
+  // Close on the recorded day (null for static rows or when no price is known).
+  price: number | null;
 }
 
 interface HoldingsHistoryResponse {

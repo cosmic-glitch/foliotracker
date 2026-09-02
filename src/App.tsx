@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Header,
@@ -20,6 +20,7 @@ import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
 import { useHoldingsHistory } from './hooks/useHoldingsHistory';
+import { materialSessions } from './utils/holdingsHistory';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
@@ -136,9 +137,11 @@ function App() {
     shareToken,
     canViewHistory
   );
-  // Tab only appears once the fetch has settled with at least one entry, so
-  // portfolios with no recorded history never show an empty Changes tab.
-  const hasHistory = (holdingsHistory?.length ?? 0) > 0;
+  // Tab only appears once the fetch has settled with at least one material
+  // entry, so portfolios with no (or only bookkeeping) history never show an
+  // empty Changes tab.
+  const historySessions = useMemo(() => materialSessions(holdingsHistory ?? []), [holdingsHistory]);
+  const hasHistory = historySessions.length > 0;
 
   // If the visible tab disappears out from under us (e.g. logout or a refetch
   // returning empty), fall back to Holdings rather than rendering nothing.
@@ -380,7 +383,7 @@ function App() {
                 )}
 
                 {activeTab === 'history' && (
-                  <HoldingsHistory history={holdingsHistory || []} isLoading={isHoldingsHistoryLoading} />
+                  <HoldingsHistory sessions={historySessions} isLoading={isHoldingsHistoryLoading} />
                 )}
               </>
             )}

@@ -20,7 +20,7 @@ interface TickerHeadline {
 }
 
 export function NewsTicker({ holdings }: NewsTickerProps) {
-  const { data } = usePortfolioNews(holdings);
+  const { data, isPending } = usePortfolioNews(holdings);
 
   // Consolidate equivalent tickers (GOOG/GOOGL) so a split position rolls up to
   // a single headline source weighted by its true combined allocation.
@@ -196,7 +196,19 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
   };
 
   if (tickerOrder.length === 0) return null;
-  if (headlines.length === 0) return null;
+
+  // Reserve the row's height while the news request is in flight so the tabs
+  // and table below don't jump down when headlines land. The placeholder
+  // shares the wrapper and text classes so its height matches the real row.
+  // Only a settled request with zero AI headlines collapses the row.
+  if (headlines.length === 0) {
+    if (!isPending) return null;
+    return (
+      <div className="relative overflow-hidden py-1 md:py-2" aria-hidden="true">
+        <span className="inline-flex items-center px-3 text-sm whitespace-nowrap">&nbsp;</span>
+      </div>
+    );
+  }
 
   const renderEntries = (keyPrefix: string) =>
     headlines.map((h, i) => (
@@ -217,7 +229,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
     >
       <div
         ref={trackRef}
-        className="marquee-track flex w-max cursor-grab active:cursor-grabbing"
+        className="marquee-track flex w-max cursor-grab active:cursor-grabbing animate-fade-in"
       >
         {renderEntries('a')}
         {renderEntries('b')}

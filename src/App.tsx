@@ -137,17 +137,16 @@ function App() {
     shareToken,
     canViewHistory
   );
-  // Tab only appears once the fetch has settled with at least one material
-  // entry, so portfolios with no (or only bookkeeping) history never show an
-  // empty Changes tab.
+  // The Changes tab renders on first paint for every full-access viewer (an
+  // empty state covers portfolios with no material history) rather than
+  // popping in when the fetch settles, which shifted the tab row on mobile.
   const historySessions = useMemo(() => materialSessions(holdingsHistory ?? []), [holdingsHistory]);
-  const hasHistory = historySessions.length > 0;
 
-  // If the visible tab disappears out from under us (e.g. logout or a refetch
-  // returning empty), fall back to Holdings rather than rendering nothing.
+  // If the tab disappears out from under us (viewer drops to allocation-only,
+  // e.g. on logout), fall back to Holdings rather than rendering nothing.
   useEffect(() => {
-    if (activeTab === 'history' && !hasHistory) setActiveTab('holdings');
-  }, [activeTab, hasHistory]);
+    if (activeTab === 'history' && !canViewHistory) setActiveTab('holdings');
+  }, [activeTab, canViewHistory]);
 
   // Analytics hook - logs views on initial load and tab visibility change.
   // shareToken attributes views that arrived via a share link to that link.
@@ -340,7 +339,7 @@ function App() {
                     >
                       News
                     </button>
-                    {hasHistory && (
+                    {canViewHistory && (
                       <button
                         onClick={() => setActiveTab('history')}
                         className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${

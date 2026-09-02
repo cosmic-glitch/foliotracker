@@ -14,7 +14,7 @@ function entryKind(e: HoldingsHistoryEntry): Kind {
   return 'details';
 }
 
-// Share counts read as "264.9 sh" — one decimal at most; fractional-share
+// Share counts read as "264.9 shares" — one decimal at most; fractional-share
 // precision is noise next to the dollar figure.
 function fmtShares(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -95,7 +95,7 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
   // `verb` is the plain-language action; `amount` is the dollar figure that
   // pops in green/red; `detail` is muted desktop-only context.
   let verb: string;
-  let amount: string | null = null;
+  let amount: React.ReactNode = null;
   let detail: string | null = null;
 
   switch (kind) {
@@ -104,7 +104,7 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
         verb = 'New holding';
         if (entry.static_value != null) amount = fmtDollars(entry.static_value, false);
       } else {
-        verb = `Bought ${fmtShares(entry.shares)} sh`;
+        verb = `Bought ${fmtShares(entry.shares)} shares`;
         if (entry.price != null) amount = fmtDollars(entry.shares * entry.price, true);
         detail = 'new position';
       }
@@ -114,25 +114,29 @@ function EntryRow({ entry }: { entry: HoldingsHistoryEntry }) {
         verb = 'Removed';
         if (entry.static_value != null) amount = fmtDollars(-entry.static_value, false);
       } else {
-        verb = `Sold ${fmtShares(entry.prev_shares ?? 0)} sh`;
+        verb = `Sold ${fmtShares(entry.prev_shares ?? 0)} shares`;
         if (entry.price != null && entry.prev_shares != null) amount = fmtDollars(-entry.prev_shares * entry.price, true);
         detail = 'entire position';
       }
       break;
     case 'buy':
     case 'trim':
-      verb = `${kind === 'buy' ? 'Bought' : 'Sold'} ${fmtShares(Math.abs(delta!))} sh`;
+      verb = `${kind === 'buy' ? 'Bought' : 'Sold'} ${fmtShares(Math.abs(delta!))} shares`;
       if (entry.price != null) amount = fmtDollars(delta! * entry.price, true);
       detail = `${entry.prev_shares! > 0 ? `${fmtPct(delta!, entry.prev_shares!)} · ` : ''}${fmtShares(entry.prev_shares!)} → ${fmtShares(entry.shares)}`;
       break;
     case 'value':
+      // Old → new, with only the new value coloured by direction.
+      verb = 'Value updated';
       if (valueDelta != null) {
-        verb = `Value ${valueDelta >= 0 ? 'up' : 'down'}`;
-        amount = fmtDollars(valueDelta, false);
-        detail = `${formatCurrency(entry.prev_static_value!, true)} → ${formatCurrency(entry.static_value!, true)}`;
-      } else {
-        verb = 'Value updated';
-        if (entry.static_value != null) amount = formatCurrency(entry.static_value, true);
+        amount = (
+          <>
+            <span className="text-text-secondary">{formatCurrency(entry.prev_static_value!, true)} → </span>
+            {formatCurrency(entry.static_value!, true)}
+          </>
+        );
+      } else if (entry.static_value != null) {
+        amount = formatCurrency(entry.static_value, true);
       }
       break;
     default:

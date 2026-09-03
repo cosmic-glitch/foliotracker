@@ -72,7 +72,7 @@ export function ComparePage() {
   const { loggedInAs, getToken: getLoginToken } = useLoggedInPortfolio();
   const { getToken: getUnlockedToken } = useUnlockedPortfolios();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rowFilter, setRowFilter] = useState<RowFilter>('all');
+  const [rowFilter, setRowFilter] = useState<RowFilter>('common');
   const [includeStatic, setIncludeStatic] = useState(true);
   const [copied, setCopied] = useState(false);
 

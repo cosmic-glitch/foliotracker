@@ -8,7 +8,7 @@ import { MoversStrip } from '../components/MoversStrip';
 import { UpcomingEvents } from '../components/UpcomingEvents';
 import { UserMenu } from '../components/UserMenu';
 import { getMarketStatus } from '../lib/market-hours';
-import { usePortfolioList, isFullyBlurred, type Portfolio } from '../hooks/usePortfolioList';
+import { usePortfolioList, isFullyBlurred, isDemoPortfolio, type Portfolio } from '../hooks/usePortfolioList';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useCountUp } from '../hooks/usePeakReveal';
@@ -84,15 +84,6 @@ function getDisplayDayChange(
   return showExtendedHours
     ? p.dayChange
     : p.regularDayChange ?? p.dayChange;
-}
-
-// The shared demo portfolio is a sample for visitors to explore, not a real
-// competitor — it's excluded from the ranking and always sorted dead last (see
-// getRankMetric + the sort comparator). Keyed by id since there's no is_demo
-// column; the same id the mock-data fallback uses (src/lib/mockData.ts).
-const DEMO_PORTFOLIO_ID = 'demo';
-function isDemoPortfolio(p: Portfolio): boolean {
-  return p.id.toLowerCase() === DEMO_PORTFOLIO_ID;
 }
 
 // The metric the leaderboard ranks by: the row's displayed day-change % (1D) or

@@ -78,19 +78,20 @@ export function isFullyBlurred(p: Portfolio): boolean {
   );
 }
 
-// Restricted but allocation_public is ON: $ hidden, allocation % visible.
-export function isAllocationOnly(p: Portfolio): boolean {
-  return (
-    p.visibility !== 'public' &&
-    p.totalValue === null &&
-    p.allocation_public
-  );
+// The shared demo portfolio is a sample for visitors to explore, not a real
+// competitor — the landing page ranks it dead last and the compare page hides
+// it. Keyed by id since there's no is_demo column; the same id the mock-data
+// fallback uses (src/lib/mockData.ts).
+const DEMO_PORTFOLIO_ID = 'demo';
+export function isDemoPortfolio(p: Portfolio): boolean {
+  return p.id.toLowerCase() === DEMO_PORTFOLIO_ID;
 }
 
-// Comparable on the compare page = anything but fully blurred: public,
-// allocation-public, or unlocked (server returned dollar values).
+// Comparable on the compare page = anything but fully blurred or the demo.
+// Allocation-only rows qualify: the page reads only allocation %, which the
+// server still returns for them.
 export function isComparable(p: Portfolio): boolean {
-  return !isFullyBlurred(p);
+  return !isFullyBlurred(p) && !isDemoPortfolio(p);
 }
 
 export function usePortfolioList(loggedInAs: string | null) {

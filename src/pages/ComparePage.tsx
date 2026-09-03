@@ -4,7 +4,7 @@ import { useQueries } from '@tanstack/react-query';
 import { ArrowLeftRight, Check, Copy, TrendingUp } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useUnlockedPortfolios } from '../hooks/useUnlockedPortfolios';
-import { usePortfolioList, isComparable, isAllocationOnly } from '../hooks/usePortfolioList';
+import { usePortfolioList, isComparable } from '../hooks/usePortfolioList';
 import { portfolioKeys } from '../hooks/usePortfolioData';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import type { Holding } from '../types/portfolio';
@@ -172,19 +172,17 @@ export function ComparePage() {
   );
 
   // Per-portfolio ticker → allocation % map. Holdings pass through
-  // consolidateHoldings (GOOG/GOOGL merged) like AllocationView; with static
-  // excluded the weights are renormalized to 100%.
+  // consolidateHoldings (GOOG/GOOGL merged) like AllocationView. Excluding
+  // static rows only hides them — percentages stay as a share of net worth
+  // and are deliberately NOT renormalized, so a column may sum below 100%.
   const allocMaps = useMemo(() => {
     return okResults
       .filter((r) => !r.inaccessible && !r.pending)
       .map((r) => {
         const consolidated = consolidateHoldings(r.holdings);
         const kept = includeStatic ? consolidated : consolidated.filter((h) => !h.isStatic);
-        const total = kept.reduce((sum, h) => sum + h.allocation, 0);
         const map = new Map<string, number>();
-        for (const h of kept) {
-          map.set(h.ticker, total > 0 ? (h.allocation / total) * 100 : 0);
-        }
+        for (const h of kept) map.set(h.ticker, h.allocation);
         return { id: r.id, displayName: r.displayName, map };
       });
   }, [okResults, includeStatic]);
@@ -257,7 +255,8 @@ export function ComparePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8 space-y-4">
-        {/* Picker — large tap targets, stacks vertically on mobile */}
+        {/* Picker — names are short, so chips wrap into a few rows instead
+            of one tall row-per-portfolio list. */}
         <section aria-label="Select portfolios" className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <h2 className="text-sm font-semibold text-text-primary">
@@ -272,49 +271,36 @@ export function ComparePage() {
               </button>
             )}
           </div>
-          <div className="p-2">
+          <div className="p-3">
             {listLoading ? (
-              <div className="p-6 text-center text-sm text-text-secondary">Loading portfolios...</div>
+              <div className="p-4 text-center text-sm text-text-secondary">Loading portfolios...</div>
             ) : comparable.length === 0 ? (
-              <div className="p-6 text-center text-sm text-text-secondary">
+              <div className="p-4 text-center text-sm text-text-secondary">
                 No portfolios you can access yet.
               </div>
             ) : (
-              comparable.map((p) => {
-                const checked = selectedIds.includes(p.id.toLowerCase());
-                const allocOnly = isAllocationOnly(p);
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => toggleId(p.id)}
-                    aria-pressed={checked}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${
-                      checked ? 'bg-accent/10' : 'hover:bg-card-hover'
-                    }`}
-                  >
-                    <span
-                      className={`w-5 h-5 rounded-md border flex items-center justify-center text-sm shrink-0 ${
-                        checked ? 'bg-accent border-accent text-white' : 'border-border'
+              <div className="flex flex-wrap gap-2">
+                {comparable.map((p) => {
+                  const checked = selectedIds.includes(p.id.toLowerCase());
+                  const full = !checked && selectedIds.length >= MAX_COMPARE;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleId(p.id)}
+                      aria-pressed={checked}
+                      disabled={full}
+                      title={p.display_name ? p.id : undefined}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        checked
+                          ? 'bg-accent border-accent text-white'
+                          : 'border-border text-text-primary hover:bg-card-hover disabled:opacity-40 disabled:hover:bg-transparent'
                       }`}
                     >
-                      {checked && '✓'}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-text-primary truncate">
-                        {(p.display_name || p.id).toUpperCase()}
-                      </span>
-                      {p.display_name && (
-                        <span className="block text-xs text-text-secondary truncate">{p.id}</span>
-                      )}
-                    </span>
-                    {allocOnly && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-card-hover text-text-secondary shrink-0">
-                        allocation only
-                      </span>
-                    )}
-                  </button>
-                );
-              })
+                      {(p.display_name || p.id).toUpperCase()}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </section>
@@ -449,8 +435,9 @@ export function ComparePage() {
               </table>
             </div>
             <p className="px-4 py-2.5 text-[11px] text-text-secondary border-t border-border">
-              Allocation percentages only — sorted by largest weight. Holdings are consolidated
-              the same way as the portfolio page.
+              Allocation percentages of net worth — sorted by largest weight. Holdings are
+              consolidated the same way as the portfolio page.
+              {!includeStatic && ' Cash/static rows are hidden, not redistributed.'}
             </p>
           </section>
         )}

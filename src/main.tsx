@@ -14,6 +14,7 @@ import { LandingPage } from './pages/LandingPage.tsx'
 import { CreatePortfolio } from './pages/CreatePortfolio.tsx'
 import { EditPortfolio } from './pages/EditPortfolio.tsx'
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard.tsx'
+import { ComparePage } from './pages/ComparePage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -27,6 +28,10 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/create" element={<CreatePortfolio />} />
                   <Route path="/analytics" element={<AnalyticsDashboard />} />
+                  {/* No ordering constraint needed: react-router v7 ranks static
+                      segments above dynamic ones, so /compare always wins over
+                      /:portfolioId. (api/portfolios.ts reserves the id too.) */}
+                  <Route path="/compare" element={<ComparePage />} />
                   <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
                   <Route path="/:portfolioId" element={<App />} />
                 </Routes>

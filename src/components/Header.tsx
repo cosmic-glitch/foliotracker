@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { TrendingUp, Home } from 'lucide-react';
+import { TrendingUp, Home, Scale } from 'lucide-react';
 import type { MarketStatus } from '../types/portfolio';
 import { MarketStatusBadge } from './MarketStatusBadge';
 import { UserMenu } from './UserMenu';
@@ -48,6 +48,10 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 showEditAndPermissions={showEditAndPermissions}
               />
             )}
+            <Link to="/compare" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="Compare allocations">
+              <Scale className="w-5 h-5" />
+              <span className="hidden sm:inline">Compare</span>
+            </Link>
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">
               <Home className="w-5 h-5" />
               <span className="hidden sm:inline">Home</span>

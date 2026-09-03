@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Scale } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
-import { MoversStrip, type MarketMover } from '../components/MoversStrip';
+import { MoversStrip } from '../components/MoversStrip';
 import { UpcomingEvents } from '../components/UpcomingEvents';
 import { UserMenu } from '../components/UserMenu';
-import { isLiveMarketSession, getMarketStatus } from '../lib/market-hours';
+import { getMarketStatus } from '../lib/market-hours';
+import { usePortfolioList, isFullyBlurred, type Portfolio } from '../hooks/usePortfolioList';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useCountUp } from '../hooks/usePeakReveal';
@@ -28,67 +28,6 @@ function formatCompactChange(value: number): string {
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
   if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}k`;
   return `${sign}$${Math.round(abs)}`;
-}
-
-interface Portfolio {
-  id: string;
-  display_name: string | null;
-  created_at: string;
-  totalValue: number | null;
-  dayChange: number | null;
-  dayChangePercent: number | null;
-  regularTotalValue: number | null;
-  regularDayChange: number | null;
-  regularDayChangePercent: number | null;
-  peakPotentialValue: number | null;
-  // 30D change against the oldest stored history point (~30 trading days back).
-  // null when no anchor exists (brand-new portfolio) or — for the
-  // dollar-denominated pair — when the viewer is allocation-only restricted.
-  thirtyDayChange: number | null;
-  thirtyDayChangePercent: number | null;
-  regularThirtyDayChange: number | null;
-  regularThirtyDayChangePercent: number | null;
-  thirtyDayWindowStart: string | null;
-  is_private: boolean;
-  visibility: 'public' | 'private' | 'selective';
-  // When TRUE, restricted viewers still receive day-change % (no $ total).
-  // The LP row uses this to pick the "Allocation only" render instead of blur.
-  allocation_public: boolean;
-  // TRUE when today's 1D move can't be known yet — every market-priced holding
-  // is a once-daily fund whose NAV hasn't repriced this session (see
-  // isDayChangeUnknown in api/portfolios.ts). The row shows "—" for the day
-  // move and is excluded from the "Top today" leader. Optional so older cached
-  // payloads (undefined) degrade to "known". Only affects 1D, not 30D.
-  dayChangeUnknown?: boolean;
-  lastUpdated?: string;
-}
-
-interface PortfoliosResponse {
-  portfolios: Portfolio[];
-  count: number;
-  maxPortfolios: number;
-  canCreate: boolean;
-  // Most-held tickers swinging ≥2% today; empty on quiet days. Two
-  // independently-ranked lists, one per price basis — the strip shows `extended`
-  // or `regular` depending on the Extended Hours toggle, matching the holdings
-  // table and totals.
-  movers?: { regular: MarketMover[]; extended: MarketMover[] };
-  // Total view events recorded site-wide today (Pacific day). Shown as a
-  // social-proof hook on the movers strip's tab row. Optional so older cached
-  // payloads degrade to no counter.
-  viewsToday?: number;
-}
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
-async function fetchPortfolios(loggedInAs: string | null): Promise<PortfoliosResponse> {
-  const url = new URL(`${API_BASE_URL}/api/portfolios`, window.location.origin);
-  if (loggedInAs) {
-    url.searchParams.set('logged_in_as', loggedInAs);
-  }
-  const response = await fetch(url.toString(), { cache: 'no-store' });
-  if (!response.ok) throw new Error('Failed to fetch portfolios');
-  return response.json();
 }
 
 // The day-change % a row actually displays, honoring the extended-hours basis
@@ -168,9 +107,7 @@ function getRankMetric(
   timeframe: Timeframe,
 ): number | null {
   if (isDemoPortfolio(p)) return null;
-  const fullyBlurred =
-    p.visibility !== 'public' && p.totalValue === null && !p.allocation_public;
-  if (fullyBlurred) return null;
+  if (isFullyBlurred(p)) return null;
   return getDisplayChangePercent(p, showExtendedHours, timeframe);
 }
 
@@ -392,16 +329,9 @@ export function LandingPage() {
   // UserMenu's "30-Day View" row; persisted by TimeframeContext.
   const { timeframe } = useTimeframe();
 
-  // Use TanStack Query for auto-refresh
-  const { data, isLoading, error, refetch: refetchPortfolios } = useQuery({
-    queryKey: ['portfolios', loggedInAs],
-    queryFn: () => fetchPortfolios(loggedInAs),
-    staleTime: 60 * 1000, // Fresh for 1 minute
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchInterval: () => isLiveMarketSession() ? 60 * 1000 : 30 * 60 * 1000,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-  });
+  // Shared list query (same key + fetcher the compare page uses, so the two
+  // pages can't poison each other's cache with divergent shapes).
+  const { data, isLoading, error, refetch: refetchPortfolios } = usePortfolioList(loggedInAs);
 
   useEffect(() => {
     const handleTabVisible = () => {
@@ -536,6 +466,14 @@ export function LandingPage() {
                 />
               )}
               <MarketStatusBadge status={getMarketStatus()} />
+              <Link
+                to="/compare"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                title="Compare allocations"
+              >
+                <Scale className="w-4 h-4" />
+                <span className="hidden sm:inline">Compare</span>
+              </Link>
             </div>
           </div>
         </div>
@@ -605,7 +543,7 @@ export function LandingPage() {
                       const isRestricted =
                         portfolio.visibility !== 'public' && portfolio.totalValue === null;
                       const restrictedAllocOnly = isRestricted && portfolio.allocation_public;
-                      const shouldBlurValues = isRestricted && !portfolio.allocation_public;
+                      const shouldBlurValues = isFullyBlurred(portfolio);
                       const displayValue = getDisplayValue(portfolio, showExtendedHours);
                       // Today's move % — the ranked metric. Null (unknown move /
                       // no 30D anchor) flows through so the row renders "—".

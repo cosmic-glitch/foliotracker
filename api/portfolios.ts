@@ -968,6 +968,14 @@ export default async function handler(
         return;
       }
 
+      // Static frontend routes shadow /:portfolioId — an id squatting on one
+      // becomes unreachable, so reject them at create time.
+      const RESERVED_IDS = ['create', 'analytics', 'compare'];
+      if (RESERVED_IDS.includes(cleanId)) {
+        res.status(400).json({ error: 'Portfolio ID is reserved' });
+        return;
+      }
+
       // Check if ID already exists
       const existing = await getPortfolio(cleanId);
       if (existing) {

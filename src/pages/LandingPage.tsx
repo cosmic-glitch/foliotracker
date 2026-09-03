@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield, Scale } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -466,14 +466,6 @@ export function LandingPage() {
                 />
               )}
               <MarketStatusBadge status={getMarketStatus()} />
-              <Link
-                to="/compare"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                title="Compare allocations"
-              >
-                <Scale className="w-4 h-4" />
-                <span className="hidden sm:inline">Compare</span>
-              </Link>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange, Scale } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe } from '../context/TimeframeContext';
@@ -16,6 +17,7 @@ interface UserMenuProps {
 export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions = true }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { showExtendedHours, toggleExtendedHours } = useExtendedHours();
   const { timeframe, toggleTimeframe } = useTimeframe();
@@ -86,6 +88,17 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
           {showEditAndPermissions && (onEdit || onPermissions || onShare) && (
             <div className="mx-3 my-1 border-t border-border" />
           )}
+          {/* Compare lives here rather than as a standalone header button so
+              the header stays uncluttered; /compare is reachable to any
+              logged-in user regardless of which page they're on. */}
+          <button
+            onClick={() => { setOpen(false); navigate('/compare'); }}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            <Scale className="w-4 h-4 text-text-secondary" />
+            Compare Portfolios
+          </button>
+          <div className="mx-3 my-1 border-t border-border" />
           <button
             onClick={toggleTheme}
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"

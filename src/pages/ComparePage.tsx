@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
-import { ArrowLeftRight, Check, Copy, TrendingUp } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, Check, Copy, TrendingUp } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
 import { useUnlockedPortfolios } from '../hooks/useUnlockedPortfolios';
 import { usePortfolioList, isComparable } from '../hooks/usePortfolioList';
@@ -74,6 +74,9 @@ export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [rowFilter, setRowFilter] = useState<RowFilter>('common');
   const [includeStatic, setIncludeStatic] = useState(true);
+  // Portfolio id whose column drives the row order; null = default sort by
+  // the largest weight in any column. Clicking a header toggles it.
+  const [sortById, setSortById] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Selection lives in the URL (?ids=a,b,c) so comparisons are shareable.
@@ -201,8 +204,12 @@ export function ComparePage() {
       if (rowFilter === 'different') return r.present === 1;
       return true;
     });
-    return filtered.sort((a, b) => b.max - a.max || a.ticker.localeCompare(b.ticker));
-  }, [allocMaps, rowFilter]);
+    const sortIdx = sortById === null ? -1 : allocMaps.findIndex((p) => p.id === sortById);
+    // Sort by the chosen column desc (missing/zero holdings last), falling
+    // back to the max-weight order so ties and the default stay stable.
+    const key = (r: (typeof all)[number]) => (sortIdx >= 0 ? (r.pcts[sortIdx] ?? 0) : r.max);
+    return filtered.sort((a, b) => key(b) - key(a) || b.max - a.max || a.ticker.localeCompare(b.ticker));
+  }, [allocMaps, rowFilter, sortById]);
 
   const copyLink = async () => {
     try {
@@ -386,16 +393,27 @@ export function ComparePage() {
                     <th className="sticky left-0 bg-card text-left font-semibold text-text-secondary text-xs px-4 py-2 min-w-[72px]">
                       Ticker
                     </th>
-                    {allocMaps.map((p) => (
-                      <th
-                        key={p.id}
-                        className="text-right font-semibold text-text-primary text-xs px-3 py-2 min-w-[86px]"
-                      >
-                        <span className="block truncate max-w-[110px] ml-auto">
-                          {(p.displayName || p.id).toUpperCase()}
-                        </span>
-                      </th>
-                    ))}
+                    {allocMaps.map((p) => {
+                      const active = sortById === p.id;
+                      return (
+                        <th
+                          key={p.id}
+                          aria-sort={active ? 'descending' : 'none'}
+                          className="text-right font-semibold text-xs px-3 py-2 min-w-[86px]"
+                        >
+                          <button
+                            onClick={() => setSortById(active ? null : p.id)}
+                            title={active ? 'Reset to default sort' : 'Sort by this portfolio'}
+                            className={`inline-flex items-center gap-1 max-w-[110px] hover:text-accent transition-colors ${
+                              active ? 'text-accent' : 'text-text-primary'
+                            }`}
+                          >
+                            <span className="truncate">{(p.displayName || p.id).toUpperCase()}</span>
+                            {active && <ArrowDown className="w-3 h-3 shrink-0" />}
+                          </button>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">

@@ -252,11 +252,17 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     holding.pctTo52WeekHigh != null ||
     holding.week52High != null;
 
+  // Summary generation is gated to a pilot portfolio for ETFs/MFs (see
+  // scripts/prepare-news-input.ts), so a missing entry means "pending" for a
+  // stock but "not generated for this ticker" for a fund — hide the section
+  // rather than promise a summary that may never arrive (mirrors NewsSection).
   const newsEntry = news.data?.news[holding.ticker];
   const newsMarkdown =
-    newsEntry?.kind === 'ai' && newsEntry.summaryMarkdown.trim() !== NO_MATERIAL_NEWS_SENTINEL
+    newsEntry && newsEntry.summaryMarkdown.trim() !== NO_MATERIAL_NEWS_SENTINEL
       ? newsEntry.summaryMarkdown.trim()
       : null;
+  const isEtfLike = holding.instrumentType === 'ETF' || holding.instrumentType === 'Mutual Fund';
+  const hideNews = !news.isLoading && !news.error && !newsEntry && isEtfLike;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
@@ -384,7 +390,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
           )}
 
           {/* News */}
-          {showNews && (
+          {showNews && !hideNews && (
             <section>
               <SectionTitle>News</SectionTitle>
               {news.isLoading ? (
@@ -394,22 +400,12 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
               ) : newsMarkdown ? (
                 <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline marker:text-text-secondary">
                   <ReactMarkdown>{newsMarkdown}</ReactMarkdown>
-                  {newsEntry?.kind === 'ai' && (
-                    <p className="not-prose mt-2 text-[11px] text-text-secondary">Last updated: {newsEntry.summaryDate}</p>
-                  )}
+                  <p className="not-prose mt-2 text-[11px] text-text-secondary">Last updated: {newsEntry!.summaryDate}</p>
                 </div>
-              ) : newsEntry?.kind === 'fallback' && newsEntry.articles.length > 0 ? (
-                <ul className="space-y-1">
-                  {newsEntry.articles.map((a) => (
-                    <li key={a.link} className="text-sm">
-                      <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                        {a.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
+              ) : newsEntry ? (
                 <p className="text-sm text-text-secondary">{NO_MATERIAL_NEWS_SENTINEL}</p>
+              ) : (
+                <p className="text-sm italic text-text-secondary">Summary pending</p>
               )}
             </section>
           )}

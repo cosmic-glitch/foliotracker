@@ -53,7 +53,7 @@ export function NewsTicker({ holdings }: NewsTickerProps) {
 
     for (const ticker of tickerOrder) {
       const entry = data.news[ticker];
-      if (!entry || entry.kind !== 'ai') continue;
+      if (!entry) continue;
       for (const h of extractHeadlines(entry.summaryMarkdown)) {
         collected.push({
           ticker,

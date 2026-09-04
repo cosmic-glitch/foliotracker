@@ -4,11 +4,6 @@ import { consolidateHoldings } from '../utils/equivalentTickers';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export interface NewsArticle {
-  title: string;
-  link: string;
-}
-
 export interface TickerNewsSource {
   title: string;
   url: string;
@@ -21,12 +16,9 @@ export interface AiSummary {
   summaryDate: string;
 }
 
-export interface FallbackNews {
-  kind: 'fallback';
-  articles: NewsArticle[];
-}
-
-export type TickerNews = AiSummary | FallbackNews;
+// Tickers with no AI summary in the last 7 days are absent from the response
+// (the server no longer falls back to raw Yahoo headlines).
+export type TickerNews = AiSummary;
 
 interface NewsResponse {
   news: Record<string, TickerNews>;

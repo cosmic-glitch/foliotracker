@@ -57,14 +57,9 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
         rows.push({ ticker, kind: 'pending' });
         continue;
       }
-      if (entry.kind === 'ai') {
-        const body = entry.summaryMarkdown.trim();
-        if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
-        rows.push({ ticker, kind: 'ai', markdown: body });
-      } else {
-        if (isEtfLike) continue;
-        rows.push({ ticker, kind: 'pending' });
-      }
+      const body = entry.summaryMarkdown.trim();
+      if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
+      rows.push({ ticker, kind: 'ai', markdown: body });
     }
     return rows;
   }, [data?.news, tickerOrder]);
@@ -73,7 +68,7 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
     if (!data?.news) return null;
     let max: string | null = null;
     for (const entry of Object.values(data.news)) {
-      if (entry.kind === 'ai' && (!max || entry.summaryDate > max)) {
+      if (!max || entry.summaryDate > max) {
         max = entry.summaryDate;
       }
     }

@@ -48,12 +48,10 @@ export interface TickerDetailSubject {
 }
 
 // One line under the header price: either the plain per-share day change
-// (unlabelled) or a labelled session figure. The row for the session the big
-// price already shows (after hours / pre-market) carries only its move — the
-// price repeated an inch below itself read as a second, different number.
-type HeaderRow =
-  | { label: null; change: number; percent: number }
-  | { label: string; price: number | null; percent: number | null };
+// (unlabelled) or a labelled session move. Labelled rows carry only the
+// percentage — a dollar figure next to the big price read as a second,
+// different number.
+type HeaderRow = { label: null; change: number; percent: number } | { label: string; percent: number };
 
 interface TickerDetailModalProps {
   subject: TickerDetailSubject;
@@ -357,8 +355,8 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
   // below (which always draws the whole tape): the big figure is the latest
   // extended-hours price, and outside the regular session the day is split
   // into labelled rows — "At close" (official close vs. previous close) and
-  // "After hours" (latest vs. that close), or "Prev close" / "Pre-market"
-  // before the open — so each percentage says what it measures. Following
+  // "After hours" (latest vs. that close), or just "Pre-market" (vs. previous
+  // close) before the open — so each percentage says what it measures. Following
   // the toggle here made two viewers of the same ticker see different
   // headers over an identical chart. Collapses to one price + change during
   // the session, for movers (no session prices), and when nothing has
@@ -376,17 +374,14 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     if (status === 'pre-market') {
       return {
         price: latest,
-        rows: [
-          { label: 'Prev close', price: prev, percent: null },
-          { label: 'Pre-market', price: null, percent: pct(latest, prev) },
-        ],
+        rows: [{ label: 'Pre-market', percent: pct(latest, prev) }],
       };
     }
     return {
       price: latest,
       rows: [
-        { label: 'At close', price: close, percent: pct(close, prev) },
-        { label: 'After hours', price: null, percent: pct(latest, close) },
+        { label: 'At close', percent: pct(close, prev) },
+        { label: 'After hours', percent: pct(latest, close) },
       ],
     };
   }, [holding.extendedPrice, holding.currentPrice, holding.regularMarketPrice, holding.previousClose]);
@@ -450,12 +445,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                 ) : (
                   <p key={row.label} className="text-xs leading-snug">
                     <span className="text-text-secondary">{row.label} </span>
-                    {row.price != null && <span className="text-text-primary">{formatPrice(row.price)}</span>}
-                    {row.percent != null && (
-                      <span className={row.percent >= 0 ? 'text-positive' : 'text-negative'}>
-                        {row.price != null ? ` (${formatPercent(row.percent)})` : formatPercent(row.percent)}
-                      </span>
-                    )}
+                    <span className={row.percent >= 0 ? 'text-positive' : 'text-negative'}>{formatPercent(row.percent)}</span>
                   </p>
                 )
               )}

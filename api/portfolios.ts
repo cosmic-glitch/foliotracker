@@ -417,6 +417,12 @@ interface MarketMover {
   // for `regular`, and the latest pre/post-market price for `extended`.
   price: number;
   changePercent: number;
+  // Both session prices plus the base they're measured from, so the ticker
+  // detail panel can label the day's at-close and after-hours moves the same
+  // way it does for a holding, whichever tab the mover was opened from.
+  previousClose: number;
+  regularPrice: number;
+  extendedPrice: number;
   // The handles (portfolio ids) holding this name, in creation order — the same
   // order and identity the landing-page Users list shows. The strip renders as
   // many as fit in its compact ownership column, then adds "+N" for the rest.
@@ -449,6 +455,7 @@ function computeMarketMovers(
     string,
     {
       holders: Set<string>;
+      previousClose: number;
       priceExtended: number;
       priceRegular: number;
       changeExtended: number;
@@ -507,6 +514,7 @@ function computeMarketMovers(
       if (!entry) {
         entry = {
           holders: new Set(),
+          previousClose: h.previousClose,
           priceExtended: h.currentPrice,
           priceRegular: regPrice,
           changeExtended: h.dayChangePercent,
@@ -523,6 +531,7 @@ function computeMarketMovers(
       // Share classes drift slightly; report the canonical ticker's own move
       // and its fundamentals.
       if (isCanonical && !entry.fromCanonical) {
+        entry.previousClose = h.previousClose;
         entry.priceExtended = h.currentPrice;
         entry.priceRegular = regPrice;
         entry.changeExtended = h.dayChangePercent;
@@ -538,6 +547,7 @@ function computeMarketMovers(
   // price bases so each can be ranked independently.
   const candidates = Array.from(byTicker.entries()).map(([ticker, e]) => ({
     ticker,
+    previousClose: e.previousClose,
     priceExtended: e.priceExtended,
     priceRegular: e.priceRegular,
     changeExtended: e.changeExtended,
@@ -563,6 +573,9 @@ function computeMarketMovers(
         ticker: c.ticker,
         price: pickPrice(c),
         changePercent: pickChange(c),
+        previousClose: c.previousClose,
+        regularPrice: c.priceRegular,
+        extendedPrice: c.priceExtended,
         numPortfolios: c.numPortfolios,
         holders: c.holders,
         isEtf: c.isEtf,
@@ -594,12 +607,15 @@ function computeMarketMovers(
       }
     }
 
-    return result.map(({ ticker, name, instrumentType, price, changePercent, holders, fundamentals }) => ({
+    return result.map(({ ticker, name, instrumentType, price, changePercent, previousClose, regularPrice, extendedPrice, holders, fundamentals }) => ({
       ticker,
       name,
       instrumentType,
       price,
       changePercent,
+      previousClose,
+      regularPrice,
+      extendedPrice,
       holders,
       fundamentals,
     }));

@@ -31,7 +31,6 @@ export interface TickerDetailSubject {
   instrumentType: string;
   currentPrice: number;
   previousClose: number;
-  dayChangePercent: number;
   // Optional session prices (Holding has both; movers don't). With both
   // present the header can split the day into at-close / extended figures.
   regularMarketPrice?: number;

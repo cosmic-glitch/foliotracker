@@ -32,6 +32,12 @@ export interface MarketMover {
   // Price on the same regular/extended-hours basis as changePercent.
   price: number;
   changePercent: number;
+  // Both session prices and their base, for the detail panel's labelled
+  // at-close / after-hours header. Optional (pre-deploy cache): without them
+  // the panel falls back to a single price + change line.
+  previousClose?: number;
+  regularPrice?: number;
+  extendedPrice?: number;
   // Handles (portfolio ids) holding this name, in the same order the Users list
   // shows them. See the ownership note below for how they're rendered.
   holders: string[];
@@ -40,19 +46,21 @@ export interface MarketMover {
   fundamentals?: MoverFundamentals;
 }
 
-// Shape a mover into what TickerDetailModal needs. previousClose is
-// back-derived from the move so the header can show the per-share $ change on
-// the same (regular/extended) basis as the row. Movers are only ever Common
-// Stock or ETF (computeMarketMovers filters), so the instrumentType fallback
-// for a pre-deploy cached payload only affects news gating, and safely.
+// Shape a mover into what TickerDetailModal needs. When the payload predates
+// the session-price fields, previousClose is back-derived from the move so the
+// header can still show the per-share $ change on the row's (regular/extended)
+// basis. Movers are only ever Common Stock or ETF (computeMarketMovers
+// filters), so the instrumentType fallback for a pre-deploy cached payload
+// only affects news gating, and safely.
 function toDetailSubject(m: MarketMover): TickerDetailSubject {
   return {
     ticker: m.ticker,
     name: m.name,
     instrumentType: m.instrumentType ?? 'Common Stock',
     currentPrice: m.price,
-    previousClose: m.price / (1 + m.changePercent / 100),
-    dayChangePercent: m.changePercent,
+    previousClose: m.previousClose ?? m.price / (1 + m.changePercent / 100),
+    regularMarketPrice: m.regularPrice,
+    extendedPrice: m.extendedPrice,
     ...m.fundamentals,
   };
 }

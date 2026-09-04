@@ -38,7 +38,7 @@ export function AllocationBar({ percent, maxPercent }: { percent: number; maxPer
           )}
         </div>
         {!labelInside && (
-          <span className={`text-xs font-medium whitespace-nowrap ${isNegative ? 'text-negative' : 'text-text-secondary'}`}>{percent.toFixed(1)}%</span>
+          <span className={`text-xs font-medium whitespace-nowrap ${isNegative ? 'text-negative' : 'text-text-primary'}`}>{percent.toFixed(1)}%</span>
         )}
       </div>
     </div>

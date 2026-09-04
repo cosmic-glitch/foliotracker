@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export type TickerRange = '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
+export type TickerRange = '1d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
 
 export const TICKER_RANGES: { value: TickerRange; label: string }[] = [
+  { value: '1d', label: '1D' },
   { value: '1mo', label: '1M' },
   { value: '6mo', label: '6M' },
   { value: 'ytd', label: 'YTD' },
@@ -14,7 +15,7 @@ export const TICKER_RANGES: { value: TickerRange; label: string }[] = [
 ];
 
 export interface TickerChartPoint {
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD, or a full ISO timestamp for the intraday (1d) range
   close: number;
 }
 
@@ -24,6 +25,10 @@ export interface TickerChart {
   name: string | null;
   currency: string | null;
   points: TickerChartPoint[];
+  // Intraday only (null otherwise): the regular session's bounds and the
+  // prior close the day change is measured from.
+  previousClose: number | null;
+  session: { start: string; end: string } | null;
 }
 
 async function fetchTickerChart(symbol: string, range: TickerRange): Promise<TickerChart> {
@@ -40,13 +45,14 @@ async function fetchTickerChart(symbol: string, range: TickerRange): Promise<Tic
 // Raw price series for one ticker, fetched straight from Yahoo via
 // /api/ticker on demand. Nothing is cached server-side; React Query keeps
 // each symbol+range pair for the session so range-flipping is instant after
-// the first load.
+// the first load. Intraday goes stale sooner so reopening a ticker during the
+// session picks up the newest bars.
 export function useTickerHistory(symbol: string | null, range: TickerRange) {
   return useQuery({
     queryKey: ['ticker-history', symbol, range],
     queryFn: () => fetchTickerChart(symbol!, range),
     enabled: !!symbol,
-    staleTime: 5 * 60 * 1000,
+    staleTime: (range === '1d' ? 1 : 5) * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
   });

@@ -299,14 +299,22 @@ export async function getHistoricalData(
   }
 }
 
-// Multi-year price series for the per-holding detail panel. Uses Yahoo's
-// named `range` presets rather than period1/period2 so the interval matches
-// the span (daily up to 1Y, weekly for 5Y, monthly for max) and the payload
-// stays a few hundred points. Fetched on demand per click — no Redis/DB
-// caching; React Query dedupes repeats within a session.
-export type TickerChartRange = '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
+// Price series for the per-holding detail panel. Uses Yahoo's named `range`
+// presets rather than period1/period2 so the interval matches the span
+// (5-minute bars for 1D, daily up to 1Y, weekly for 5Y, monthly for max) and
+// the payload stays a few hundred points. Fetched on demand per click — no
+// Redis/DB caching; React Query dedupes repeats within a session.
+//
+// `range=1d` is the latest regular session only (no pre/post bars): today's
+// so far while the market is open, the last completed one otherwise — same
+// convention as the day-change quote. Its points carry a full ISO timestamp
+// rather than a calendar date, and the response adds the session bounds and
+// previous close so the UI can pin the x-axis to the whole session and draw
+// the day-change baseline.
+export type TickerChartRange = '1d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
 
-const TICKER_CHART_INTERVAL: Record<TickerChartRange, '1d' | '1wk' | '1mo'> = {
+const TICKER_CHART_INTERVAL: Record<TickerChartRange, '5m' | '1d' | '1wk' | '1mo'> = {
+  '1d': '5m',
   '1mo': '1d',
   '6mo': '1d',
   ytd: '1d',
@@ -320,7 +328,11 @@ export interface TickerChart {
   range: TickerChartRange;
   name: string | null;
   currency: string | null;
+  // YYYY-MM-DD (daily and coarser) or full ISO timestamp (intraday).
   points: { date: string; close: number }[];
+  // Intraday only; null for the daily+ ranges.
+  previousClose: number | null;
+  session: { start: string; end: string } | null;
 }
 
 export async function getTickerChart(
@@ -328,6 +340,7 @@ export async function getTickerChart(
   range: TickerChartRange
 ): Promise<TickerChart | null> {
   const interval = TICKER_CHART_INTERVAL[range];
+  const intraday = range === '1d';
   return withRetry(async () => {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -356,16 +369,25 @@ export async function getTickerChart(
       // getHistoricalData above.
       // 4 dp keeps sub-dollar early history (NVDA's 1999 $0.0457) intact
       // without shipping float noise like 211.94000244140625.
-      points.push({ date: new Date(timestamps[i] * 1000).toISOString().split('T')[0], close: Math.round(close * 10_000) / 10_000 });
+      const iso = new Date(timestamps[i] * 1000).toISOString();
+      points.push({ date: intraday ? iso : iso.split('T')[0], close: Math.round(close * 10_000) / 10_000 });
     }
 
     const meta = result.meta ?? {};
+    const regular = meta.currentTradingPeriod?.regular;
+    const session =
+      intraday && typeof regular?.start === 'number' && typeof regular?.end === 'number'
+        ? { start: new Date(regular.start * 1000).toISOString(), end: new Date(regular.end * 1000).toISOString() }
+        : null;
+    const previousClose = intraday && typeof meta.chartPreviousClose === 'number' ? meta.chartPreviousClose : null;
     return {
       symbol: meta.symbol ?? symbol,
       range,
       name: meta.longName ?? meta.shortName ?? null,
       currency: meta.currency ?? null,
       points,
+      previousClose,
+      session,
     };
   });
 }

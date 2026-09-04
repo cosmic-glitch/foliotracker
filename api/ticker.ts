@@ -5,7 +5,7 @@ import { getTickerChart, type TickerChartRange } from './_lib/yahoo.js';
 // request. No auth: ticker prices are public data, and the caller only learns
 // which symbol was asked for. No server-side cache either — this backs a
 // click-to-open detail panel, so volume is a handful of calls per visit.
-const RANGES: TickerChartRange[] = ['1mo', '6mo', 'ytd', '1y', '5y', 'max'];
+const RANGES: TickerChartRange[] = ['1d', '1mo', '6mo', 'ytd', '1y', '5y', 'max'];
 
 export default async function handler(
   req: VercelRequest,
@@ -45,7 +45,8 @@ export default async function handler(
     }
     // Let the browser/CDN hold a response briefly so range-flipping on the
     // same ticker doesn't hammer Yahoo; still refreshes within a session.
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    // Intraday gets a shorter hold so a reopened panel tracks the live tape.
+    res.setHeader('Cache-Control', `public, max-age=${range === '1d' ? 60 : 300}`);
     res.status(200).json(chart);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ticker chart failed for ${symbol}/${range}:`, error);

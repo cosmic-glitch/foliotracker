@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { TICKER_RANGES, useTickerHistory, type TickerRange } from '../hooks/useTickerHistory';
 import { useTickerNews } from '../hooks/usePortfolioNews';
 import {
@@ -49,7 +49,7 @@ interface TickerDetailModalProps {
 }
 
 interface ChartPoint {
-  date: string;
+  date: string; // as served: YYYY-MM-DD, or a full ISO timestamp on the intraday range
   timestamp: number;
   close: number;
 }
@@ -69,7 +69,15 @@ const AXIS_FONT_SIZE = 11;
 // tickSize + tickMargin from the line even with the tick line hidden, so the
 // YAxis below sets tickSize=0 and tickMargin to this value.
 const Y_TICK_INSET = 4;
+const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+const PREVIOUS_CLOSE_STROKE = '#94a3b8';
+
+// Intraday labels are shown in Eastern time regardless of the viewer's zone:
+// the session bounds (9:30–4) only read correctly in ET, and the rest of the
+// app already speaks ET for market hours.
+const ET_HOUR = new Intl.DateTimeFormat('en-US', { hour: 'numeric', timeZone: 'America/New_York' });
+const ET_TIME = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 
 // Smallest number of decimals (≤ 4) that renders `x` exactly, so tick labels
 // show "$2.50" for a 2.5 step but "$105" for a 5 step.
@@ -127,11 +135,36 @@ function buildYAxis(closes: number[]): { domain: [number, number]; ticks: number
   return { domain: [lo, hi], ticks, format, width: measureYAxisWidth(ticks.map(format)) };
 }
 
+interface XAxisSpec {
+  domain: [number, number];
+  ticks: number[];
+  format: (ts: number) => string;
+}
+
+// Intraday: the x-domain is the whole regular session (not just the bars so
+// far), so a mid-session chart fills in left-to-right as the day goes on
+// instead of stretching the partial day across the full width. Ticks sit on
+// the hour; ET hour boundaries coincide with UTC ones, so plain ms rounding
+// finds them. The session bounds are widened to cover the data in case Yahoo's
+// `currentTradingPeriod` is for a different day than the bars it returned.
+function buildIntradayXAxis(points: ChartPoint[], session: { start: string; end: string } | null): XAxisSpec {
+  const first = points[0].timestamp;
+  const last = points[points.length - 1].timestamp;
+  const lo = Math.min(first, session ? Date.parse(session.start) : first);
+  const hi = Math.max(last, session ? Date.parse(session.end) : last);
+  const edge = (hi - lo) * 0.04;
+  const ticks: number[] = [];
+  for (let t = Math.ceil(lo / HOUR_MS) * HOUR_MS; t <= hi; t += HOUR_MS) {
+    if (t >= lo + edge && t <= hi - edge) ticks.push(t);
+  }
+  return { domain: [lo, hi], ticks, format: (ts) => ET_HOUR.format(new Date(ts)) };
+}
+
 // X ticks on calendar boundaries (Mondays / month starts / year starts,
 // thinned to ≤ ~8), excluding the outer 4% of the span so the first and last
 // labels don't hang past the plot edges. Recharts' own tick picking puts a
 // tick at dataMin, whose centered label would spill under the y axis.
-function buildXAxis(points: ChartPoint[]): { ticks: number[]; format: (ts: number) => string } {
+function buildXAxis(points: ChartPoint[]): XAxisSpec {
   const first = points[0].timestamp;
   const last = points[points.length - 1].timestamp;
   const spanDays = (last - first) / DAY_MS;
@@ -170,15 +203,18 @@ function buildXAxis(points: ChartPoint[]): { ticks: number[]; format: (ts: numbe
     if (labelYearOnJan && d.getMonth() === 0) return `${fmt.format(d)} ${d.getFullYear()}`;
     return fmt.format(d);
   };
-  return { ticks, format };
+  return { domain: [first, last], ticks, format };
 }
 
-function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
+function ChartTooltip({ active, payload, intraday }: { active?: boolean; payload?: Array<{ payload: ChartPoint }>; intraday?: boolean }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
+  const when = intraday
+    ? `${formatChartDate(point.date)}, ${ET_TIME.format(new Date(point.timestamp))} ET`
+    : formatChartDate(point.date);
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-text-secondary text-xs mb-1">{formatChartDate(point.date)}</p>
+      <p className="text-text-secondary text-xs mb-1">{when}</p>
       <p className="text-sm text-text-primary font-semibold">{formatPrice(point.close)}</p>
     </div>
   );
@@ -216,27 +252,42 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     };
   }, [onClose]);
 
+  const intraday = range === '1d';
+  // Only meaningful once the intraday response has landed; the daily+ ranges
+  // serve these as null.
+  const previousClose = intraday ? history.data?.previousClose ?? null : null;
+
   const chartData = useMemo<ChartPoint[]>(() => {
     if (!history.data) return [];
     return history.data.points.map((p) => {
+      if (p.date.includes('T')) return { date: p.date, timestamp: Date.parse(p.date), close: p.close };
       const [year, month, day] = p.date.split('-').map(Number);
       return { date: p.date, timestamp: new Date(year, month - 1, day).getTime(), close: p.close };
     });
   }, [history.data]);
 
   // Change over the selected range: first close → last close of the series.
+  // Intraday measures from the previous session's close instead, so it reads
+  // as the day change rather than open-to-now (and drops out if Yahoo didn't
+  // supply one — open-to-now would silently mean something else).
   const rangeChange = useMemo(() => {
-    if (chartData.length < 2) return null;
-    const first = chartData[0].close;
+    if (chartData.length === 0) return null;
+    const base = intraday ? previousClose : chartData.length > 1 ? chartData[0].close : null;
     const last = chartData[chartData.length - 1].close;
-    if (!(first > 0)) return null;
-    return ((last - first) / first) * 100;
-  }, [chartData]);
+    if (base == null || !(base > 0)) return null;
+    return ((last - base) / base) * 100;
+  }, [chartData, intraday, previousClose]);
 
   const axes = useMemo(() => {
     if (chartData.length === 0) return null;
-    return { x: buildXAxis(chartData), y: buildYAxis(chartData.map((d) => d.close)) };
-  }, [chartData]);
+    const closes = chartData.map((d) => d.close);
+    // The previous-close baseline must sit inside the y-range to be visible.
+    if (previousClose != null) closes.push(previousClose);
+    return {
+      x: intraday ? buildIntradayXAxis(chartData, history.data?.session ?? null) : buildXAxis(chartData),
+      y: buildYAxis(closes),
+    };
+  }, [chartData, intraday, previousClose, history.data?.session]);
 
   const perShareDayChange = holding.currentPrice - holding.previousClose;
   const dayTone = holding.dayChangePercent >= 0 ? 'positive' : 'negative';
@@ -350,7 +401,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                       dataKey="timestamp"
                       type="number"
                       scale="time"
-                      domain={['dataMin', 'dataMax']}
+                      domain={axes.x.domain}
                       ticks={axes.x.ticks}
                       axisLine={{ stroke: GRID_STROKE }}
                       tickLine={false}
@@ -369,7 +420,10 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                       tickFormatter={axes.y.format}
                       width={axes.y.width}
                     />
-                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#94a3b8', strokeDasharray: '3 3' }} />
+                    <Tooltip content={<ChartTooltip intraday={intraday} />} cursor={{ stroke: '#94a3b8', strokeDasharray: '3 3' }} />
+                    {previousClose != null && (
+                      <ReferenceLine y={previousClose} stroke={PREVIOUS_CLOSE_STROKE} strokeDasharray="4 4" strokeOpacity={0.7} />
+                    )}
                     <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>

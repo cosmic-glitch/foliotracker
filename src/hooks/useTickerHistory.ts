@@ -25,10 +25,12 @@ export interface TickerChart {
   name: string | null;
   currency: string | null;
   points: TickerChartPoint[];
-  // Intraday only (null otherwise): the regular session's bounds and the
-  // prior close the day change is measured from.
+  // Intraday only (null otherwise): the session bounds (`start`/`end` regular,
+  // `preStart`/`postEnd` extended — equal to the regular ones when the
+  // instrument has no extended tape) and the prior close the day change is
+  // measured from. Points always include pre/post bars.
   previousClose: number | null;
-  session: { start: string; end: string } | null;
+  session: { preStart: string; start: string; end: string; postEnd: string } | null;
 }
 
 async function fetchTickerChart(symbol: string, range: TickerRange): Promise<TickerChart> {

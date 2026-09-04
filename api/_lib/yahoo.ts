@@ -305,12 +305,16 @@ export async function getHistoricalData(
 // the payload stays a few hundred points. Fetched on demand per click — no
 // Redis/DB caching; React Query dedupes repeats within a session.
 //
-// `range=1d` is the latest regular session only (no pre/post bars): today's
-// so far while the market is open, the last completed one otherwise — same
-// convention as the day-change quote. Its points carry a full ISO timestamp
-// rather than a calendar date, and the response adds the session bounds and
-// previous close so the UI can pin the x-axis to the whole session and draw
-// the day-change baseline.
+// `range=1d` is the latest session — today's so far while the market is
+// open, the last completed one otherwise (same convention as the day-change
+// quote) — and always includes the pre-market and after-hours bars
+// (`includePrePost`). The detail panel shows extended hours unconditionally,
+// independent of the app's Extended Hours toggle (that toggle governs whether
+// portfolio *values* move after the close, not what the tape looks like).
+// Its points carry a full ISO timestamp rather than a calendar date, and the
+// response adds the pre/regular/post session bounds and previous close so the
+// UI can pin the x-axis to the whole 4 a.m.–8 p.m. span, tint the sessions,
+// and draw the day-change baseline.
 export type TickerChartRange = '1d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
 
 const TICKER_CHART_INTERVAL: Record<TickerChartRange, '5m' | '1d' | '1wk' | '1mo'> = {
@@ -330,9 +334,11 @@ export interface TickerChart {
   currency: string | null;
   // YYYY-MM-DD (daily and coarser) or full ISO timestamp (intraday).
   points: { date: string; close: number }[];
-  // Intraday only; null for the daily+ ranges.
+  // Intraday only; null for the daily+ ranges. `start`/`end` bound the
+  // regular session; `preStart`/`postEnd` the extended one (Yahoo reports
+  // them equal to the regular bounds for instruments with no extended tape).
   previousClose: number | null;
-  session: { start: string; end: string } | null;
+  session: { preStart: string; start: string; end: string; postEnd: string } | null;
 }
 
 export async function getTickerChart(
@@ -342,7 +348,7 @@ export async function getTickerChart(
   const interval = TICKER_CHART_INTERVAL[range];
   const intraday = range === '1d';
   return withRetry(async () => {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}${intraday ? '&includePrePost=true' : ''}`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
 
     if (!response.ok) {
@@ -374,11 +380,18 @@ export async function getTickerChart(
     }
 
     const meta = result.meta ?? {};
-    const regular = meta.currentTradingPeriod?.regular;
-    const session =
-      intraday && typeof regular?.start === 'number' && typeof regular?.end === 'number'
-        ? { start: new Date(regular.start * 1000).toISOString(), end: new Date(regular.end * 1000).toISOString() }
-        : null;
+    const periods = meta.currentTradingPeriod ?? {};
+    const regular = periods.regular;
+    const isoAt = (secs: number) => new Date(secs * 1000).toISOString();
+    let session: TickerChart['session'] = null;
+    if (intraday && typeof regular?.start === 'number' && typeof regular?.end === 'number') {
+      session = {
+        preStart: isoAt(typeof periods.pre?.start === 'number' ? periods.pre.start : regular.start),
+        start: isoAt(regular.start),
+        end: isoAt(regular.end),
+        postEnd: isoAt(typeof periods.post?.end === 'number' ? periods.post.end : regular.end),
+      };
+    }
     const previousClose = intraday && typeof meta.chartPreviousClose === 'number' ? meta.chartPreviousClose : null;
     return {
       symbol: meta.symbol ?? symbol,

@@ -70,6 +70,7 @@ function calculateHoldings(): Holding[] {
         revenueGrowth3Y: null,
         epsGrowth3Y: null,
         regularMarketPrice: config.staticValue || 0,
+        extendedPrice: config.staticValue || 0,
       };
     }
 
@@ -116,6 +117,7 @@ function calculateHoldings(): Holding[] {
       revenueGrowth3Y: null,
       epsGrowth3Y: null,
       regularMarketPrice: prices.current,
+      extendedPrice: prices.current,
     };
   });
 

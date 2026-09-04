@@ -338,10 +338,6 @@ export interface TickerChart {
   // regular session; `preStart`/`postEnd` the extended one (Yahoo reports
   // them equal to the regular bounds for instruments with no extended tape).
   previousClose: number | null;
-  // Intraday only: Yahoo's `regularMarketPrice` — the official regular-session
-  // close once the session has ended (the 4 p.m. bar in the tape is already
-  // the first post-market one, so the bars alone only approximate it).
-  regularClose: number | null;
   session: { preStart: string; start: string; end: string; postEnd: string } | null;
 }
 
@@ -397,7 +393,6 @@ export async function getTickerChart(
       };
     }
     const previousClose = intraday && typeof meta.chartPreviousClose === 'number' ? meta.chartPreviousClose : null;
-    const regularClose = intraday && typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : null;
     return {
       symbol: meta.symbol ?? symbol,
       range,
@@ -405,7 +400,6 @@ export async function getTickerChart(
       currency: meta.currency ?? null,
       points,
       previousClose,
-      regularClose,
       session,
     };
   });

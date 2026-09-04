@@ -143,5 +143,6 @@ function mergeHoldings(holdings: Holding[], group: string[]): Holding {
     revenueGrowth3Y: first.revenueGrowth3Y,
     epsGrowth3Y: first.epsGrowth3Y,
     regularMarketPrice: first.regularMarketPrice,
+    extendedPrice: first.extendedPrice,
   };
 }

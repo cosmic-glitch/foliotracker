@@ -279,6 +279,7 @@ export function usePortfolioData(
       revenueGrowth3Y: h.revenueGrowth3Y ?? null,
       epsGrowth3Y: h.epsGrowth3Y ?? null,
       regularMarketPrice: h.regularMarketPrice ?? h.currentPrice,
+      extendedPrice: h.currentPrice,
     }));
 
     // Allocation-only share-link viewers: skip every client-side recompute.

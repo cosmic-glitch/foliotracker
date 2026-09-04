@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getMarketStatus } from '../lib/market-hours';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceArea } from 'recharts';
@@ -31,6 +32,10 @@ export interface TickerDetailSubject {
   currentPrice: number;
   previousClose: number;
   dayChangePercent: number;
+  // Optional session prices (Holding has both; movers don't). With both
+  // present the header can split the day into at-close / extended figures.
+  regularMarketPrice?: number;
+  extendedPrice?: number;
   revenue?: number | null;
   earnings?: number | null;
   peRatio?: number | null;
@@ -42,6 +47,12 @@ export interface TickerDetailSubject {
   pctTo52WeekHigh?: number | null;
   week52High?: number | null;
 }
+
+// One line under the header price: either the plain per-share day change
+// (unlabelled) or a labelled session price with its move.
+type HeaderRow =
+  | { label: null; change: number; percent: number }
+  | { label: string; price: number; percent: number | null };
 
 interface TickerDetailModalProps {
   subject: TickerDetailSubject;
@@ -304,7 +315,8 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
   }, [history.data]);
 
   // Change over the selected range: first close → last close of the series.
-  // Daily+ ranges only; intraday gets the labelled split below instead.
+  // Daily+ ranges only: the header already labels the intraday move, and a
+  // second unlabelled figure for the same day proved confusing.
   const rangeChange = useMemo(() => {
     if (intraday || chartData.length < 2) return null;
     const base = chartData[0].close;
@@ -312,33 +324,6 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     if (!(base > 0)) return null;
     return ((last - base) / base) * 100;
   }, [chartData, intraday]);
-
-  // Intraday figures, labelled by the phase the tape has reached. A bare
-  // percent here was ambiguous: the header's day change follows the Extended
-  // Hours toggle, while the chart always draws the whole tape, so the two
-  // could legitimately disagree. Splitting the day the way brokerages do —
-  // "At close" (official close vs. previous close) and "After hours" (last
-  // bar vs. that close) — makes each number say what it measures. Bars
-  // stamped at/after the session end are post-market ones (Yahoo's 4:00 p.m.
-  // bar is the first of them), so the phase is read off the last bar's time.
-  const intradayMove = useMemo<{ label: string; percent: number }[] | null>(() => {
-    if (!intraday || chartData.length === 0 || previousClose == null || !(previousClose > 0)) return null;
-    const last = chartData[chartData.length - 1];
-    const pct = (to: number, from: number) => ((to - from) / from) * 100;
-    if (!session || last.timestamp < session.start) {
-      return [{ label: session ? 'Pre-market' : 'Today', percent: pct(last.close, previousClose) }];
-    }
-    if (last.timestamp < session.end) {
-      return [{ label: 'Today', percent: pct(last.close, previousClose) }];
-    }
-    const lastRegular = [...chartData].reverse().find((p) => p.timestamp < session.end);
-    const regularClose = history.data?.regularClose ?? lastRegular?.close ?? null;
-    if (regularClose == null || !(regularClose > 0)) return [{ label: 'Today', percent: pct(last.close, previousClose) }];
-    return [
-      { label: 'At close', percent: pct(regularClose, previousClose) },
-      { label: 'After hours', percent: pct(last.close, regularClose) },
-    ];
-  }, [chartData, intraday, previousClose, session, history.data?.regularClose]);
 
   const axes = useMemo(() => {
     if (chartData.length === 0) return null;
@@ -367,8 +352,43 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
   const showSessionLegend =
     session != null && session.postEnd > session.preStart && session.end - session.start < session.postEnd - session.preStart;
 
-  const perShareDayChange = holding.currentPrice - holding.previousClose;
-  const dayTone = holding.dayChangePercent >= 0 ? 'positive' : 'negative';
+  // Header prices ignore the app's Extended Hours toggle, like the chart
+  // below (which always draws the whole tape): the big figure is the latest
+  // extended-hours price, and outside the regular session the day is split
+  // into labelled rows — "At close" (official close vs. previous close) and
+  // "After hours" (latest vs. that close), or "Prev close" / "Pre-market"
+  // before the open — so each percentage says what it measures. Following
+  // the toggle here made two viewers of the same ticker see different
+  // headers over an identical chart. Collapses to one price + change during
+  // the session, for movers (no session prices), and when nothing has
+  // traded outside regular hours.
+  const header = useMemo<{ price: number; rows: HeaderRow[] }>(() => {
+    const latest = holding.extendedPrice ?? holding.currentPrice;
+    const close = holding.regularMarketPrice;
+    const prev = holding.previousClose;
+    const pct = (to: number, from: number) => (from > 0 ? ((to - from) / from) * 100 : 0);
+    const status = getMarketStatus();
+    const split = close != null && close > 0 && Math.abs(latest - close) > 1e-6 && status !== 'open';
+    if (!split) {
+      return { price: latest, rows: [{ label: null, change: latest - prev, percent: pct(latest, prev) }] };
+    }
+    if (status === 'pre-market') {
+      return {
+        price: latest,
+        rows: [
+          { label: 'Prev close', price: prev, percent: null },
+          { label: 'Pre-market', price: latest, percent: pct(latest, prev) },
+        ],
+      };
+    }
+    return {
+      price: latest,
+      rows: [
+        { label: 'At close', price: close, percent: pct(close, prev) },
+        { label: 'After hours', price: latest, percent: pct(latest, close) },
+      ],
+    };
+  }, [holding.extendedPrice, holding.currentPrice, holding.regularMarketPrice, holding.previousClose]);
 
   const hasFundamentals =
     holding.revenue != null ||
@@ -420,10 +440,22 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
           </div>
           <div className="flex items-start gap-3 shrink-0">
             <div className="text-right">
-              <p className="font-semibold text-text-primary leading-tight">{formatPrice(holding.currentPrice)}</p>
-              <p className={`text-xs ${dayTone === 'positive' ? 'text-positive' : 'text-negative'}`}>
-                {perShareDayChange >= 0 ? '+' : '-'}{formatPrice(Math.abs(perShareDayChange))} ({formatPercent(holding.dayChangePercent)})
-              </p>
+              <p className="font-semibold text-text-primary leading-tight">{formatPrice(header.price)}</p>
+              {header.rows.map((row) =>
+                row.label === null ? (
+                  <p key="change" className={`text-xs leading-snug ${row.percent >= 0 ? 'text-positive' : 'text-negative'}`}>
+                    {row.change >= 0 ? '+' : '-'}{formatPrice(Math.abs(row.change))} ({formatPercent(row.percent)})
+                  </p>
+                ) : (
+                  <p key={row.label} className="text-xs leading-snug">
+                    <span className="text-text-secondary">{row.label} </span>
+                    <span className="text-text-primary">{formatPrice(row.price)}</span>
+                    {row.percent != null && (
+                      <span className={row.percent >= 0 ? 'text-positive' : 'text-negative'}> ({formatPercent(row.percent)})</span>
+                    )}
+                  </p>
+                )
+              )}
             </div>
             <button
               type="button"
@@ -513,38 +545,20 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                 </ResponsiveContainer>
               )}
             </div>
-            {intraday && (showSessionLegend || intradayMove) && (
-              <div
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 pt-1 text-[10px] text-text-secondary"
-                style={{ paddingLeft: selectorInset.current ?? 0 }}
-              >
-                {showSessionLegend && (
-                  <div className="flex items-center gap-2.5">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-teal-400/90" />
-                      Pre
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-blue-500/80" />
-                      Regular
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-rose-500/90" />
-                      AH
-                    </span>
-                  </div>
-                )}
-                {intradayMove && (
-                  <div className="ml-auto flex items-center gap-2 text-xs">
-                    {intradayMove.map((m, i) => (
-                      <span key={m.label} className="inline-flex items-center gap-1">
-                        {i > 0 && <span className="mr-1">·</span>}
-                        {m.label}
-                        <span className={`font-semibold ${m.percent >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(m.percent)}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
+            {showSessionLegend && (
+              <div className="flex items-center gap-2.5 pt-1 text-[10px] text-text-secondary" style={{ paddingLeft: selectorInset.current ?? 0 }}>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-teal-400/90" />
+                  Pre
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500/80" />
+                  Regular
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500/90" />
+                  AH
+                </span>
               </div>
             )}
           </section>

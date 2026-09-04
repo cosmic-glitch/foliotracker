@@ -29,8 +29,11 @@ export function AllocationBar({ percent, maxPercent }: { percent: number; maxPer
   return (
     <div className="flex items-center">
       <div ref={trackRef} className="flex-1 flex items-center gap-1 min-w-0">
+        {/* Padding only when the label is inside: with border-box sizing the
+            padding is a 12px width floor, which made 0.9% and 3.3% bars look
+            the same length. */}
         <div
-          className={`h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 overflow-hidden ${isNegative ? 'bg-negative/80' : 'bg-accent/80'}`}
+          className={`h-5 rounded transition-all duration-500 flex items-center justify-end overflow-hidden shrink-0 ${labelInside ? 'px-1.5' : ''} ${isNegative ? 'bg-negative/80' : 'bg-accent/80'}`}
           style={{ width: `${scaledWidth}%` }}
         >
           {labelInside && (

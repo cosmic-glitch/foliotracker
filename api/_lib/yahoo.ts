@@ -349,3 +349,74 @@ export async function getHistoricalData(
     return [];
   }
 }
+
+// Multi-year price series for the per-holding detail panel. Uses Yahoo's
+// named `range` presets rather than period1/period2 so the interval matches
+// the span (daily up to 1Y, weekly for 5Y, monthly for max) and the payload
+// stays a few hundred points. Fetched on demand per click — no Redis/DB
+// caching; React Query dedupes repeats within a session.
+export type TickerChartRange = '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
+
+const TICKER_CHART_INTERVAL: Record<TickerChartRange, '1d' | '1wk' | '1mo'> = {
+  '1mo': '1d',
+  '6mo': '1d',
+  ytd: '1d',
+  '1y': '1d',
+  '5y': '1wk',
+  max: '1mo',
+};
+
+export interface TickerChart {
+  symbol: string;
+  range: TickerChartRange;
+  name: string | null;
+  currency: string | null;
+  points: { date: string; close: number }[];
+}
+
+export async function getTickerChart(
+  symbol: string,
+  range: TickerChartRange
+): Promise<TickerChart | null> {
+  const interval = TICKER_CHART_INTERVAL[range];
+  return withRetry(async () => {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+
+    if (!response.ok) {
+      if (response.status === 429 || response.status >= 500) {
+        throw new Error(`Yahoo Finance chart API error ${response.status} (will retry)`);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+    const result = data.chart?.result?.[0];
+    if (!result?.timestamp || !result?.indicators?.quote?.[0]?.close) {
+      return null;
+    }
+
+    const timestamps: number[] = result.timestamp;
+    const closes: (number | null)[] = result.indicators.quote[0].close;
+    const points: { date: string; close: number }[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closes[i];
+      if (close === null || close === undefined) continue;
+      // Yahoo stamps bars at the session open (13:30 UTC for NYSE), so the
+      // UTC calendar date equals the ET trading date — same convention as
+      // getHistoricalData above.
+      // 4 dp keeps sub-dollar early history (NVDA's 1999 $0.0457) intact
+      // without shipping float noise like 211.94000244140625.
+      points.push({ date: new Date(timestamps[i] * 1000).toISOString().split('T')[0], close: Math.round(close * 10_000) / 10_000 });
+    }
+
+    const meta = result.meta ?? {};
+    return {
+      symbol: meta.symbol ?? symbol,
+      range,
+      name: meta.longName ?? meta.shortName ?? null,
+      currency: meta.currency ?? null,
+      points,
+    };
+  });
+}

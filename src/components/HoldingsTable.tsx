@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Holding } from '../types/portfolio';
-import { ArrowUpDown, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { ArrowUpDown, ChartLine, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent, formatPrice, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import { useTimeframe } from '../context/TimeframeContext';
+import { HoldingDetailModal } from './HoldingDetailModal';
 
 // Resolve which change pair drives the "Chg %" / "Chg $" columns for the
 // active global timeframe. Returns null when the snapshot lacks 30D data
@@ -91,18 +93,43 @@ function getSortValue(
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
   const { timeframe } = useTimeframe();
   const consolidatedHoldings = useMemo(() => consolidateHoldings(holdings), [holdings]);
-  const [popover, setPopover] = useState<{ ticker: string; top: number; left: number } | null>(null);
   const [sortConfig, setSortConfig] = useState<{ column: SortColumn; direction: SortDirection }>({
     column: 'value',
     direction: 'desc',
   });
-  const popoverHolding = popover ? consolidatedHoldings.find(h => h.ticker === popover.ticker) : null;
 
-  const openPopover = (ticker: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setPopover({ ticker, top: rect.bottom + 4, left: rect.left });
+  // The open detail panel lives in the URL (`?t=TICKER`) rather than local
+  // state so the browser back button (and the swipe-back gesture on mobile)
+  // closes it, and a link to a specific holding is shareable. Opening pushes
+  // a history entry; closing via the X replaces it so Back from the closed
+  // page doesn't re-open the panel. Other params (`share`) are preserved.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openTicker = searchParams.get('t');
+  const detailHolding = openTicker
+    ? consolidatedHoldings.find((h) => h.ticker === openTicker && !h.isStatic) ?? null
+    : null;
+  const openDetail = (ticker: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('t', ticker);
+      return next;
+    });
   };
+  const closeDetail = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('t');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  // Tickers are the entry point to the detail panel. Static holdings have no
+  // price series or fundamentals, so they stay plain text.
+  const tickerButtonClass =
+    'group/ticker inline-flex min-w-0 items-center gap-1 font-semibold text-accent hover:underline underline-offset-2 decoration-accent/50';
 
   const handleSort = (column: SortColumn) => {
     setSortConfig((prev) => {
@@ -256,7 +283,14 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
                   <td className="w-[11ch] min-w-[11ch] max-w-[11ch] px-4 py-2 whitespace-nowrap">
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <p className="truncate font-semibold text-text-primary">{holding.ticker}</p>
+                      {holding.isStatic ? (
+                        <p className="truncate font-semibold text-text-primary">{holding.ticker}</p>
+                      ) : (
+                        <button type="button" onClick={() => openDetail(holding.ticker)} className={tickerButtonClass} title={`${holding.ticker} price history & details`}>
+                          <span className="truncate">{holding.ticker}</span>
+                          <ChartLine className="w-3 h-3 shrink-0 opacity-60 group-hover/ticker:opacity-100" />
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="text-left px-4 py-2 whitespace-nowrap">
@@ -314,12 +348,11 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       <table className="md:hidden w-full">
         <tbody>
           {sortedHoldings.map((holding) => {
-            const holdingHasFundamentals = !holding.isStatic && hasAnyFundamentals && (holding.revenue != null || holding.earnings != null || holding.forwardPE != null || holding.forwardPENext != null || holding.pctTo52WeekHigh != null || holding.operatingMargin != null || holding.revenueGrowth3Y != null || holding.epsGrowth3Y != null);
             const sortArrow = sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
             const { change, percent } = activeChange(holding, timeframe);
             return (
               <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-                {/* Ticker/name + info — static names span the price column too.
+                {/* Ticker/name — static names span the price column too.
                     A long static name (e.g. "US Real Estate") would otherwise
                     bleed across the empty price slot, dropping prose where the
                     numbers column lives. Clip static names to ~ticker width
@@ -327,17 +360,17 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     `title` keeps the full name discoverable. Tradeable tickers
                     are already short, so they keep the looser cap. */}
                 <td colSpan={holding.isStatic ? 2 : 1} className="pl-3 pr-2 py-2 whitespace-nowrap align-middle">
-                  <div className="flex items-center gap-1">
+                  {holding.isStatic ? (
                     <span
                       title={holding.ticker}
-                      className={`font-semibold text-text-primary block truncate ${holding.isStatic ? 'max-w-[7ch]' : 'max-w-[55vw]'}`}
+                      className="font-semibold text-text-primary block truncate max-w-[7ch]"
                     >{holding.ticker}</span>
-                    {holdingHasFundamentals && (
-                      <button onClick={(e) => openPopover(holding.ticker, e)} className="text-text-secondary hover:text-text-primary transition-colors shrink-0">
-                        <Info className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+                  ) : (
+                    <button type="button" onClick={() => openDetail(holding.ticker)} className={`${tickerButtonClass} max-w-[55vw]`}>
+                      <span className="truncate">{holding.ticker}</span>
+                      <ChartLine className="w-3 h-3 shrink-0 opacity-60" />
+                    </button>
+                  )}
                 </td>
                 {/* Unit price + % change (tradeable only) */}
                 {!holding.isStatic && (
@@ -393,66 +426,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         </tbody>
       </table>
 
-      {popover && popoverHolding && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setPopover(null)} />
-          <div
-            className="fixed z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-64"
-            style={{ top: popover.top, left: popover.left }}
-          >
-            <p className="font-semibold text-text-primary text-sm mb-2">{popover.ticker}</p>
-            <div className="grid grid-cols-1 gap-y-1 text-xs">
-              {popoverHolding.revenue != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Revenue</span>
-                  <span className="font-medium text-text-primary">{formatLargeValue(popoverHolding.revenue)}</span>
-                </div>
-              )}
-              {popoverHolding.earnings != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Earnings</span>
-                  <span className="font-medium text-text-primary">{formatLargeValue(popoverHolding.earnings)}</span>
-                </div>
-              )}
-              {popoverHolding.forwardPE != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">FwdPE</span>
-                  <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPE)}</span>
-                </div>
-              )}
-              {popoverHolding.forwardPENext != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">FwdPE Next FY</span>
-                  <span className="font-medium text-text-primary">{formatPERatio(popoverHolding.forwardPENext)}</span>
-                </div>
-              )}
-              {popoverHolding.operatingMargin != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Op Margin</span>
-                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverHolding.operatingMargin)}</span>
-                </div>
-              )}
-              {popoverHolding.revenueGrowth3Y != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Revenue Growth (3Y)</span>
-                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverHolding.revenueGrowth3Y)}</span>
-                </div>
-              )}
-              {popoverHolding.epsGrowth3Y != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">EPS Growth (3Y)</span>
-                  <span className="font-medium text-text-primary">{formatMarginOrGrowth(popoverHolding.epsGrowth3Y)}</span>
-                </div>
-              )}
-              {popoverHolding.pctTo52WeekHigh != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">% to 52wk high</span>
-                  <span className="font-medium text-text-primary">{formatPctTo52WeekHigh(popoverHolding.pctTo52WeekHigh)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
+      {detailHolding && (
+        <HoldingDetailModal holding={detailHolding} onClose={closeDetail} />
       )}
     </div>
   );

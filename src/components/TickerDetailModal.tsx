@@ -313,16 +313,23 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     });
   }, [history.data]);
 
-  // Change over the selected range: first close → last close of the series.
-  // Daily+ ranges only: the header already labels the intraday move, and a
-  // second unlabelled figure for the same day proved confusing.
+  // Change over the selected range, measured from where the chart begins:
+  // the first close of the series for daily+ ranges, the previous close (the
+  // dashed line) for 1D. The intraday figure comes from the holding's own
+  // prices rather than the chart's last bar so it agrees exactly with the
+  // header rows above (whose at-close and after-hours moves compose to it) —
+  // the two feeds are sampled at different moments and visibly drifted apart.
   const rangeChange = useMemo(() => {
-    if (intraday || chartData.length < 2) return null;
+    if (intraday) {
+      const latest = holding.extendedPrice ?? holding.currentPrice;
+      return holding.previousClose > 0 ? ((latest - holding.previousClose) / holding.previousClose) * 100 : null;
+    }
+    if (chartData.length < 2) return null;
     const base = chartData[0].close;
     const last = chartData[chartData.length - 1].close;
     if (!(base > 0)) return null;
     return ((last - base) / base) * 100;
-  }, [chartData, intraday]);
+  }, [chartData, intraday, holding.extendedPrice, holding.currentPrice, holding.previousClose]);
 
   const axes = useMemo(() => {
     if (chartData.length === 0) return null;

@@ -65,9 +65,10 @@ const NEWS_INSTRUMENT_TYPES = new Set([
 
 const GRID_STROKE = 'var(--color-border)';
 const AXIS_FONT_SIZE = 11;
-// Recharts offsets tick text from the axis line by tickSize (6) + tickMargin
-// (2) even with the tick line hidden.
-const Y_TICK_INSET = 8;
+// Gap between y tick text and the axis line. Recharts positions the text at
+// tickSize + tickMargin from the line even with the tick line hidden, so the
+// YAxis below sets tickSize=0 and tickMargin to this value.
+const Y_TICK_INSET = 4;
 const DAY_MS = 86_400_000;
 
 // Smallest number of decimals (≤ 4) that renders `x` exactly, so tick labels
@@ -102,7 +103,7 @@ function measureYAxisWidth(labels: string[]): number {
   } else {
     textWidth = Math.max(...labels.map((l) => l.length)) * AXIS_FONT_SIZE * 0.6;
   }
-  return Math.ceil(textWidth) + Y_TICK_INSET + 2;
+  return Math.ceil(textWidth) + Y_TICK_INSET + 1;
 }
 
 // Evenly spaced y ticks on round prices, with the domain snapped to the
@@ -358,6 +359,8 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                       ticks={axes.y.ticks}
                       axisLine={{ stroke: GRID_STROKE }}
                       tickLine={false}
+                      tickSize={0}
+                      tickMargin={Y_TICK_INSET}
                       tick={{ fill: '#94a3b8', fontSize: AXIS_FONT_SIZE }}
                       tickFormatter={axes.y.format}
                       width={axes.y.width}
@@ -370,10 +373,11 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
             </div>
           </section>
 
-          {/* Fundamentals — the same fields the retired "i" popover showed */}
+          {/* Fundamentals — the same fields the retired "i" popover showed.
+              No heading: with the position section gone this is the only
+              stats block, so a label would just cost space. */}
           {hasFundamentals && (
             <section>
-              <SectionTitle>Fundamentals</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                 {holding.revenue != null && <Stat label="Revenue" value={formatLargeValue(holding.revenue)} />}
                 {holding.earnings != null && <Stat label="Earnings" value={formatLargeValue(holding.earnings)} />}

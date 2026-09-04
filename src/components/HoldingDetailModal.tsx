@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import type { Holding } from '../types/portfolio';
 import { TICKER_RANGES, useTickerHistory, type TickerRange } from '../hooks/useTickerHistory';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
@@ -44,16 +44,96 @@ const NEWS_INSTRUMENT_TYPES = new Set([
   'Mutual Fund',
 ]);
 
-function formatShares(value: number): string {
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(value);
+// Width of the y-axis column. The range selector row above the chart is
+// padded by the same amount so it lines up with the plot area rather than
+// starting under the axis labels.
+const Y_AXIS_WIDTH = 52;
+const GRID_STROKE = 'var(--color-border)';
+const DAY_MS = 86_400_000;
+
+// Smallest number of decimals (≤ 4) that renders `x` exactly, so tick labels
+// show "$2.50" for a 2.5 step but "$105" for a 5 step.
+function decimalsFor(x: number): number {
+  for (let d = 0; d < 4; d++) {
+    const scaled = x * 10 ** d;
+    if (Math.abs(scaled - Math.round(scaled)) < 1e-6) return d;
+  }
+  return 4;
 }
 
-// Axis prices: sub-$100 tickers need cents to read; six-figure ones
-// (BRK.A) need compaction so the axis column stays narrow.
-function formatAxisPrice(value: number): string {
-  if (Math.abs(value) >= 10_000) return `$${(value / 1_000).toFixed(0)}k`;
-  if (Math.abs(value) >= 100) return `$${value.toFixed(0)}`;
-  return `$${value.toFixed(2)}`;
+// Round `raw` up to the nearest 1 / 2 / 2.5 / 5 × 10^k.
+function niceStep(raw: number): number {
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const nice = [1, 2, 2.5, 5, 10].find((n) => n >= normalized - 1e-9) ?? 10;
+  return nice * magnitude;
+}
+
+// Evenly spaced y ticks on round prices, with the domain snapped to the
+// outermost ticks so the grid's top and bottom lines frame the plot. Recharts
+// would otherwise pin ticks to the raw padded min/max, which bunches the
+// first two labels together.
+function buildYAxis(closes: number[]): { domain: [number, number]; ticks: number[]; format: (v: number) => string } {
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const span = max - min > 0 ? max - min : Math.max(Math.abs(max) * 0.02, 0.01);
+  const step = niceStep(span / 4);
+  const pad = span * 0.05;
+  const lo = Math.floor((min - pad) / step) * step;
+  const hi = Math.ceil((max + pad) / step) * step;
+  const decimals = decimalsFor(step);
+  const ticks: number[] = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(Number(v.toFixed(decimals)));
+  // Six-figure prices (BRK.A) are compacted to "$700k" so the axis column stays narrow.
+  const kDecimals = decimalsFor(step / 1_000);
+  const format = (v: number) => (Math.abs(v) >= 10_000 ? `$${(v / 1_000).toFixed(kDecimals)}k` : `$${v.toFixed(decimals)}`);
+  return { domain: [lo, hi], ticks, format };
+}
+
+// X ticks on calendar boundaries (Mondays / month starts / year starts,
+// thinned to ≤ ~8), excluding the outer 4% of the span so the first and last
+// labels don't hang past the plot edges. Recharts' own tick picking puts a
+// tick at dataMin, whose centered label would spill under the y axis.
+function buildXAxis(points: ChartPoint[]): { ticks: number[]; format: (ts: number) => string } {
+  const first = points[0].timestamp;
+  const last = points[points.length - 1].timestamp;
+  const spanDays = (last - first) / DAY_MS;
+  const start = new Date(first);
+  const dates: Date[] = [];
+  let fmt: Intl.DateTimeFormat;
+  let labelYearOnJan = false;
+
+  if (spanDays <= 45) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+    for (; d.getTime() <= last; d.setDate(d.getDate() + 7)) dates.push(new Date(d));
+    fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+  } else if (spanDays <= 400) {
+    const monthStep = spanDays <= 220 ? 1 : 2;
+    const d = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    for (; d.getTime() <= last; d.setMonth(d.getMonth() + 1)) {
+      if (d.getMonth() % monthStep === 0) dates.push(new Date(d));
+    }
+    fmt = new Intl.DateTimeFormat('en-US', { month: 'short' });
+    labelYearOnJan = true;
+  } else {
+    const years = spanDays / 365;
+    const yearStep = years <= 8 ? 1 : Math.ceil(years / 8);
+    const d = new Date(start.getFullYear() + 1, 0, 1);
+    for (; d.getTime() <= last; d.setFullYear(d.getFullYear() + 1)) {
+      if (d.getFullYear() % yearStep === 0) dates.push(new Date(d));
+    }
+    fmt = new Intl.DateTimeFormat('en-US', { year: 'numeric' });
+  }
+
+  const edge = (last - first) * 0.04;
+  const ticks = dates.map((d) => d.getTime()).filter((ts) => ts >= first + edge && ts <= last - edge);
+  const format = (ts: number) => {
+    const d = new Date(ts);
+    if (labelYearOnJan && d.getMonth() === 0) return `${fmt.format(d)} ${d.getFullYear()}`;
+    return fmt.format(d);
+  };
+  return { ticks, format };
 }
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartPoint }> }) {
@@ -67,12 +147,25 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   );
 }
 
+function toneClass(tone?: 'positive' | 'negative'): string {
+  return tone === 'positive' ? 'text-positive' : tone === 'negative' ? 'text-negative' : 'text-text-primary';
+}
+
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'positive' | 'negative' }) {
-  const toneClass = tone === 'positive' ? 'text-positive' : tone === 'negative' ? 'text-negative' : 'text-text-primary';
   return (
     <div className="flex justify-between gap-3 text-sm">
       <span className="text-text-secondary">{label}</span>
-      <span className={`font-medium ${toneClass}`}>{value}</span>
+      <span className={`font-medium ${toneClass(tone)}`}>{value}</span>
+    </div>
+  );
+}
+
+// Label-over-value tile for the position row: several fit on one line.
+function MiniStat({ label, value, tone }: { label: string; value: string; tone?: 'positive' | 'negative' }) {
+  return (
+    <div>
+      <p className="text-[11px] text-text-secondary leading-tight">{label}</p>
+      <p className={`text-sm font-medium leading-snug ${toneClass(tone)}`}>{value}</p>
     </div>
   );
 }
@@ -118,21 +211,10 @@ export function HoldingDetailModal({ holding, onClose }: HoldingDetailModalProps
     return ((last - first) / first) * 100;
   }, [chartData]);
 
-  const { yDomain, tickFormatter } = useMemo(() => {
-    const closes = chartData.map((d) => d.close);
-    const min = Math.min(...closes);
-    const max = Math.max(...closes);
-    const span = max - min;
-    const pad = span > 0 ? span * 0.1 : Math.max(Math.abs(max) * 0.05, 1);
-    const spansYears = range === '5y' || range === 'max';
-    const fmt = spansYears
-      ? new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' })
-      : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-    return {
-      yDomain: [min - pad, max + pad] as [number, number],
-      tickFormatter: (ts: number) => fmt.format(new Date(ts)),
-    };
-  }, [chartData, range]);
+  const axes = useMemo(() => {
+    if (chartData.length === 0) return null;
+    return { x: buildXAxis(chartData), y: buildYAxis(chartData.map((d) => d.close)) };
+  }, [chartData]);
 
   const perShareDayChange = holding.currentPrice - holding.previousClose;
   const dayTone = holding.dayChangePercent >= 0 ? 'positive' : 'negative';
@@ -196,7 +278,7 @@ export function HoldingDetailModal({ holding, onClose }: HoldingDetailModalProps
         <div className="px-4 py-4 space-y-5">
           {/* Price history */}
           <section>
-            <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center justify-between gap-2 mb-2" style={{ paddingLeft: Y_AXIS_WIDTH }}>
               <div className="flex gap-1">
                 {TICKER_RANGES.map((r) => (
                   <button
@@ -224,31 +306,34 @@ export function HoldingDetailModal({ holding, onClose }: HoldingDetailModalProps
                 <div className="h-full flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : history.error || chartData.length === 0 ? (
+              ) : history.error || !axes ? (
                 <div className="h-full flex items-center justify-center text-sm text-text-secondary">
                   No price history available
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" />
                     <XAxis
                       dataKey="timestamp"
                       type="number"
                       scale="time"
                       domain={['dataMin', 'dataMax']}
-                      axisLine={false}
+                      ticks={axes.x.ticks}
+                      axisLine={{ stroke: GRID_STROKE }}
                       tickLine={false}
                       tick={{ fill: '#94a3b8', fontSize: 11 }}
-                      tickFormatter={tickFormatter}
+                      tickFormatter={axes.x.format}
                       minTickGap={40}
                     />
                     <YAxis
-                      domain={yDomain}
-                      axisLine={false}
+                      domain={axes.y.domain}
+                      ticks={axes.y.ticks}
+                      axisLine={{ stroke: GRID_STROKE }}
                       tickLine={false}
                       tick={{ fill: '#94a3b8', fontSize: 11 }}
-                      tickFormatter={formatAxisPrice}
-                      width={52}
+                      tickFormatter={axes.y.format}
+                      width={Y_AXIS_WIDTH}
                     />
                     <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#94a3b8', strokeDasharray: '3 3' }} />
                     <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} />
@@ -261,16 +346,15 @@ export function HoldingDetailModal({ holding, onClose }: HoldingDetailModalProps
           {/* Position */}
           <section>
             <SectionTitle>Your position</SectionTitle>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-              <Stat label="Shares" value={formatShares(holding.shares)} />
-              <Stat label="Value" value={formatCurrency(holding.value)} />
-              <Stat label="Allocation" value={`${holding.allocation.toFixed(1)}%`} />
-              <Stat label="Day change" value={formatChange(holding.dayChange)} tone={dayTone} />
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <MiniStat label="Value" value={formatCurrency(holding.value)} />
+              <MiniStat label="Allocation" value={`${holding.allocation.toFixed(1)}%`} />
+              <MiniStat label="Day change" value={formatChange(holding.dayChange)} tone={dayTone} />
               {holding.costBasis != null && (
-                <Stat label="Cost basis" value={formatCurrency(holding.costBasis)} />
+                <MiniStat label="Cost basis" value={formatCurrency(holding.costBasis)} />
               )}
               {holding.profitLoss != null && holding.profitLossPercent != null && (
-                <Stat
+                <MiniStat
                   label="Gain / loss"
                   value={`${formatChange(holding.profitLoss)} (${formatPercent(holding.profitLossPercent)})`}
                   tone={holding.profitLoss >= 0 ? 'positive' : 'negative'}

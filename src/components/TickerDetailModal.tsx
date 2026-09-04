@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import type { Holding } from '../types/portfolio';
 import { TICKER_RANGES, useTickerHistory, type TickerRange } from '../hooks/useTickerHistory';
-import { usePortfolioNews } from '../hooks/usePortfolioNews';
+import { useTickerNews } from '../hooks/usePortfolioNews';
 import {
   formatChartDate,
   formatLargeValue,
@@ -15,16 +14,37 @@ import {
   formatPrice,
 } from '../utils/formatters';
 
-// Per-holding detail sheet opened by clicking a ticker in HoldingsTable.
-// Replaces the old "i" fundamentals popover: same fields, plus a raw price
-// chart of the ticker itself and the ticker's AI news summary. Deliberately
-// says nothing about the position — the holdings row the user clicked already
-// shows it, and "your position" reads wrong on someone else's portfolio. Only ever mounted from the full-access
-// holdings view — allocation-only viewers never see HoldingsTable — so
-// nothing in here needs its own dollar gating.
+// Per-ticker detail sheet opened by clicking a ticker in HoldingsTable or the
+// landing-page MoversStrip. Replaces the old "i" fundamentals popovers: same
+// fields, plus a raw price chart of the ticker itself and the ticker's AI news
+// summary. Deliberately says nothing about any position — the row the user
+// clicked already shows it, and "your position" reads wrong on someone else's
+// portfolio. Only ever mounted where the figures are already visible
+// (full-access holdings view, public movers), so it needs no gating of its own.
 
-interface HoldingDetailModalProps {
-  holding: Holding;
+// The minimum a caller must know about a ticker. `Holding` satisfies it
+// structurally; MoversStrip builds one from a MarketMover.
+export interface TickerDetailSubject {
+  ticker: string;
+  name?: string | null;
+  instrumentType: string;
+  currentPrice: number;
+  previousClose: number;
+  dayChangePercent: number;
+  revenue?: number | null;
+  earnings?: number | null;
+  peRatio?: number | null;
+  forwardPE?: number | null;
+  forwardPENext?: number | null;
+  operatingMargin?: number | null;
+  revenueGrowth3Y?: number | null;
+  epsGrowth3Y?: number | null;
+  pctTo52WeekHigh?: number | null;
+  week52High?: number | null;
+}
+
+interface TickerDetailModalProps {
+  subject: TickerDetailSubject;
   onClose: () => void;
 }
 
@@ -176,12 +196,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">{children}</h3>;
 }
 
-export function HoldingDetailModal({ holding, onClose }: HoldingDetailModalProps) {
+export function TickerDetailModal({ subject: holding, onClose }: TickerDetailModalProps) {
   const [range, setRange] = useState<TickerRange>('1y');
   const history = useTickerHistory(holding.ticker, range);
   const showNews = NEWS_INSTRUMENT_TYPES.has(holding.instrumentType);
-  const holdingArray = useMemo(() => [holding], [holding]);
-  const news = usePortfolioNews(showNews ? holdingArray : []);
+  const news = useTickerNews(showNews ? holding.ticker : null);
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {

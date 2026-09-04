@@ -74,3 +74,17 @@ export function usePortfolioNews(holdings: Holding[]) {
     refetchOnWindowFocus: false,
   });
 }
+
+// Single-ticker variant for the ticker detail panel, which may be opened from
+// surfaces that don't have a Holding (the landing-page movers strip). Pass
+// null to disable. Same endpoint and freshness as the portfolio-wide query.
+export function useTickerNews(ticker: string | null) {
+  return useQuery({
+    queryKey: ['news', ticker],
+    queryFn: () => fetchNews(ticker ? [ticker] : []),
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 12 * 60 * 60 * 1000,
+    enabled: ticker != null,
+    refetchOnWindowFocus: false,
+  });
+}

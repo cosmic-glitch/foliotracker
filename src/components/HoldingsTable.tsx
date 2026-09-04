@@ -1,11 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
 import type { Holding } from '../types/portfolio';
 import { ArrowUpDown, ChartLine, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency, formatChange, formatPercent, formatPrice, formatLargeValue, formatPERatio, formatPctTo52WeekHigh, formatMarginOrGrowth } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import { useTimeframe } from '../context/TimeframeContext';
-import { HoldingDetailModal } from './HoldingDetailModal';
+import { TickerDetailModal } from './TickerDetailModal';
+import { useTickerDetailParam } from '../hooks/useTickerDetailParam';
 
 // Resolve which change pair drives the "Chg %" / "Chg $" columns for the
 // active global timeframe. Returns null when the snapshot lacks 30D data
@@ -98,33 +98,11 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
     direction: 'desc',
   });
 
-  // The open detail panel lives in the URL (`?t=TICKER`) rather than local
-  // state so the browser back button (and the swipe-back gesture on mobile)
-  // closes it, and a link to a specific holding is shareable. Opening pushes
-  // a history entry; closing via the X replaces it so Back from the closed
-  // page doesn't re-open the panel. Other params (`share`) are preserved.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const openTicker = searchParams.get('t');
+  // Open detail panel is URL state (`?t=TICKER`, see useTickerDetailParam).
+  const { openTicker, openDetail, closeDetail } = useTickerDetailParam();
   const detailHolding = openTicker
     ? consolidatedHoldings.find((h) => h.ticker === openTicker && !h.isStatic) ?? null
     : null;
-  const openDetail = (ticker: string) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('t', ticker);
-      return next;
-    });
-  };
-  const closeDetail = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete('t');
-        return next;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
 
   // Tickers are the entry point to the detail panel. Static holdings have no
   // price series or fundamentals, so they stay plain text.
@@ -427,7 +405,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       </table>
 
       {detailHolding && (
-        <HoldingDetailModal holding={detailHolding} onClose={closeDetail} />
+        <TickerDetailModal subject={detailHolding} onClose={closeDetail} />
       )}
     </div>
   );

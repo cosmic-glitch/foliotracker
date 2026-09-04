@@ -378,14 +378,19 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // ones). The genuine movers always lead.
 //
 // Two parallel rankings are returned — `regular` and `extended` — one per price
-// basis. The extended move is the snapshot's `dayChangePercent` (its current
-// price already carries the latest pre/post-market print); the regular move is
-// recomputed from `regularMarketPrice` vs the same previous close, mirroring how
-// usePortfolioData recomputes day change when Extended Hours is off. The strip
-// renders whichever the viewer's Extended Hours toggle selects (default off ⇒
-// regular), so the movers stay consistent with the holdings table and totals.
-// Because the strip is ordered by |move|, the ranking — not just the displayed
-// percentage — switches with the basis.
+// basis. The regular move is recomputed from `regularMarketPrice` vs previous
+// close, mirroring how usePortfolioData recomputes day change when Extended
+// Hours is off. The extended move is the EXTENDED-SESSION-ONLY move — the
+// latest pre/post-market print vs the regular-session close — NOT the full-day
+// move the snapshot's `dayChangePercent` carries. With Extended Hours on, the
+// viewer wants to know what's moving after the bell, and a name that ran 5% in
+// the session and sat flat after-hours shouldn't crowd out one that's up 3%
+// since the close. The strip renders whichever the viewer's Extended Hours
+// toggle selects (default off ⇒ regular). Because the strip is ordered by
+// |move|, the ranking — not just the displayed percentage — switches with the
+// basis. While no name has an extended print (regular session in progress, or
+// the extended session hasn't traded yet), every extended-only move is 0 and
+// the ranking would be noise, so `extended` falls back to the regular list.
 
 // Ticker-level fundamentals carried alongside each mover so clicking a ticker
 // in the landing strip opens the same ticker detail panel (revenue, earnings,
@@ -478,14 +483,15 @@ function computeMarketMovers(
     if (!snapshot) continue;
 
     for (const h of snapshot.holdings_json) {
-      if (h.isStatic || !Number.isFinite(h.dayChangePercent)) continue;
+      if (h.isStatic || !Number.isFinite(h.currentPrice)) continue;
       const eligible =
         h.instrumentType === 'Common Stock' || h.instrumentType === 'ETF';
       if (!eligible) continue;
 
-      // Regular-hours move: regular-session close vs the same previous close
-      // the extended move uses. Falls back to the (extended) current price when
-      // a snapshot predates regularMarketPrice.
+      // Regular-hours move: regular-session close vs previous close. Falls
+      // back to the (extended) current price when a snapshot predates
+      // regularMarketPrice — which also zeroes the extended-only move below,
+      // since the two prices then coincide.
       const regPrice =
         Number.isFinite(h.regularMarketPrice) && h.regularMarketPrice > 0
           ? h.regularMarketPrice
@@ -494,6 +500,11 @@ function computeMarketMovers(
         h.previousClose > 0
           ? ((regPrice - h.previousClose) / h.previousClose) * 100
           : 0;
+      // Extended-only move: latest pre/post-market print vs the regular close.
+      // currentPrice already carries the latest extended print (see the
+      // snapshot refresh); during the regular session it equals regPrice.
+      const changeExtended =
+        regPrice > 0 ? ((h.currentPrice - regPrice) / regPrice) * 100 : 0;
 
       const fundamentals: MoverFundamentals = {
         revenue: h.revenue,
@@ -517,7 +528,7 @@ function computeMarketMovers(
           previousClose: h.previousClose,
           priceExtended: h.currentPrice,
           priceRegular: regPrice,
-          changeExtended: h.dayChangePercent,
+          changeExtended,
           changeRegular,
           fromCanonical: isCanonical,
           isEtf: h.instrumentType === 'ETF',
@@ -534,7 +545,7 @@ function computeMarketMovers(
         entry.previousClose = h.previousClose;
         entry.priceExtended = h.currentPrice;
         entry.priceRegular = regPrice;
-        entry.changeExtended = h.dayChangePercent;
+        entry.changeExtended = changeExtended;
         entry.changeRegular = changeRegular;
         entry.name = h.name;
         entry.fundamentals = fundamentals;
@@ -621,16 +632,21 @@ function computeMarketMovers(
     }));
   };
 
-  return {
-    regular: rankBy(
-      (c) => c.changeRegular,
-      (c) => c.priceRegular
-    ),
-    extended: rankBy(
-      (c) => c.changeExtended,
-      (c) => c.priceExtended
-    ),
-  };
+  const regular = rankBy(
+    (c) => c.changeRegular,
+    (c) => c.priceRegular
+  );
+  // No extended print anywhere yet ⇒ every extended-only move is 0 and the
+  // ranking would just backfill arbitrary flat names; serve the regular list
+  // instead until the extended session actually moves something.
+  const hasExtendedActivity = candidates.some((c) => c.changeExtended !== 0);
+  const extended = hasExtendedActivity
+    ? rankBy(
+        (c) => c.changeExtended,
+        (c) => c.priceExtended
+      )
+    : regular;
+  return { regular, extended };
 }
 
 // A portfolio's 1D ("Top today") move is *unknown* — not flat — when every

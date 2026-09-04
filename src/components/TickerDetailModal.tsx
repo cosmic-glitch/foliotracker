@@ -48,10 +48,12 @@ export interface TickerDetailSubject {
 }
 
 // One line under the header price: either the plain per-share day change
-// (unlabelled) or a labelled session price with its move.
+// (unlabelled) or a labelled session figure. The row for the session the big
+// price already shows (after hours / pre-market) carries only its move — the
+// price repeated an inch below itself read as a second, different number.
 type HeaderRow =
   | { label: null; change: number; percent: number }
-  | { label: string; price: number; percent: number | null };
+  | { label: string; price: number | null; percent: number | null };
 
 interface TickerDetailModalProps {
   subject: TickerDetailSubject;
@@ -376,7 +378,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
         price: latest,
         rows: [
           { label: 'Prev close', price: prev, percent: null },
-          { label: 'Pre-market', price: latest, percent: pct(latest, prev) },
+          { label: 'Pre-market', price: null, percent: pct(latest, prev) },
         ],
       };
     }
@@ -384,7 +386,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
       price: latest,
       rows: [
         { label: 'At close', price: close, percent: pct(close, prev) },
-        { label: 'After hours', price: latest, percent: pct(latest, close) },
+        { label: 'After hours', price: null, percent: pct(latest, close) },
       ],
     };
   }, [holding.extendedPrice, holding.currentPrice, holding.regularMarketPrice, holding.previousClose]);
@@ -448,9 +450,11 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                 ) : (
                   <p key={row.label} className="text-xs leading-snug">
                     <span className="text-text-secondary">{row.label} </span>
-                    <span className="text-text-primary">{formatPrice(row.price)}</span>
+                    {row.price != null && <span className="text-text-primary">{formatPrice(row.price)}</span>}
                     {row.percent != null && (
-                      <span className={row.percent >= 0 ? 'text-positive' : 'text-negative'}> ({formatPercent(row.percent)})</span>
+                      <span className={row.percent >= 0 ? 'text-positive' : 'text-negative'}>
+                        {row.price != null ? ` (${formatPercent(row.percent)})` : formatPercent(row.percent)}
+                      </span>
                     )}
                   </p>
                 )

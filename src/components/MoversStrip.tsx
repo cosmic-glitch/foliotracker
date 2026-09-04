@@ -76,6 +76,12 @@ interface MoversStripProps {
   // doesn't pop in above the Users card and shove it down once data lands. Once
   // loaded, an empty `movers` means a genuinely quiet day → render nothing.
   isLoading?: boolean;
+  // Set when the rows are ranked by the extended-session-only move (Extended
+  // Hours on AND the API confirms extended prints exist). Renders a small
+  // "pre-market" / "after-hours" pill beside the tab so the reader knows the
+  // percentages are moves since the close, not the day's. Undefined ⇒ the
+  // rows are the intraday movers and no qualifier is shown.
+  session?: 'pre-market' | 'after-hours';
 }
 
 // How many movers the pill shows by default (one per row) — the collapsed size.
@@ -152,7 +158,7 @@ function holderLabel(m: MarketMover, visibleCount = m.holders.length): string {
 // filler. The server keeps the list populated (see computeMarketMovers). During
 // the very first load (no data yet) it instead holds its space with a skeleton,
 // so it doesn't pop in above the Users card and shove it down once data arrives.
-export function MoversStrip({ movers, isLoading }: MoversStripProps) {
+export function MoversStrip({ movers, isLoading, session }: MoversStripProps) {
   // Collapsed by default; the viewer can expand to the full qualified list and
   // collapse back. Only offered when the server returned more than DISPLAY_COUNT
   // (i.e. there are qualified movers beyond the default rows to reveal).
@@ -234,12 +240,25 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
   // down the stack. The lucide Flame is a single-color thin-stroke amber flame
   // (no second shade), identical across platforms — the look the user preferred
   // over the native 🔥. Shared by the real strip and the loading skeleton below.
+  //
+  // The session qualifier ("pre-market" / "after-hours") sits OUTSIDE the tab,
+  // to its right, so the tab keeps the shared fixed width and the three tabs
+  // stay aligned; it appears only while the extended-only ranking is live and
+  // disappears entirely in the normal (intraday) case. Amber matches the
+  // pre/after-hours state of the header's market-status badge.
   const tab = (
-    <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
-      <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
-      <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
-        Top movers
-      </span>
+    <div className="flex items-center gap-2">
+      <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+        <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
+        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
+          Top movers
+        </span>
+      </div>
+      {session && (
+        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-500 whitespace-nowrap">
+          {session}
+        </span>
+      )}
     </div>
   );
 
@@ -272,7 +291,11 @@ export function MoversStrip({ movers, isLoading }: MoversStripProps) {
   return (
     <div
       className="mb-3 md:mb-6"
-      aria-label="Today's movers among tracked holdings"
+      aria-label={
+        session
+          ? `${session === 'pre-market' ? 'Pre-market' : 'After-hours'} movers among tracked holdings`
+          : "Today's movers among tracked holdings"
+      }
     >
       {tab}
 

@@ -48,7 +48,15 @@ export interface PortfoliosResponse {
   // independently-ranked lists, one per price basis — the strip shows `extended`
   // or `regular` depending on the Extended Hours toggle, matching the holdings
   // table and totals.
-  movers?: { regular: MarketMover[]; extended: MarketMover[] };
+  movers?: {
+    regular: MarketMover[];
+    extended: MarketMover[];
+    // Which basis `extended` is actually on: the extended-session-only move, or
+    // the regular list it falls back to while nothing has traded outside
+    // regular hours (see computeMarketMovers). Optional for pre-deploy caches
+    // (treated as the regular fallback ⇒ no session label).
+    extendedBasis?: 'extended-only' | 'regular';
+  };
   // Total view events recorded site-wide today (Pacific day). Shown as a
   // social-proof hook on the movers strip's tab row. Optional so older cached
   // payloads degrade to no counter.

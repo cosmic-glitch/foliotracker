@@ -390,7 +390,9 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // |move|, the ranking — not just the displayed percentage — switches with the
 // basis. While no name has an extended print (regular session in progress, or
 // the extended session hasn't traded yet), every extended-only move is 0 and
-// the ranking would be noise, so `extended` falls back to the regular list.
+// the ranking would be noise, so `extended` falls back to the regular list —
+// and `extendedBasis` tells the client which happened, so the strip can label
+// the extended-only ranking ("after-hours" / "pre-market") only when it's live.
 
 // Ticker-level fundamentals carried alongside each mover so clicking a ticker
 // in the landing strip opens the same ticker detail panel (revenue, earnings,
@@ -455,7 +457,11 @@ const SHARE_CLASS_ALIASES: Record<string, string> = { GOOGL: 'GOOG' };
 function computeMarketMovers(
   portfolios: DbPortfolioListItem[],
   snapshotMap: Map<string, DbPortfolioSnapshot>
-): { regular: MarketMover[]; extended: MarketMover[] } {
+): {
+  regular: MarketMover[];
+  extended: MarketMover[];
+  extendedBasis: 'extended-only' | 'regular';
+} {
   const byTicker = new Map<
     string,
     {
@@ -646,7 +652,11 @@ function computeMarketMovers(
         (c) => c.priceExtended
       )
     : regular;
-  return { regular, extended };
+  return {
+    regular,
+    extended,
+    extendedBasis: hasExtendedActivity ? 'extended-only' : 'regular',
+  };
 }
 
 // A portfolio's 1D ("Top today") move is *unknown* — not flat — when every

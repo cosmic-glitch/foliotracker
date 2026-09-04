@@ -472,11 +472,24 @@ export function LandingPage() {
         <div className="md:flex md:gap-6">
           {/* Left column: Users table + Create button */}
           <div className="md:flex-1 min-w-0">
+            {/* With Extended Hours on, the strip ranks by the extended-session-
+                only move whenever the API confirms that basis is live (else it
+                serves the regular list, so no label). Pre-market vs after-hours
+                comes from the market calendar: before the open on a trading day
+                the prints are pre-market; any other time (evening, overnight,
+                weekend) they're the last after-hours session's. */}
             <MoversStrip
               movers={
                 (showExtendedHours
                   ? data?.movers?.extended
                   : data?.movers?.regular) ?? []
+              }
+              session={
+                showExtendedHours && data?.movers?.extendedBasis === 'extended-only'
+                  ? getMarketStatus() === 'pre-market'
+                    ? 'pre-market'
+                    : 'after-hours'
+                  : undefined
               }
               isLoading={isLoading}
             />

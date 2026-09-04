@@ -28,8 +28,11 @@ export interface TickerChart {
   // Intraday only (null otherwise): the session bounds (`start`/`end` regular,
   // `preStart`/`postEnd` extended — equal to the regular ones when the
   // instrument has no extended tape) and the prior close the day change is
-  // measured from. Points always include pre/post bars.
+  // measured from. Points always include pre/post bars. `regularClose` is
+  // Yahoo's official regular-session close (the live price while the session
+  // is open).
   previousClose: number | null;
+  regularClose: number | null;
   session: { preStart: string; start: string; end: string; postEnd: string } | null;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
@@ -289,6 +289,17 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     };
   }, [chartData, intraday, previousClose, history.data?.session]);
 
+  // Inset for the range-selector row (see measureYAxisWidth). Held across
+  // loads: a fresh symbol+range pair has no data while it fetches, and
+  // letting the inset collapse to 0 made the buttons jump left and back on
+  // every first visit to a range. Seeded from the current price so the first
+  // open lands close to where the real axis will.
+  const selectorInset = useRef<number | null>(null);
+  if (axes) selectorInset.current = axes.y.width;
+  else if (selectorInset.current === null && holding.currentPrice > 0) {
+    selectorInset.current = buildYAxis([holding.currentPrice * 0.9, holding.currentPrice * 1.1]).width;
+  }
+
   const perShareDayChange = holding.currentPrice - holding.previousClose;
   const dayTone = holding.dayChangePercent >= 0 ? 'positive' : 'negative';
 
@@ -361,7 +372,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
         <div className="px-4 py-4 space-y-5">
           {/* Price history */}
           <section>
-            <div className="flex items-center justify-between gap-2 mb-2" style={{ paddingLeft: axes?.y.width ?? 0 }}>
+            <div className="flex items-center justify-between gap-2 mb-2" style={{ paddingLeft: selectorInset.current ?? 0 }}>
               <div className="flex gap-1">
                 {TICKER_RANGES.map((r) => (
                   <button

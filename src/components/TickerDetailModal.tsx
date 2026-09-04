@@ -269,12 +269,16 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Bottom sheet on mobile, centered dialog from `sm` up. */}
+      {/* Bottom sheet on mobile, centered dialog from `sm` up. The mobile
+          sheet has a FIXED height (not max-height) so it always reaches near
+          the top of the screen and scrolls inside: content-sized, it would
+          grow when the news query resolved a beat after the fundamentals,
+          which read as a jitter. dvh so mobile browser chrome doesn't clip it. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="holding-detail-title"
-        className="relative w-full sm:max-w-lg max-h-[92vh] sm:max-h-[85vh] overflow-y-auto bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-xl"
+        className="relative w-full sm:max-w-lg h-[94dvh] sm:h-auto sm:max-h-[85vh] overflow-y-auto bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-xl"
       >
         <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 flex items-start justify-between gap-3">
           <div className="min-w-0">

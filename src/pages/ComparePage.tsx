@@ -9,6 +9,7 @@ import { portfolioKeys } from '../hooks/usePortfolioData';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import type { Holding } from '../types/portfolio';
 import { Footer } from '../components/Footer';
+import { AllocationBar } from '../components/AllocationBar';
 
 const MAX_COMPARE = 4;
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -60,11 +61,6 @@ type CompareEntry =
   | { status: 'ok'; result: CompareResult }
   | { status: 'error'; id: string; message: string }
   | { status: 'loading'; id: string };
-
-function formatPct(v: number | null): string {
-  if (v === null) return '—';
-  return `${v.toFixed(1)}%`;
-}
 
 type RowFilter = 'all' | 'common' | 'different';
 
@@ -210,6 +206,11 @@ export function ComparePage() {
     const key = (r: (typeof all)[number]) => (sortIdx >= 0 ? (r.pcts[sortIdx] ?? 0) : r.max);
     return filtered.sort((a, b) => key(b) - key(a) || b.max - a.max || a.ticker.localeCompare(b.ticker));
   }, [allocMaps, rowFilter, sortById]);
+
+  // One shared scale across every column so bar lengths compare honestly
+  // between portfolios, not just within one — the largest visible weight
+  // fills its cell, everything else is proportional to it.
+  const tableMax = useMemo(() => Math.max(0, ...rows.map((r) => r.max)), [rows]);
 
   const copyLink = async () => {
     try {
@@ -399,7 +400,7 @@ export function ComparePage() {
                         <th
                           key={p.id}
                           aria-sort={active ? 'descending' : 'none'}
-                          className="text-right font-semibold text-xs px-3 py-2 min-w-[86px]"
+                          className="text-left font-semibold text-xs px-3 py-2 min-w-[150px]"
                         >
                           <button
                             onClick={() => setSortById(active ? null : p.id)}
@@ -423,17 +424,11 @@ export function ComparePage() {
                         {row.ticker}
                       </td>
                       {row.pcts.map((pct, i) => (
-                        <td key={allocMaps[i].id} className="text-right px-3 py-2 tabular-nums">
+                        <td key={allocMaps[i].id} className="px-3 py-1.5 min-w-[150px]">
                           {pct === null || pct <= 0 ? (
-                            <span className="text-text-secondary/50">—</span>
+                            <span className="text-xs text-text-secondary/50">—</span>
                           ) : (
-                            <>
-                              <span className="text-text-primary">{formatPct(pct)}</span>
-                              <span
-                                className="block ml-auto mt-0.5 h-1 rounded-full bg-accent/70"
-                                style={{ width: `${Math.min(100, pct)}%` }}
-                              />
-                            </>
+                            <AllocationBar percent={pct} maxPercent={tableMax} />
                           )}
                         </td>
                       ))}
@@ -453,8 +448,9 @@ export function ComparePage() {
               </table>
             </div>
             <p className="px-4 py-2.5 text-[11px] text-text-secondary border-t border-border">
-              Allocation percentages of net worth — sorted by largest weight. Holdings are
-              consolidated the same way as the portfolio page.
+              Allocation percentages of net worth — sorted by largest weight. Bars share one
+              scale across all portfolios. Holdings are consolidated the same way as the
+              portfolio page.
               {!includeStatic && ' Cash/static rows are hidden, not redistributed.'}
             </p>
           </section>

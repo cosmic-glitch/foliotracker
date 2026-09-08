@@ -26,6 +26,7 @@ import {
 } from './_lib/db.js';
 import { getSymbolInfo, getQuote } from './_lib/yahoo.js';
 import { refreshPortfolioSnapshot } from './_lib/snapshot.js';
+import { isMarketOpen } from './_lib/cache.js';
 import {
   getAllSnapshotsFromRedis,
   getPortfoliosFromRedis,
@@ -388,9 +389,9 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // since the close. The strip renders whichever the viewer's Extended Hours
 // toggle selects (default off ⇒ regular). Because the strip is ordered by
 // |move|, the ranking — not just the displayed percentage — switches with the
-// basis. While no name has an extended print (regular session in progress, or
-// the extended session hasn't traded yet), every extended-only move is 0 and
-// the ranking would be noise, so `extended` falls back to the regular list —
+// basis. While the regular session is in progress, or no name has an extended
+// print yet, the extended-only move is noise or 0 and the ranking would be
+// meaningless, so `extended` falls back to the regular list —
 // and `extendedBasis` tells the client which happened, so the strip can label
 // the extended-only ranking ("after-hours" / "pre-market") only when it's live.
 
@@ -507,8 +508,12 @@ function computeMarketMovers(
           ? ((regPrice - h.previousClose) / h.previousClose) * 100
           : 0;
       // Extended-only move: latest pre/post-market print vs the regular close.
-      // currentPrice already carries the latest extended print (see the
-      // snapshot refresh); during the regular session it equals regPrice.
+      // currentPrice carries the latest extended print (see the snapshot
+      // refresh). NOTE: during the regular session the two do NOT coincide —
+      // currentPrice is the last 1-minute intraday bar while regularMarketPrice
+      // is Yahoo's quote tick, so they differ by a few basis points of noise
+      // on virtually every name. The extended basis is therefore only
+      // meaningful outside regular hours; see the isMarketOpen gate below.
       const changeExtended =
         regPrice > 0 ? ((h.currentPrice - regPrice) / regPrice) * 100 : 0;
 
@@ -642,10 +647,17 @@ function computeMarketMovers(
     (c) => c.changeRegular,
     (c) => c.priceRegular
   );
-  // No extended print anywhere yet ⇒ every extended-only move is 0 and the
-  // ranking would just backfill arbitrary flat names; serve the regular list
-  // instead until the extended session actually moves something.
-  const hasExtendedActivity = candidates.some((c) => c.changeExtended !== 0);
+  // The extended-only basis is live only outside the regular session AND once
+  // some name has actually printed. During regular hours currentPrice (last
+  // 1-minute bar) and regularMarketPrice (quote tick) differ by noise on nearly
+  // every ticker, so a bare non-zero check would flip the basis to
+  // "extended-only" all session long and rank the strip by 1-minute jitter
+  // (labelled "after-hours" on the client — the bug this gate fixes). With no
+  // extended print yet (session just closed / pre-market not yet trading),
+  // every extended-only move is 0 and the ranking would backfill arbitrary
+  // flat names; serve the regular list in both cases.
+  const hasExtendedActivity =
+    !isMarketOpen() && candidates.some((c) => c.changeExtended !== 0);
   const extended = hasExtendedActivity
     ? rankBy(
         (c) => c.changeExtended,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Clock, Loader2, Pencil, X } from 'lucide-react';
+import { AlertCircle, Clock, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import type { HoldingsHistoryEntry, HoldingsHistoryPatch } from '../hooks/useHoldingsHistory';
 import { formatCurrency } from '../utils/formatters';
 import type { Session } from '../utils/holdingsHistory';
@@ -196,6 +196,22 @@ function EditEntryDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Direct, second-person prompt naming the actual fill: buys ask what you
+  // paid, sells ask what you sold at. `details` rows have no share change,
+  // so they get a generic correction prompt instead.
+  const tradeVerb =
+    entryKind(entry) === 'trim' || entryKind(entry) === 'exit'
+      ? 'sell at'
+      : entryKind(entry) === 'details'
+        ? null
+        : 'pay';
+  const pricePrompt =
+    tradeVerb != null ? `What did you actually ${tradeVerb} per share?` : 'What was the actual price per share?';
+  const priceHelper =
+    estimate != null
+      ? `${pricePrompt} We guessed ${formatCurrency(estimate)} from that day's close — clear the field to go back to our estimate.`
+      : `${pricePrompt} Clear the field to go back to our estimate.`;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSaving) onCancel();
@@ -266,7 +282,7 @@ function EditEntryDialog({
 
         {!entry.is_static && (
           <label className="block mb-3">
-            <span className="block text-xs font-medium text-text-secondary mb-1">Price per share</span>
+            <span className="block text-xs font-medium text-text-secondary mb-1">Actual price per share</span>
             <input
               type="number"
               min="0"
@@ -278,9 +294,7 @@ function EditEntryDialog({
               placeholder={estimate != null ? `Estimate $${estimate}` : 'Market estimate'}
               className="w-full bg-card-hover border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-text-secondary/50 disabled:opacity-50"
             />
-            <span className="block text-[11px] text-text-secondary/70 mt-1">
-              Corrects the ~estimate (EOD close). Clear to revert to the estimate.
-            </span>
+            <span className="block text-[11px] text-text-secondary/70 mt-1">{priceHelper}</span>
           </label>
         )}
 
@@ -334,8 +348,9 @@ function EditEntryDialog({
             type="button"
             onClick={() => onDeleteRequest(entry)}
             disabled={isSaving}
-            className="mt-3 w-full text-center text-xs text-text-secondary/50 hover:text-negative transition-colors disabled:opacity-50"
+            className="mt-3 w-full rounded-xl border border-negative/30 py-2 text-sm font-medium text-negative transition-colors hover:bg-negative/10 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
+            <Trash2 className="w-3.5 h-3.5" />
             Delete this entry
           </button>
         )}

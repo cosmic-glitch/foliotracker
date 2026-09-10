@@ -64,7 +64,7 @@ Wrappers self-sync via `git pull --ff-only origin main`; the news/events jobs ne
 ## Ops one-liners
 
 ```bash
-source .env.local && npx tsx scripts/run-migration.ts                       # migrations (pg against SUPABASE_DB_URL; idiom in scripts/migrate-*.ts)
+set -a; source .env.local; set +a && npx tsx scripts/migrate-<name>.ts       # migrations (pg against SUPABASE_DB_URL; idiom in scripts/migrate-*.ts; plain `source` doesn't export, so `set -a` is required)
 source .env.local && npx tsx scripts/generate-research.ts <id|--all>        # deep research (o4-mini-deep-research, background mode, polls ≤30 min, typ. 5–15)
 source .env.local && npx tsx scripts/reset-password.ts <id> <new_password>  # re-hash + invalidate sessions
 ```

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Clock, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import type { HoldingsHistoryEntry, HoldingsHistoryPatch } from '../hooks/useHoldingsHistory';
 import { formatCurrency } from '../utils/formatters';
@@ -207,10 +207,32 @@ function EditEntryDialog({
         : 'pay';
   const pricePrompt =
     tradeVerb != null ? `What did you actually ${tradeVerb} per share?` : 'What was the actual price per share?';
-  const priceHelper =
-    estimate != null
-      ? `${pricePrompt} We guessed ${formatCurrency(estimate)} from that day's close — clear the field to go back to our estimate.`
-      : `${pricePrompt} Clear the field to go back to our estimate.`;
+  // Two explicit modes instead of clear-the-field-to-revert: either our
+  // estimate applies, or the user's actual fill does. Starts on the
+  // estimate unless the row already carries a correction.
+  const [useEstimate, setUseEstimate] = useState(() => (entry.price_override ?? null) == null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+  const toggleEstimate = () => {
+    if (useEstimate) {
+      // Entering actual mode: pre-fill with the estimate so the user
+      // adjusts it rather than typing from scratch.
+      if (priceText.trim() === '') {
+        setPriceText(estimate != null ? String(estimate) : entry.price != null ? String(entry.price) : '');
+      }
+      setUseEstimate(false);
+      window.setTimeout(() => priceInputRef.current?.focus(), 0);
+    } else {
+      setUseEstimate(true);
+    }
+  };
+  // Status line under the field: what applies now, in plain terms.
+  const modeStatus = useEstimate
+    ? estimate != null
+      ? `Using our estimate (~${formatCurrency(estimate)}) from that day's close.`
+      : 'Using the market estimate.'
+    : priceText.trim() === ''
+      ? 'Enter the actual price, or use our estimate instead.'
+      : pricePrompt;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -220,19 +242,49 @@ function EditEntryDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [isSaving, onCancel]);
 
-  const normalizedPrice: number | null = priceText.trim() === '' ? null : Number(priceText);
-  const priceValid = priceText.trim() === '' || (Number.isFinite(normalizedPrice) && (normalizedPrice as number) > 0);
+  const normalizedPrice: number | null = useEstimate || priceText.trim() === '' ? null : Number(priceText);
+  // In actual mode an empty field is invalid: type a price or switch back
+  // to the estimate. In estimate mode there is nothing to validate.
+  const priceValid =
+    useEstimate || (priceText.trim() !== '' && Number.isFinite(normalizedPrice) && (normalizedPrice as number) > 0);
   const normalizedNote = noteText.trim() === '' ? null : noteText.trim();
   // Compare against the displayed figure, not just the override: retyping the
   // estimate must not count as a change (saving it would silently flip ~ to
-  // exact with identical dollars).
-  const priceChanged = entry.is_static ? false : normalizedPrice !== (entry.price_override ?? entry.price ?? null);
+  // exact with identical dollars). Reverting to the estimate only counts
+  // when a correction actually exists.
+  const priceChanged = entry.is_static
+    ? false
+    : useEstimate
+      ? (entry.price_override ?? null) != null
+      : normalizedPrice !== (entry.price_override ?? entry.price ?? null);
+  // Live preview of what saving does to the row, in the row's own terms
+  // (~ estimate vs exact figure). Shown only when the save would visibly
+  // change the price.
+  const currentFigure = entry.price_override ?? entry.price ?? null;
+  const currentIsEstimate = (entry.price_override ?? null) == null;
+  let pricePreview: string | null = null;
+  if (!entry.is_static) {
+    if (useEstimate) {
+      if ((entry.price_override ?? null) != null) {
+        pricePreview =
+          estimate != null
+            ? `Will go back to our estimate (~${formatCurrency(estimate)}).`
+            : 'Will go back to the market estimate.';
+      }
+    } else if (priceValid && normalizedPrice != null) {
+      if (currentFigure == null) {
+        pricePreview = `Will show ${formatCurrency(normalizedPrice)} (exact).`;
+      } else if (normalizedPrice !== currentFigure) {
+        pricePreview = `Will show ${formatCurrency(normalizedPrice)} (exact) instead of ${currentIsEstimate ? '~' : ''}${formatCurrency(currentFigure)}.`;
+      }
+    }
+  }
   const noteChanged = normalizedNote !== (entry.note ?? null);
   const canSave = !isSaving && priceValid && (priceChanged || noteChanged);
 
   const handleSave = async () => {
     if (!priceValid) {
-      setError('Enter a positive price, or clear the field to use the market estimate.');
+      setError('Enter a positive price, or use our estimate instead.');
       return;
     }
     setIsSaving(true);
@@ -281,21 +333,43 @@ function EditEntryDialog({
         </p>
 
         {!entry.is_static && (
-          <label className="block mb-3">
-            <span className="block text-xs font-medium text-text-secondary mb-1">Actual price per share</span>
+          <div className="mb-3">
+            <label
+              htmlFor="history-entry-price"
+              className="block text-xs font-medium text-text-secondary mb-1"
+            >
+              Actual price per share
+            </label>
             <input
+              id="history-entry-price"
+              ref={priceInputRef}
               type="number"
               min="0"
               step="any"
               inputMode="decimal"
-              value={priceText}
+              value={useEstimate ? (estimate != null ? String(estimate) : '') : priceText}
               onChange={(e) => setPriceText(e.target.value)}
-              disabled={isSaving}
-              placeholder={estimate != null ? `Estimate $${estimate}` : 'Market estimate'}
+              disabled={isSaving || useEstimate}
+              placeholder="Market estimate"
               className="w-full bg-card-hover border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-text-secondary/50 disabled:opacity-50"
             />
-            <span className="block text-[11px] text-text-secondary/70 mt-1">{priceHelper}</span>
-          </label>
+            <div className="mt-1 flex items-start justify-between gap-2">
+              <span className="text-[11px] text-text-secondary/70">{modeStatus}</span>
+              <button
+                type="button"
+                onClick={toggleEstimate}
+                disabled={isSaving}
+                className="shrink-0 text-[11px] font-medium text-accent hover:underline disabled:opacity-50"
+              >
+                {useEstimate ? 'Enter actual price' : 'Use estimate instead'}
+              </button>
+            </div>
+            {pricePreview && (
+              <p className="mt-2 rounded-lg bg-accent/10 border border-accent/20 px-3 py-2 text-xs text-text-primary">
+                {pricePreview}
+              </p>
+            )}
+          </div>
         )}
 
         <label className="block mb-4">

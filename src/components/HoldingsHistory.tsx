@@ -196,21 +196,22 @@ function EditEntryDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Direct, second-person prompt naming the actual fill: buys ask what you
+  // The field label asks for the actual fill directly: buys ask what you
   // paid, sells ask what you sold at. `details` rows have no share change,
-  // so they get a generic correction prompt instead.
-  const tradeVerb =
-    entryKind(entry) === 'trim' || entryKind(entry) === 'exit'
-      ? 'sell at'
-      : entryKind(entry) === 'details'
-        ? null
-        : 'pay';
-  const pricePrompt =
-    tradeVerb != null ? `What did you actually ${tradeVerb} per share?` : 'What was the actual price per share?';
-  // Two explicit modes instead of clear-the-field-to-revert: either our
-  // estimate applies, or the user's actual fill does. Starts on the
-  // estimate unless the row already carries a correction.
-  const [useEstimate, setUseEstimate] = useState(() => (entry.price_override ?? null) == null);
+  // so they get a generic label instead.
+  const priceKind = entryKind(entry);
+  const priceLabel =
+    priceKind === 'trim' || priceKind === 'exit'
+      ? 'Actual price you sold at per share'
+      : priceKind === 'details'
+        ? 'Actual price per share'
+        : 'Actual price you paid per share';
+  // Reverting to the estimate is only offered when a correction exists to
+  // undo — otherwise the toggle is noise. `useEstimate` arms the revert;
+  // saving applies it (price_override: null).
+  const hasOverride = (entry.price_override ?? null) != null;
+  const showEstimateToggle = hasOverride;
+  const [useEstimate, setUseEstimate] = useState(false);
   const priceInputRef = useRef<HTMLInputElement>(null);
   const toggleEstimate = () => {
     if (useEstimate) {
@@ -225,14 +226,15 @@ function EditEntryDialog({
       setUseEstimate(true);
     }
   };
-  // Status line under the field: what applies now, in plain terms.
+  // Status line under the field, shown only when it says something the
+  // label doesn't: the armed revert, or an empty field needing a value.
   const modeStatus = useEstimate
     ? estimate != null
       ? `Using our estimate (~${formatCurrency(estimate)}) from that day's close.`
       : 'Using the market estimate.'
     : priceText.trim() === ''
-      ? 'Enter the actual price, or use our estimate instead.'
-      : pricePrompt;
+      ? 'Enter the actual price.'
+      : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -255,7 +257,7 @@ function EditEntryDialog({
   const priceChanged = entry.is_static
     ? false
     : useEstimate
-      ? (entry.price_override ?? null) != null
+      ? hasOverride
       : normalizedPrice !== (entry.price_override ?? entry.price ?? null);
   // Live preview of what saving does to the row, in the row's own terms
   // (~ estimate vs exact figure). Shown only when the save would visibly
@@ -314,7 +316,7 @@ function EditEntryDialog({
       >
         <div className="flex items-start justify-between mb-4">
           <h3 id="edit-history-entry-title" className="text-lg font-semibold text-text-primary">
-            Edit Entry
+            Correct {entry.ticker} · {formatDay(entry.recorded_at)}
           </h3>
           <button
             type="button"
@@ -328,8 +330,7 @@ function EditEntryDialog({
         </div>
 
         <p className="text-xs text-text-secondary/70 mb-4">
-          <span className="font-medium text-text-primary">{entry.ticker}</span> · {formatDay(entry.recorded_at)}. This
-          only changes the change log; your holdings are not affected.
+          This only changes the change log; your holdings are not affected.
         </p>
 
         {!entry.is_static && (
@@ -338,7 +339,7 @@ function EditEntryDialog({
               htmlFor="history-entry-price"
               className="block text-xs font-medium text-text-secondary mb-1"
             >
-              Actual price per share
+              {priceLabel}
             </label>
             <input
               id="history-entry-price"
@@ -353,17 +354,21 @@ function EditEntryDialog({
               placeholder="Market estimate"
               className="w-full bg-card-hover border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-text-secondary/50 disabled:opacity-50"
             />
-            <div className="mt-1 flex items-start justify-between gap-2">
-              <span className="text-[11px] text-text-secondary/70">{modeStatus}</span>
-              <button
-                type="button"
-                onClick={toggleEstimate}
-                disabled={isSaving}
-                className="shrink-0 text-[11px] font-medium text-accent hover:underline disabled:opacity-50"
-              >
-                {useEstimate ? 'Enter actual price' : 'Use estimate instead'}
-              </button>
-            </div>
+            {(modeStatus || showEstimateToggle) && (
+              <div className="mt-1 flex items-start justify-between gap-2">
+                <span className="text-[11px] text-text-secondary/70">{modeStatus}</span>
+                {showEstimateToggle && (
+                  <button
+                    type="button"
+                    onClick={toggleEstimate}
+                    disabled={isSaving}
+                    className="shrink-0 text-[11px] font-medium text-accent hover:underline disabled:opacity-50"
+                  >
+                    {useEstimate ? 'Enter actual price' : 'Use estimate instead'}
+                  </button>
+                )}
+              </div>
+            )}
             {pricePreview && (
               <p className="mt-2 rounded-lg bg-accent/10 border border-accent/20 px-3 py-2 text-xs text-text-primary">
                 {pricePreview}

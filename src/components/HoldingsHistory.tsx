@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Clock, Loader2, Trash2, X } from 'lucide-react';
-import type { HoldingsHistoryEntry } from '../hooks/useHoldingsHistory';
+import { AlertCircle, Clock, Loader2, Pencil, X } from 'lucide-react';
+import type { HoldingsHistoryEntry, HoldingsHistoryPatch } from '../hooks/useHoldingsHistory';
 import { formatCurrency } from '../utils/formatters';
 import type { Session } from '../utils/holdingsHistory';
+
+// Max annotation length — mirrors NOTE_MAX_LENGTH in api/holdings-history.ts.
+const NOTE_MAX_LENGTH = 60;
 
 type Kind = 'new' | 'buy' | 'trim' | 'exit' | 'value' | 'details';
 
@@ -30,8 +33,7 @@ function fmtPct(delta: number, prev: number): string {
 
 // Unsigned, compact ($45.2k / $1.23M) dollar figure — the row's colour
 // carries direction. `approx` marks amounts derived from the day's close
-// rather than an actual fill — every tradeable figure here, since the fill
-// price isn't logged.
+// rather than an actual fill; owner-corrected figures render exact (no `~`).
 function fmtDollars(value: number, approx: boolean): string {
   return `${approx ? '~' : ''}${formatCurrency(Math.abs(value), true)}`;
 }
@@ -70,9 +72,11 @@ function sessionSummary(entries: HoldingsHistoryEntry[]): string | null {
 
 // Rows carry no leading kind icon: the amount's green/red already says
 // buy vs. sell, so the row starts at the ticker and the freed space goes to
-// the owner-only delete control on the right.
-function EntryRow({ entry, onDelete }: { entry: HoldingsHistoryEntry; onDelete?: (entry: HoldingsHistoryEntry) => void }) {
+// the owner-only edit control on the right.
+function EntryRow({ entry, onEdit }: { entry: HoldingsHistoryEntry; onEdit?: (entry: HoldingsHistoryEntry) => void }) {
   const kind = entryKind(entry);
+  // Owner-corrected prices render exact; EOD-close estimates keep the `~`.
+  const edited = (entry.price_override ?? null) != null;
   const delta = entry.prev_shares != null ? entry.shares - entry.prev_shares : null;
   // Static value edits colour by the direction of the dollar delta, once known.
   const valueDelta =
@@ -99,7 +103,7 @@ function EntryRow({ entry, onDelete }: { entry: HoldingsHistoryEntry; onDelete?:
         if (entry.static_value != null) amount = fmtDollars(entry.static_value, false);
       } else {
         verb = `Bought ${fmtShares(entry.shares)} shares`;
-        if (entry.price != null) amount = fmtDollars(entry.shares * entry.price, true);
+        if (entry.price != null) amount = fmtDollars(entry.shares * entry.price, !edited);
         detail = 'new position';
       }
       break;
@@ -109,14 +113,14 @@ function EntryRow({ entry, onDelete }: { entry: HoldingsHistoryEntry; onDelete?:
         if (entry.static_value != null) amount = fmtDollars(-entry.static_value, false);
       } else {
         verb = `Sold ${fmtShares(entry.prev_shares ?? 0)} shares`;
-        if (entry.price != null && entry.prev_shares != null) amount = fmtDollars(-entry.prev_shares * entry.price, true);
+        if (entry.price != null && entry.prev_shares != null) amount = fmtDollars(-entry.prev_shares * entry.price, !edited);
         detail = 'entire position';
       }
       break;
     case 'buy':
     case 'trim':
       verb = `${kind === 'buy' ? 'Bought' : 'Sold'} ${fmtShares(Math.abs(delta!))} shares`;
-      if (entry.price != null) amount = fmtDollars(delta! * entry.price, true);
+      if (entry.price != null) amount = fmtDollars(delta! * entry.price, !edited);
       detail = `${entry.prev_shares! > 0 ? `${fmtPct(delta!, entry.prev_shares!)} · ` : ''}${fmtShares(entry.prev_shares!)} → ${fmtShares(entry.shares)}`;
       break;
     case 'value':
@@ -143,19 +147,199 @@ function EntryRow({ entry, onDelete }: { entry: HoldingsHistoryEntry; onDelete?:
       <span className="flex-1 truncate text-sm text-text-secondary">
         {verb}
         {detail && <span className="hidden sm:inline text-text-secondary/70"> · {detail}</span>}
+        {entry.note && (
+          <span className="ml-1.5 rounded-md bg-card-hover px-1.5 py-0.5 text-[11px] font-medium text-text-primary">
+            {entry.note}
+          </span>
+        )}
       </span>
       {amount && <span className={`shrink-0 font-mono text-xs font-medium ${tone}`}>{amount}</span>}
-      {onDelete && (
+      {onEdit && (
         <button
           type="button"
-          onClick={() => onDelete(entry)}
-          aria-label={`Delete ${entry.ticker} entry`}
-          title="Delete"
-          className="shrink-0 -my-1 -mr-1 p-1 rounded-md text-text-secondary/50 hover:text-negative hover:bg-card-hover transition-colors"
+          onClick={() => onEdit(entry)}
+          aria-label={`Edit ${entry.ticker} entry`}
+          title="Edit"
+          className="shrink-0 -my-1 -mr-1 p-1 rounded-md text-text-secondary/50 hover:text-text-primary hover:bg-card-hover transition-colors"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Pencil className="w-3.5 h-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+// Owner dialog to correct a row's dollar basis or annotate it. Tradeable rows
+// offer the per-share price (pre-filled with the current figure; clearing it
+// reverts to the EOD-close estimate) plus a note; static rows carry their
+// exact value already, so they offer only the note. Deletion lives here too —
+// a subtle link that hands the row to the delete confirmation dialog.
+function EditEntryDialog({
+  entry,
+  onConfirm,
+  onCancel,
+  onDeleteRequest,
+}: {
+  entry: HoldingsHistoryEntry;
+  onConfirm: (entry: HoldingsHistoryEntry, patch: HoldingsHistoryPatch) => Promise<void>;
+  onCancel: () => void;
+  onDeleteRequest?: (entry: HoldingsHistoryEntry) => void;
+}) {
+  const [priceText, setPriceText] = useState(() =>
+    entry.is_static ? '' : String(entry.price_override ?? entry.price ?? '')
+  );
+  // What clearing the field reverts to. Never the override itself: on a
+  // corrected row price IS the override, so read the estimate separately
+  // (pre-013 rows lack it — fall back to price, which is un-overridden there).
+  const estimate = entry.estimated_price ?? ((entry.price_override ?? null) == null ? entry.price : null);
+  const [noteText, setNoteText] = useState(entry.note ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSaving) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isSaving, onCancel]);
+
+  const normalizedPrice: number | null = priceText.trim() === '' ? null : Number(priceText);
+  const priceValid = priceText.trim() === '' || (Number.isFinite(normalizedPrice) && (normalizedPrice as number) > 0);
+  const normalizedNote = noteText.trim() === '' ? null : noteText.trim();
+  // Compare against the displayed figure, not just the override: retyping the
+  // estimate must not count as a change (saving it would silently flip ~ to
+  // exact with identical dollars).
+  const priceChanged = entry.is_static ? false : normalizedPrice !== (entry.price_override ?? entry.price ?? null);
+  const noteChanged = normalizedNote !== (entry.note ?? null);
+  const canSave = !isSaving && priceValid && (priceChanged || noteChanged);
+
+  const handleSave = async () => {
+    if (!priceValid) {
+      setError('Enter a positive price, or clear the field to use the market estimate.');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      const patch: HoldingsHistoryPatch = {};
+      if (priceChanged && !entry.is_static) patch.price_override = normalizedPrice;
+      if (noteChanged) patch.note = normalizedNote;
+      await onConfirm(entry, patch);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save entry');
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      onClick={() => !isSaving && onCancel()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-history-entry-title"
+        className="bg-card rounded-2xl border border-border max-w-md w-full p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <h3 id="edit-history-entry-title" className="text-lg font-semibold text-text-primary">
+            Edit Entry
+          </h3>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            aria-label="Close"
+            className="p-1 hover:bg-card-hover rounded-lg transition-colors disabled:opacity-50"
+          >
+            <X className="w-5 h-5 text-text-secondary" />
+          </button>
+        </div>
+
+        <p className="text-xs text-text-secondary/70 mb-4">
+          <span className="font-medium text-text-primary">{entry.ticker}</span> · {formatDay(entry.recorded_at)}. This
+          only changes the change log; your holdings are not affected.
+        </p>
+
+        {!entry.is_static && (
+          <label className="block mb-3">
+            <span className="block text-xs font-medium text-text-secondary mb-1">Price per share</span>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={priceText}
+              onChange={(e) => setPriceText(e.target.value)}
+              disabled={isSaving}
+              placeholder={estimate != null ? `Estimate $${estimate}` : 'Market estimate'}
+              className="w-full bg-card-hover border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-text-secondary/50 disabled:opacity-50"
+            />
+            <span className="block text-[11px] text-text-secondary/70 mt-1">
+              Corrects the ~estimate (EOD close). Clear to revert to the estimate.
+            </span>
+          </label>
+        )}
+
+        <label className="block mb-4">
+          <span className="block text-xs font-medium text-text-secondary mb-1">Note (optional)</span>
+          <input
+            type="text"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            disabled={isSaving}
+            maxLength={NOTE_MAX_LENGTH}
+            placeholder="e.g. ESPP, RSU vest"
+            className="w-full bg-card-hover border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-text-secondary/50 disabled:opacity-50"
+          />
+        </label>
+
+        {error && (
+          <div className="bg-negative/10 border border-negative/20 rounded-lg px-4 py-3 text-negative text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            className="flex-1 bg-card-hover hover:bg-border disabled:opacity-50 text-text-primary font-medium py-2.5 px-4 rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave}
+            className="flex-1 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save'
+            )}
+          </button>
+        </div>
+
+        {onDeleteRequest && (
+          <button
+            type="button"
+            onClick={() => onDeleteRequest(entry)}
+            disabled={isSaving}
+            className="mt-3 w-full text-center text-xs text-text-secondary/50 hover:text-negative transition-colors disabled:opacity-50"
+          >
+            Delete this entry
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -274,12 +458,16 @@ interface Props {
   // Already filtered to material changes and grouped (materialSessions in App).
   sessions: Session[];
   isLoading?: boolean;
-  // Owner-only: when set, each row gets a delete control. Resolves once the
+  // Owner-only: when set, each row gets an edit control. Resolves once the
+  // server has saved the patch (App wires this to the update mutation).
+  onUpdateEntry?: (entryId: string, patch: HoldingsHistoryPatch) => Promise<void>;
+  // Owner-only: deletion now lives inside the edit dialog. Resolves once the
   // server has removed the row (App wires this to the delete mutation).
   onDeleteEntry?: (entryId: string) => Promise<void>;
 }
 
-export function HoldingsHistory({ sessions, isLoading, onDeleteEntry }: Props) {
+export function HoldingsHistory({ sessions, isLoading, onUpdateEntry, onDeleteEntry }: Props) {
+  const [pendingEdit, setPendingEdit] = useState<HoldingsHistoryEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<HoldingsHistoryEntry | null>(null);
 
   if (isLoading) {
@@ -318,12 +506,31 @@ export function HoldingsHistory({ sessions, isLoading, onDeleteEntry }: Props) {
                 {summary && <span> · {summary}</span>}
               </div>
               {session.entries.map((entry) => (
-                <EntryRow key={entry.id} entry={entry} onDelete={onDeleteEntry ? setPendingDelete : undefined} />
+                <EntryRow key={entry.id} entry={entry} onEdit={onUpdateEntry ? setPendingEdit : undefined} />
               ))}
             </div>
           );
         })}
       </div>
+
+      {pendingEdit && onUpdateEntry && (
+        <EditEntryDialog
+          entry={pendingEdit}
+          onConfirm={async (entry, patch) => {
+            await onUpdateEntry(entry.id, patch);
+            setPendingEdit(null);
+          }}
+          onCancel={() => setPendingEdit(null)}
+          onDeleteRequest={
+            onDeleteEntry
+              ? (entry) => {
+                  setPendingEdit(null);
+                  setPendingDelete(entry);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {pendingDelete && onDeleteEntry && (
         <DeleteEntryDialog

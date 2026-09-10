@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, deleteHoldingsHistoryEntry, isAllowedViewer, getDailyPrices, getCachedPrices, type DbHoldingsHistory } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, getShareLinkByToken, isShareLinkValid, getHoldingsHistory, getHoldingsHistoryEntry, deleteHoldingsHistoryEntry, updateHoldingsHistoryEntry, isAllowedViewer, getDailyPrices, getCachedPrices, type DbHoldingsHistory } from './_lib/db.js';
 import { getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -13,6 +13,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   if (req.method === 'DELETE') {
     await handleDelete(req, res);
+    return;
+  }
+  if (req.method === 'PATCH') {
+    await handlePatch(req, res);
     return;
   }
   if (req.method !== 'GET') {
@@ -159,6 +163,137 @@ async function handleDelete(req: VercelRequest, res: VercelResponse): Promise<vo
   }
 }
 
+// PATCH ?id=<portfolio>&entry_id=<row uuid> with a JSON body of
+// { price_override?: number | null, note?: string | null, token?, password? }.
+// Owner/admin only, like DELETE: it edits the log row, never holdings. A null
+// price_override reverts to the EOD estimate; an empty/absent note clears it.
+// Price corrections apply to tradeable rows — static rows carry their exact
+// value, so price_override is rejected for them.
+const NOTE_MAX_LENGTH = 60;
+
+async function handlePatch(req: VercelRequest, res: VercelResponse): Promise<void> {
+  try {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const pick = (key: string): string | undefined => {
+      const q = req.query[key];
+      if (typeof q === 'string' && q) return q;
+      const b = body[key];
+      return typeof b === 'string' && b ? b : undefined;
+    };
+    const portfolioId = pick('id');
+    const entryId = pick('entry_id');
+    const token = pick('token');
+    const password = pick('password');
+
+    if (!portfolioId || !entryId) {
+      res.status(400).json({ error: 'id and entry_id are required' });
+      return;
+    }
+    if (!UUID_RE.test(entryId)) {
+      res.status(400).json({ error: 'Invalid entry_id' });
+      return;
+    }
+    if (!token && !password) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const hasPrice = 'price_override' in body;
+    const hasNote = 'note' in body;
+    if (!hasPrice && !hasNote) {
+      res.status(400).json({ error: 'Nothing to update' });
+      return;
+    }
+
+    let priceOverride: number | null | undefined;
+    if (hasPrice) {
+      const raw = body.price_override;
+      if (raw === null) {
+        priceOverride = null;
+      } else if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+        priceOverride = raw;
+      } else {
+        res.status(400).json({ error: 'price_override must be a positive number or null' });
+        return;
+      }
+    }
+
+    let note: string | null | undefined;
+    if (hasNote) {
+      const raw = body.note;
+      if (raw === null) {
+        note = null;
+      } else if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.length > NOTE_MAX_LENGTH) {
+          res.status(400).json({ error: `note must be at most ${NOTE_MAX_LENGTH} characters` });
+          return;
+        }
+        note = trimmed === '' ? null : trimmed;
+      } else {
+        res.status(400).json({ error: 'note must be a string or null' });
+        return;
+      }
+    }
+
+    const portfolio = await getPortfolio(portfolioId);
+    if (!portfolio) {
+      res.status(404).json({ error: 'Portfolio not found' });
+      return;
+    }
+
+    const { authenticated } = await authenticateRequest(portfolioId, token, password);
+    if (!authenticated) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (priceOverride != null) {
+      const target = await getHoldingsHistoryEntry(portfolioId, entryId);
+      if (!target) {
+        res.status(404).json({ error: 'Entry not found' });
+        return;
+      }
+      if (target.is_static) {
+        res.status(400).json({ error: 'price_override applies to tradeable entries only' });
+        return;
+      }
+    }
+
+    let updated: Awaited<ReturnType<typeof updateHoldingsHistoryEntry>>;
+    try {
+      updated = await updateHoldingsHistoryEntry(portfolioId, entryId, {
+        ...(hasPrice ? { price_override: priceOverride } : {}),
+        ...(hasNote ? { note } : {}),
+      });
+    } catch (e) {
+      if (isMissingColumnError(e)) {
+        console.error('[holdings_history] edit columns missing — run migration 013:', e);
+        res.status(409).json({ error: 'Change-log editing is not enabled yet (pending migration)' });
+        return;
+      }
+      throw e;
+    }
+    if (!updated) {
+      res.status(404).json({ error: 'Entry not found' });
+      return;
+    }
+    res.status(200).json({ entry: (await attachClosePrices([updated]))[0] });
+  } catch (error) {
+    console.error('Holdings history patch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+function isMissingColumnError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  // PostgREST PGRST204 reports an unknown column as "Could not find the
+  // '<col>' column ... in the schema cache". Match that signature (either new
+  // column) — not the bare column name — so unrelated errors that merely
+  // mention one (overflow, a future check constraint) still surface as 500s.
+  return /Could not find the '(?:price_override|note)' column|PGRST204|42703/.test(msg);
+}
+
 const ET_DATE_KEY = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York',
   year: 'numeric',
@@ -166,18 +301,30 @@ const ET_DATE_KEY = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 
-// Attach `price` to each tradeable row: the ticker's close on the ET calendar
-// day the change was recorded (or the last close before it, for weekends and
-// holidays). The FE turns share deltas into ~dollar amounts with it. The
-// actual fill price isn't logged, so this is explicitly an approximation.
-// Falls back to price_cache when daily_prices has nothing on or before that
-// day (a same-day edit before the first snapshot refresh lands), and null when
-// neither exists. Static rows carry their own value and get null.
+// Attach `price` to each tradeable row: the owner's corrected price when one
+// is set (`price_override`), else the EOD-close estimate below. `estimated_price`
+// always carries the un-overridden estimate so the edit dialog can show what
+// clearing the field reverts to. The FE turns share deltas into ~dollar
+// amounts with the estimate (no `~` for a correction). The actual fill price
+// isn't logged, so the estimate is explicitly an approximation: the ticker's
+// close on the ET calendar day the change was recorded (or the last close
+// before it, for weekends and holidays). Falls back to price_cache when
+// daily_prices has nothing on or before that day (a same-day edit before the
+// first snapshot refresh lands), and null when neither exists. Static rows
+// carry their own value and get nulls. `price_override`/`note` are normalized
+// to null for rows logged before migration 013.
 async function attachClosePrices(
   history: DbHoldingsHistory[]
-): Promise<Array<DbHoldingsHistory & { price: number | null }>> {
+): Promise<Array<DbHoldingsHistory & { price: number | null; estimated_price: number | null }>> {
   const tradeable = history.filter((h) => !h.is_static);
-  if (tradeable.length === 0) return history.map((h) => ({ ...h, price: null }));
+  if (tradeable.length === 0)
+    return history.map((h) => ({
+      ...h,
+      price_override: h.price_override ?? null,
+      note: h.note ?? null,
+      price: null,
+      estimated_price: null,
+    }));
 
   const tickers = [...new Set(tradeable.map((h) => h.ticker))];
   const oldestMs = Math.min(...tradeable.map((h) => new Date(h.recorded_at).getTime()));
@@ -197,25 +344,30 @@ async function attachClosePrices(
 
   const missing = new Set<string>();
   const priced = history.map((h) => {
-    if (h.is_static) return { ...h, price: null };
+    const override = h.price_override ?? null;
+    const note = h.note ?? null;
+    if (h.is_static) return { ...h, price_override: override, note, price: null, estimated_price: null };
     const dateKey = ET_DATE_KEY.format(new Date(h.recorded_at));
     const closes = closesByTicker.get(h.ticker) ?? [];
-    let price: number | null = null;
+    let estimate: number | null = null;
     for (let i = closes.length - 1; i >= 0; i--) {
       if (closes[i].date <= dateKey) {
-        price = closes[i].close;
+        estimate = closes[i].close;
         break;
       }
     }
-    if (price == null) missing.add(h.ticker);
-    return { ...h, price };
+    if (estimate == null) missing.add(h.ticker);
+    return { ...h, price_override: override, note, price: override ?? estimate, estimated_price: estimate };
   });
 
   if (missing.size > 0) {
     try {
       const cached = await getCachedPrices([...missing]);
       for (const h of priced) {
-        if (h.price == null && !h.is_static) h.price = cached.get(h.ticker)?.current_price ?? null;
+        if (h.estimated_price == null && !h.is_static) {
+          h.estimated_price = cached.get(h.ticker)?.current_price ?? null;
+          if ((h.price_override ?? null) == null) h.price = h.estimated_price;
+        }
       }
     } catch (e) {
       console.warn('[holdings_history] price_cache fallback failed:', e);

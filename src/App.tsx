@@ -19,7 +19,8 @@ import {
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
-import { useHoldingsHistory, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
+import { useHoldingsHistory, useUpdateHoldingsHistoryEntry, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
+import type { HoldingsHistoryPatch } from './hooks/useHoldingsHistory';
 import { materialSessions } from './utils/holdingsHistory';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
@@ -142,8 +143,15 @@ function App() {
   // popping in when the fetch settles, which shifted the tab row on mobile.
   const historySessions = useMemo(() => materialSessions(holdingsHistory ?? []), [holdingsHistory]);
   // Owners (unlocked or logged in — the same signal that sends Edit straight
-  // to the editor) can delete individual entries; the server re-checks the token.
+  // to the editor) can edit or delete individual entries; the server
+  // re-checks the token. Deletion is reached from inside the edit dialog.
+  const updateHistoryEntry = useUpdateHoldingsHistoryEntry(portfolioId || '', storedToken);
   const deleteHistoryEntry = useDeleteHoldingsHistoryEntry(portfolioId || '', storedToken);
+  const handleUpdateHistoryEntry = storedToken
+    ? async (entryId: string, patch: HoldingsHistoryPatch) => {
+        await updateHistoryEntry.mutateAsync({ entryId, patch });
+      }
+    : undefined;
   const handleDeleteHistoryEntry = storedToken
     ? async (entryId: string) => {
         await deleteHistoryEntry.mutateAsync(entryId);
@@ -393,6 +401,7 @@ function App() {
                   <HoldingsHistory
                     sessions={historySessions}
                     isLoading={isHoldingsHistoryLoading}
+                    onUpdateEntry={handleUpdateHistoryEntry}
                     onDeleteEntry={handleDeleteHistoryEntry}
                   />
                 )}

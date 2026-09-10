@@ -443,6 +443,19 @@ export interface DbHoldingsHistory {
   cost_basis: number | null;
   change_type: HoldingsHistoryChangeType;
   recorded_at: string;
+  // Owner-corrected per-share price (tradeable rows; migration 013). Null =
+  // no correction, serve the EOD-close estimate. Optional: missing on rows
+  // read before the migration.
+  price_override?: number | null;
+  // Free-text annotation, e.g. ESPP / RSU vest (migration 013). Null = none.
+  note?: string | null;
+}
+
+// Editable fields on a change-log row. price_override null reverts to the
+// EOD estimate; note null/'' clears the annotation.
+export interface HoldingsHistoryEdit {
+  price_override?: number | null;
+  note?: string | null;
 }
 
 export async function getHoldingsHistory(
@@ -483,6 +496,43 @@ export async function deleteHoldingsHistoryEntry(portfolioId: string, entryId: s
     .select('id');
   if (error) throw error;
   return (data?.length ?? 0) > 0;
+}
+
+// Single log row, or null when it doesn't belong to this portfolio (or is
+// gone). Used to validate edits without paging through history.
+export async function getHoldingsHistoryEntry(
+  portfolioId: string,
+  entryId: string
+): Promise<DbHoldingsHistory | null> {
+  const { data, error } = await supabase
+    .from('holdings_history')
+    .select('*')
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .eq('id', entryId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as DbHoldingsHistory | null) ?? null;
+}
+
+// Owner-initiated edit of one log row (price correction and/or annotation).
+// Scoped to the portfolio like the delete above. Returns the updated row, or
+// null when nothing matched. Throws when migration 013 isn't applied yet.
+export async function updateHoldingsHistoryEntry(
+  portfolioId: string,
+  entryId: string,
+  edit: HoldingsHistoryEdit
+): Promise<DbHoldingsHistory | null> {
+  const patch: Record<string, number | string | null> = {};
+  if (edit.price_override !== undefined) patch.price_override = edit.price_override;
+  if (edit.note !== undefined) patch.note = edit.note === '' ? null : edit.note;
+  const { data, error } = await supabase
+    .from('holdings_history')
+    .update(patch)
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .eq('id', entryId)
+    .select('*');
+  if (error) throw error;
+  return ((data?.[0] as DbHoldingsHistory | undefined) ?? null);
 }
 
 // A static holding's ticker IS its user-typed name, so renaming "Cash Eqvt"

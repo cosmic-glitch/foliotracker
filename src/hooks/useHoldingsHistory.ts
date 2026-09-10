@@ -19,7 +19,22 @@ export interface HoldingsHistoryEntry {
   change_type: 'added' | 'updated' | 'removed';
   recorded_at: string;
   // Close on the recorded day (null for static rows or when no price is known).
+  // When price_override is set, price IS the override (an exact figure).
   price: number | null;
+  // The un-overridden EOD estimate (null for static rows). Missing (undefined)
+  // on rows fetched before migration 013 — fall back to price when no
+  // override is set.
+  estimated_price?: number | null;
+  // Owner-corrected per-share price (null = EOD estimate). Missing (undefined)
+  // on rows fetched before migration 013 — treat as null.
+  price_override?: number | null;
+  // Free-text annotation, e.g. ESPP / RSU vest (null = none).
+  note?: string | null;
+}
+
+export interface HoldingsHistoryPatch {
+  price_override?: number | null;
+  note?: string | null;
 }
 
 interface HoldingsHistoryResponse {
@@ -61,6 +76,39 @@ export function useHoldingsHistory(
     enabled: !!portfolioId && enabled,
     staleTime: 60_000,
     retry: false,
+  });
+}
+
+// Owner-only edit of one entry (price correction and/or note). Requires the
+// owner/admin session token — the server rejects anything else. On success the
+// updated row replaces the cached one immediately, then the query is
+// invalidated so the cache re-syncs with the server.
+export function useUpdateHoldingsHistoryEntry(portfolioId: string, token: string | null | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, patch }: { entryId: string; patch: HoldingsHistoryPatch }) => {
+      if (!token) throw new Error('Sign in to edit history entries');
+      const url = new URL(`${API_BASE_URL}/api/holdings-history`, window.location.origin);
+      url.searchParams.set('id', portfolioId);
+      url.searchParams.set('entry_id', entryId);
+      const res = await fetch(url.toString(), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...patch, token }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || 'Failed to update entry');
+      }
+      return (await res.json()) as { entry: HoldingsHistoryEntry };
+    },
+    onSuccess: ({ entry }) => {
+      queryClient.setQueriesData<HoldingsHistoryEntry[]>(
+        { queryKey: ['holdingsHistory', portfolioId] },
+        (old) => old?.map((e) => (e.id === entry.id ? entry : e))
+      );
+      void queryClient.invalidateQueries({ queryKey: ['holdingsHistory', portfolioId] });
+    },
   });
 }
 

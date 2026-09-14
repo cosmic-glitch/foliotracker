@@ -33,10 +33,32 @@ async function main(): Promise<void> {
   const started = Date.now();
   console.log(`[${now.toISOString()}] refresh starting (live=${isLiveMarketSession(now)})`);
 
-  await refreshAllSnapshots();
-  await deleteExpiredSessions();
+  await withOneRetry(async () => {
+    await refreshAllSnapshots();
+    await deleteExpiredSessions();
+  });
 
   console.log(`[${new Date().toISOString()}] refresh done in ${Date.now() - started}ms`);
+}
+
+// Supabase's gateway occasionally answers the very first query with a 504
+// ("Gateway Timeout") and is fine a second later. One short retry keeps a
+// single blip from failing the tick (and paging via healthchecks); a second
+// failure is real and still exits non-zero.
+const RETRY_DELAY_MS = 5_000;
+
+async function withOneRetry(run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    // Supabase rejects with a plain `{ message }` object, not an Error.
+    const message = String((err as { message?: unknown } | null)?.message ?? err ?? '');
+    console.warn(
+      `[${new Date().toISOString()}] refresh failed (${message.slice(0, 120)}); retrying once in ${RETRY_DELAY_MS / 1000}s`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    await run();
+  }
 }
 
 main().catch((err) => {

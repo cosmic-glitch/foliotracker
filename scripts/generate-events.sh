@@ -13,6 +13,14 @@ set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"
 
+# Pin the session model instead of inheriting the box's ~/.claude/settings.json
+# default: a usage cap on that ambient model silently kills every cron that
+# shares it (Sep 10-12 2026 cost three days of digests). Sonnet is enough for
+# web research + short summaries and sits on its own usage bucket, separate
+# from wsj_club's Opus autopilot. Override for one run with
+# NEWS_MODEL=... bash scripts/generate-events.sh
+NEWS_MODEL="${NEWS_MODEL:-claude-sonnet-5}"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
@@ -42,6 +50,7 @@ npx tsx "$PROJECT_DIR/scripts/prepare-events-input.ts" \
 
 EVENTS_PROMPT=$(cat "$PROJECT_DIR/scripts/events-prompt.md")
 claude -p "$EVENTS_PROMPT" \
+  --model "$NEWS_MODEL" \
   --dangerously-skip-permissions \
   >> "$LOG_FILE" 2>&1
 echo "[$(date -u +%FT%TZ)] generate-events: claude session exited" >> "$LOG_FILE"

@@ -15,6 +15,14 @@ set -euo pipefail
 # under cron's minimal PATH.
 export PATH="$HOME/.local/bin:$PATH"
 
+# Pin the session model instead of inheriting the box's ~/.claude/settings.json
+# default: a usage cap on that ambient model silently kills every cron that
+# shares it (Sep 10-12 2026 cost three days of digests). Sonnet is enough for
+# web research + short summaries and sits on its own usage bucket, separate
+# from wsj_club's Opus autopilot. Override for one run with
+# NEWS_MODEL=... bash scripts/generate-news.sh
+NEWS_MODEL="${NEWS_MODEL:-claude-sonnet-5}"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
@@ -64,6 +72,7 @@ echo "[$(date -u +%FT%TZ)] generate-news: stocks $STOCK_PENDING of $STOCK_TOTAL 
 if [ "$STOCK_PENDING" != "0" ]; then
   STOCK_PROMPT=$(cat "$PROJECT_DIR/scripts/news-prompt.md")
   claude -p "$STOCK_PROMPT" \
+    --model "$NEWS_MODEL" \
     --dangerously-skip-permissions \
     >> "$LOG_FILE" 2>&1
   echo "[$(date -u +%FT%TZ)] generate-news: stock claude session exited" >> "$LOG_FILE"
@@ -75,6 +84,7 @@ fi
 if [ "$ETF_PENDING" != "0" ]; then
   ETF_PROMPT=$(cat "$PROJECT_DIR/scripts/news-prompt-etf.md")
   claude -p "$ETF_PROMPT" \
+    --model "$NEWS_MODEL" \
     --dangerously-skip-permissions \
     >> "$LOG_FILE" 2>&1
   echo "[$(date -u +%FT%TZ)] generate-news: etf claude session exited" >> "$LOG_FILE"

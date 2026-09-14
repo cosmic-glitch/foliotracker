@@ -59,7 +59,7 @@ Reachable at `ssh av@myhetzner` (Tailscale). Jobs run via user crontab wrapped i
 | Events generation | Sundays 07:30 | `scripts/generate-events.sh` (`claude -p` → `save-events.ts`) |
 | DB backup | 06:30 every 3rd day | `scripts/backup-db.sh` (30-day retention; also runs locally) |
 
-Wrappers self-sync via `git pull --ff-only origin main`; the news/events jobs need `claude` on `PATH`.
+Wrappers self-sync via `git pull --ff-only origin main`; the news/events jobs need `claude` on `PATH`. Both `claude -p` jobs **pin their model** (`NEWS_MODEL`, default `claude-sonnet-5`) rather than inheriting the box's `~/.claude/settings.json` default: a usage cap on the ambient model kills every cron sharing it, and the box's other autopilot (wsj_club) runs on Opus, so the two stay on separate buckets. Override one run with `NEWS_MODEL=… bash scripts/generate-news.sh`. The snapshot refresh retries once on a transient failure (Supabase 504s) before failing the tick.
 
 ## Ops one-liners
 

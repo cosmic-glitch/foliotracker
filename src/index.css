@@ -39,6 +39,21 @@ body {
   min-height: 100vh;
 }
 
+/* iOS 26+/27 (worse on 27) paints a Liquid Glass "scroll edge" blur ~16px
+   tall below the status bar of installed home-screen web apps, on top of
+   page content — no meta tag or CSS switch turns it off (we already run the
+   default opaque status bar, no viewport-fit=cover). Safari proper is
+   unaffected. Push the page down so the band lands on empty background
+   instead of smearing the header. Gated to iOS WebKit (-webkit-touch-callout)
+   in standalone mode so Android/desktop installs don't get a dead strip. */
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    body {
+      padding-top: 20px;
+    }
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

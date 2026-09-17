@@ -9,16 +9,12 @@ import { ExtendedHoursProvider } from './context/ExtendedHoursContext'
 import { TimeframeProvider } from './context/TimeframeContext'
 import { ToastProvider } from './context/ToastContext'
 import './index.css'
-import { applyWebAppClass } from './lib/webApp'
-import { WebAppDiag } from './components/WebAppDiag'
 import App from './App.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { CreatePortfolio } from './pages/CreatePortfolio.tsx'
 import { EditPortfolio } from './pages/EditPortfolio.tsx'
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard.tsx'
 import { ComparePage } from './pages/ComparePage.tsx'
-
-applyWebAppClass()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -40,7 +36,6 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="/:portfolioId" element={<App />} />
                 </Routes>
                 <Analytics />
-                <WebAppDiag />
               </BrowserRouter>
             </QueryClientProvider>
           </ToastProvider>

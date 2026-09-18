@@ -158,13 +158,13 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         </p>
         <p>
           <span className="font-medium text-text-primary">FwdPE</span> — based on estimated EPS
-          of the current fiscal year; since part of the year is already reported, the same
-          distortions can bleed in.
+          of the current fiscal year; since part of the year is already reported, one-time
+          items from those quarters can still distort it.
         </p>
         <p>
           <span className="font-medium text-text-primary">FwdPE+1</span> — based on estimated
-          EPS of the next fiscal year; free of one-time items, but estimates that far out carry
-          less certainty. The table sorts by this.
+          EPS of the next fiscal year; no reported quarters, so no one-time items, but estimates
+          that far out carry less certainty. The table sorts by this.
         </p>
       </div>
     </div>

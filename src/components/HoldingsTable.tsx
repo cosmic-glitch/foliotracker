@@ -320,9 +320,13 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           absorb the remaining width. This packs the row optimally (no wasted
           50/50 slack) so the value + $-change never gets clipped by the
           card's overflow-hidden, while the table's uniform column widths keep
-          every value left-aligned in one column. Static holdings have no price
-          — their name spans the ticker+price columns via colSpan, with the
-          value still landing in the aligned final column. */}
+          every value left-aligned in one column. Unit price and its % change
+          are separate columns (not one cell) so the % column has its own
+          aligned edge instead of starting wherever the price text ends — a
+          four-digit price like $1,007.41 would otherwise push its % out of
+          line with the rest. Static holdings have no price — their name spans
+          the ticker+price+% columns via colSpan, with the value still landing
+          in the aligned final column. */}
       <table className="md:hidden w-full">
         <tbody>
           {sortedHoldings.map((holding) => {
@@ -337,7 +341,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     (5-6 chars) so the price area reads blank, not as text;
                     `title` keeps the full name discoverable. Tradeable tickers
                     are already short, so they keep the looser cap. */}
-                <td colSpan={holding.isStatic ? 2 : 1} className="pl-3 pr-2 py-2 whitespace-nowrap align-middle">
+                <td colSpan={holding.isStatic ? 3 : 1} className="pl-3 pr-2 py-2 whitespace-nowrap align-middle">
                   {holding.isStatic ? (
                     <span
                       title={holding.ticker}
@@ -350,30 +354,35 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                     </button>
                   )}
                 </td>
-                {/* Unit price + % change (tradeable only) */}
+                {/* Unit price and % change (tradeable only) — two columns so
+                    the % edge is shared across rows regardless of price width */}
                 {!holding.isStatic && (
-                  <td className="pr-2 py-2 whitespace-nowrap text-left align-middle">
-                    <span
-                      onClick={() => handleSort('currentPrice')}
-                      className="text-text-primary text-sm cursor-pointer select-none"
-                    >
-                      {formatPrice(holding.currentPrice)}
-                      {sortConfig.column === 'currentPrice' && (
-                        <span className="text-accent text-xs">{sortArrow}</span>
-                      )}
-                    </span>
-                    {percent !== null && percent !== 0 && (
+                  <>
+                    <td className="pr-1 py-2 whitespace-nowrap text-left align-middle">
                       <span
-                        onClick={() => handleSort('dayChangePercent')}
-                        className={`text-xs ml-1 cursor-pointer select-none ${percent >= 0 ? 'text-positive' : 'text-negative'}`}
+                        onClick={() => handleSort('currentPrice')}
+                        className="text-text-primary text-sm cursor-pointer select-none"
                       >
-                        {formatPercent(percent)}
-                        {sortConfig.column === 'dayChangePercent' && (
-                          <span className="text-accent">{sortArrow}</span>
+                        {formatPrice(holding.currentPrice)}
+                        {sortConfig.column === 'currentPrice' && (
+                          <span className="text-accent text-xs">{sortArrow}</span>
                         )}
                       </span>
-                    )}
-                  </td>
+                    </td>
+                    <td className="pr-2 py-2 whitespace-nowrap text-left align-middle">
+                      {percent !== null && percent !== 0 && (
+                        <span
+                          onClick={() => handleSort('dayChangePercent')}
+                          className={`text-xs cursor-pointer select-none ${percent >= 0 ? 'text-positive' : 'text-negative'}`}
+                        >
+                          {formatPercent(percent)}
+                          {sortConfig.column === 'dayChangePercent' && (
+                            <span className="text-accent">{sortArrow}</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  </>
                 )}
                 {/* Value + $ change — w-full absorbs the leftover width */}
                 <td className="w-full pr-3 py-2 whitespace-nowrap text-left align-middle">

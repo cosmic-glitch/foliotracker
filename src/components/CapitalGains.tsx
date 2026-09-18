@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
 import type { Holding } from '../types/portfolio';
 import { ArrowUpDown, ChartLine, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatChange, formatCurrency, formatPercent, formatPrice } from '../utils/formatters';
+import { formatChange, formatCurrency, formatPrice } from '../utils/formatters';
+
+// One decimal is plenty here and keeps the five columns on a phone screen.
+const formatGainPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import { TickerDetailModal } from './TickerDetailModal';
 import { useTickerDetailParam } from '../hooks/useTickerDetailParam';
 
-// The "CG" tab: unrealized capital gains per holding. Only holdings with a
-// cost basis take part — the totals here are therefore a partial view of the
-// portfolio, which the footer makes explicit by counting what's left out.
-// One table serves desktop and mobile; the cost/value columns drop out on
-// phones and the diverging bar (a shared zero baseline, gains to the right,
-// losses to the left) keeps the relative picture readable on either.
+// The "CG" tab: unrealized capital gains per holding — cost basis, market
+// value, gain and gain % side by side, the same shape as HoldingsTable. Only
+// holdings with a cost basis take part, so the total is a partial view of
+// the portfolio; the footer counts what's left out. One table serves desktop
+// and mobile.
 
 type SortColumn = 'ticker' | 'costBasis' | 'value' | 'profitLoss' | 'profitLossPercent';
 type SortDirection = 'asc' | 'desc';
@@ -31,10 +33,10 @@ function getSortValue(holding: Holding, column: SortColumn): string | number | n
   }
 }
 
-const COLUMNS: Array<{ column: SortColumn; label: string; title?: string; className?: string }> = [
+const COLUMNS: Array<{ column: SortColumn; label: string; title?: string }> = [
   { column: 'ticker', label: 'Asset' },
-  { column: 'costBasis', label: 'Cost', title: 'Total cost basis', className: 'hidden md:table-cell' },
-  { column: 'value', label: 'Value', title: 'Current market value', className: 'hidden md:table-cell' },
+  { column: 'costBasis', label: 'Cost', title: 'Total cost basis' },
+  { column: 'value', label: 'Value', title: 'Current market value' },
   { column: 'profitLoss', label: 'Gain', title: 'Unrealized gain or loss (value − cost)' },
   { column: 'profitLossPercent', label: '%', title: 'Gain as a percentage of cost basis' },
 ];
@@ -51,7 +53,7 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
 
   const consolidated = useMemo(() => consolidateHoldings(holdings), [holdings]);
 
-  const { rows, excluded, excludedAllocation, maxAbsGain } = useMemo(() => {
+  const { rows, excluded, excludedAllocation } = useMemo(() => {
     const withBasis = consolidated.filter((h) => h.profitLoss !== null);
     const without = consolidated.filter((h) => h.profitLoss === null);
     const sorted = [...withBasis].sort((a, b) => {
@@ -72,7 +74,6 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
       rows: sorted,
       excluded: without.length,
       excludedAllocation: without.reduce((sum, h) => sum + h.allocation, 0),
-      maxAbsGain: withBasis.reduce((max, h) => Math.max(max, Math.abs(h.profitLoss ?? 0)), 0),
     };
   }, [consolidated, sortConfig]);
 
@@ -94,7 +95,9 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
 
   const renderSortIcon = (column: SortColumn) => {
     if (sortConfig.column !== column) {
-      return <ArrowUpDown className="w-3.5 h-3.5 text-text-secondary/70 group-hover:text-text-secondary" />;
+      // Five columns are a tight fit on phones; inactive arrows only show
+      // from md up (the active column's chevron always does).
+      return <ArrowUpDown className="hidden md:block w-3.5 h-3.5 text-text-secondary/70 group-hover:text-text-secondary" />;
     }
     return sortConfig.direction === 'asc'
       ? <ChevronUp className="w-3.5 h-3.5 text-accent" />
@@ -115,55 +118,21 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
   const totalValue = rows.reduce((sum, h) => sum + h.value, 0);
   const totalGain = rows.reduce((sum, h) => sum + (h.profitLoss ?? 0), 0);
   const totalGainPercent = totalCost > 0 ? (totalGain / totalCost) * 100 : null;
-  const winners = rows.filter((h) => (h.profitLoss ?? 0) > 0).length;
-  const losers = rows.filter((h) => (h.profitLoss ?? 0) < 0).length;
   const totalColor = totalGain >= 0 ? 'text-positive' : 'text-negative';
-  const totalBg = totalGain >= 0 ? 'bg-positive/10' : 'bg-negative/10';
 
   return (
-    <div className="space-y-3 md:space-y-6">
-      {/* Headline: the gain leads, cost and value give it scale. */}
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
-        <div className={`col-span-3 md:col-span-1 rounded-2xl border border-border px-4 py-3 md:py-4 ${totalBg}`}>
-          <p className="text-xs md:text-sm text-text-secondary">Unrealized gain</p>
-          <p className={`text-2xl md:text-3xl font-semibold tabular-nums ${totalColor}`}>
-            {formatChange(totalGain, true)}
-          </p>
-          <p className={`text-sm tabular-nums ${totalColor}`}>
-            {totalGainPercent !== null ? formatPercent(totalGainPercent) : '—'}
-            <span className="text-text-secondary">
-              {' · '}{winners} up, {losers} down
-            </span>
-          </p>
-        </div>
-        <div className="col-span-3 grid grid-cols-2 gap-2 md:gap-4 md:col-span-2">
-          <div className="bg-card rounded-2xl border border-border px-4 py-3 md:py-4">
-            <p className="text-xs md:text-sm text-text-secondary">Cost basis</p>
-            <p className="text-xl md:text-3xl font-semibold text-text-primary tabular-nums">
-              {formatCurrency(totalCost, true)}
-            </p>
-          </div>
-          <div className="bg-card rounded-2xl border border-border px-4 py-3 md:py-4">
-            <p className="text-xs md:text-sm text-text-secondary">Market value</p>
-            <p className="text-xl md:text-3xl font-semibold text-text-primary tabular-nums">
-              {formatCurrency(totalValue, true)}
-            </p>
-          </div>
-        </div>
-      </div>
-
+    <>
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {COLUMNS.map(({ column, label, title, className }, i) => (
+              {COLUMNS.map(({ column, label, title }, i) => (
                 <th
                   key={column}
-                  // w-px pins each text column to its content so the bar
-                  // column absorbs every leftover pixel (matters on phones).
-                  className={`w-px text-text-secondary text-sm font-medium px-2 md:px-4 py-2 whitespace-nowrap ${
+                  className={`text-text-secondary text-sm font-medium px-1.5 md:px-4 py-2 whitespace-nowrap ${
                     i === 0 ? 'text-left' : 'text-right'
-                  } ${className ?? ''}`}
+                  }`}
                 >
                   <button
                     type="button"
@@ -176,9 +145,6 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
                   </button>
                 </th>
               ))}
-              {/* Diverging bar column: no header text, it's the row's own
-                  gain made visual. Takes whatever width the numbers leave. */}
-              <th className="px-2 md:px-4 py-2" aria-label="Gain relative to the largest position gain or loss" />
             </tr>
           </thead>
           <tbody>
@@ -186,12 +152,10 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
               const gain = h.profitLoss ?? 0;
               const isPositive = gain >= 0;
               const color = isPositive ? 'text-positive' : 'text-negative';
-              const barColor = isPositive ? 'bg-positive' : 'bg-negative';
-              const barWidth = maxAbsGain > 0 ? (Math.abs(gain) / maxAbsGain) * 50 : 0;
               const avgCost = !h.isStatic && h.shares > 0 && h.costBasis !== null ? h.costBasis / h.shares : null;
               return (
                 <tr key={h.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-                  <td className="px-2 md:px-4 py-2 whitespace-nowrap align-middle">
+                  <td className="px-1.5 md:px-4 py-2 whitespace-nowrap align-middle">
                     {h.isStatic ? (
                       <span title={h.ticker} className="font-semibold text-text-primary block truncate max-w-[10ch]">{h.ticker}</span>
                     ) : (
@@ -213,71 +177,51 @@ export function CapitalGains({ holdings }: CapitalGainsProps) {
                       </p>
                     )}
                   </td>
-                  <td className="hidden md:table-cell text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm text-text-primary tabular-nums align-middle">
+                  <td className="text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm text-text-primary tabular-nums align-middle">
                     {formatCurrency(h.costBasis ?? 0, true)}
                   </td>
-                  <td className="hidden md:table-cell text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm text-text-primary tabular-nums align-middle">
+                  <td className="text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm text-text-primary tabular-nums align-middle">
                     {formatCurrency(h.value, true)}
                   </td>
-                  <td className={`text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm font-medium tabular-nums align-middle ${color}`}>
+                  <td className={`text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-medium tabular-nums align-middle ${color}`}>
                     {formatChange(gain, true)}
                   </td>
-                  <td className={`text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm tabular-nums align-middle ${color}`}>
-                    {h.profitLossPercent !== null ? formatPercent(h.profitLossPercent) : ''}
-                  </td>
-                  <td className="px-2 md:px-4 py-2 align-middle">
-                    <div
-                      className="relative h-2.5 min-w-[64px]"
-                      title={`${h.ticker}: ${formatChange(gain)}${h.profitLossPercent !== null ? ` (${formatPercent(h.profitLossPercent)})` : ''}`}
-                    >
-                      <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
-                      {barWidth > 0 && (
-                        <div
-                          className={`absolute inset-y-0 ${barColor} ${isPositive ? 'left-1/2 rounded-r' : 'right-1/2 rounded-l'}`}
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      )}
-                    </div>
+                  <td className={`text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm tabular-nums align-middle ${color}`}>
+                    {h.profitLossPercent !== null ? formatGainPercent(h.profitLossPercent) : ''}
                   </td>
                 </tr>
               );
             })}
             <tr className="border-t border-border bg-card-hover">
-              <td className="px-2 md:px-4 py-2 font-bold text-text-primary whitespace-nowrap">Total</td>
-              <td className="hidden md:table-cell text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm font-bold text-text-primary tabular-nums">
+              <td className="px-1.5 md:px-4 py-2 font-bold text-text-primary whitespace-nowrap">Total</td>
+              <td className="text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-bold text-text-primary tabular-nums">
                 {formatCurrency(totalCost, true)}
               </td>
-              <td className="hidden md:table-cell text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm font-bold text-text-primary tabular-nums">
+              <td className="text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-bold text-text-primary tabular-nums">
                 {formatCurrency(totalValue, true)}
               </td>
-              <td className={`text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm font-bold tabular-nums ${totalColor}`}>
+              <td className={`text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-bold tabular-nums ${totalColor}`}>
                 {formatChange(totalGain, true)}
               </td>
-              <td className={`text-right px-2 md:px-4 py-2 whitespace-nowrap text-sm font-bold tabular-nums ${totalColor}`}>
-                {totalGainPercent !== null ? formatPercent(totalGainPercent) : ''}
+              <td className={`text-right px-1.5 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-bold tabular-nums ${totalColor}`}>
+                {totalGainPercent !== null ? formatGainPercent(totalGainPercent) : ''}
               </td>
-              <td />
             </tr>
           </tbody>
         </table>
-        <div className="border-t border-border px-2 md:px-4 py-3 space-y-1.5 text-xs text-text-secondary">
-          <p>
-            Unrealized only — these are paper gains against the cost basis you entered, before any
-            taxes or fees. The bar shows each gain relative to the largest one.
-          </p>
-          {excluded > 0 && (
-            <p>
-              {excluded === 1 ? '1 holding' : `${excluded} holdings`} without a cost basis
-              ({excludedAllocation.toFixed(0)}% of the portfolio) {excluded === 1 ? 'is' : 'are'} not
-              included in these figures.
-            </p>
-          )}
         </div>
+        {excluded > 0 && (
+          <p className="border-t border-border px-1.5 md:px-4 py-3 text-xs text-text-secondary">
+            {excluded === 1 ? '1 holding' : `${excluded} holdings`} without a cost basis
+            ({excludedAllocation.toFixed(0)}% of the portfolio) {excluded === 1 ? 'is' : 'are'} not
+            included.
+          </p>
+        )}
       </div>
 
       {detailHolding && (
         <TickerDetailModal subject={detailHolding} onClose={closeDetail} />
       )}
-    </div>
+    </>
   );
 }

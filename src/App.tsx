@@ -92,7 +92,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'research' | 'news' | 'history'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'gains' | 'research' | 'news' | 'history'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId
@@ -158,11 +158,18 @@ function App() {
       }
     : undefined;
 
+  // The CG tab only exists when at least one holding carries a cost basis —
+  // an "enter a cost basis" empty state would be noise for portfolios that
+  // never use the feature.
+  const hasCostBasis = !!data?.holdings.some((h) => h.costBasis !== null);
+
   // If the tab disappears out from under us (viewer drops to allocation-only,
-  // e.g. on logout), fall back to Holdings rather than rendering nothing.
+  // e.g. on logout; cost bases removed in an edit), fall back to Holdings
+  // rather than rendering nothing.
   useEffect(() => {
     if (activeTab === 'history' && !canViewHistory) setActiveTab('holdings');
-  }, [activeTab, canViewHistory]);
+    if (activeTab === 'gains' && data && !hasCostBasis) setActiveTab('holdings');
+  }, [activeTab, canViewHistory, data, hasCostBasis]);
 
   // Analytics hook - logs views on initial load and tab visibility change.
   // shareToken attributes views that arrived via a share link to that link.
@@ -300,7 +307,7 @@ function App() {
                 <NewsTicker holdings={data.holdings} />
                 {/* Tab Navigation */}
                 <div className="border-b border-border -mt-2 md:-mt-4">
-                  {/* overflow-x-auto: with the Changes tab visible, five tabs can
+                  {/* overflow-x-auto: with the CG and Changes tabs visible, seven tabs can
                       exceed narrow (~320px) viewports — scroll instead of wrapping */}
                   <nav className="flex gap-1 overflow-x-auto no-scrollbar">
                     <button
@@ -333,6 +340,19 @@ function App() {
                     >
                       PE
                     </button>
+                    {hasCostBasis && (
+                      <button
+                        onClick={() => setActiveTab('gains')}
+                        title="Unrealized capital gains"
+                        className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                          activeTab === 'gains'
+                            ? 'border-accent text-accent'
+                            : 'border-transparent text-text-secondary hover:text-text hover:border-border'
+                        }`}
+                      >
+                        CG
+                      </button>
+                    )}
                     {data.deepResearch && (
                       <button
                         onClick={() => setActiveTab('research')}
@@ -372,10 +392,11 @@ function App() {
 
                 {/* Tab Content */}
                 {activeTab === 'holdings' && (
-                  <div className="space-y-3 md:space-y-6">
-                    <HoldingsTable holdings={data.holdings} />
-                    <CapitalGains holdings={data.holdings} />
-                  </div>
+                  <HoldingsTable holdings={data.holdings} />
+                )}
+
+                {activeTab === 'gains' && hasCostBasis && (
+                  <CapitalGains holdings={data.holdings} />
                 )}
 
                 {activeTab === 'allocation' && (

@@ -78,17 +78,26 @@ function EntryRow({ entry, onEdit }: { entry: HoldingsHistoryEntry; onEdit?: (en
   // Owner-corrected prices render exact; EOD-close estimates keep the `~`.
   const edited = (entry.price_override ?? null) != null;
   const delta = entry.prev_shares != null ? entry.shares - entry.prev_shares : null;
-  // Static value edits colour by the direction of the dollar delta, once known.
+  // Colour follows the dollar effect on the portfolio, not the change kind:
+  // a static row can be a negative liability (e.g. "Owed" at -$250k), so
+  // adding one subtracts from net worth and removing it adds back. Tradeable
+  // rows are always positive-valued, so kind alone decides for them.
   const valueDelta =
     kind === 'value' && entry.static_value != null && entry.prev_static_value != null
       ? entry.static_value - entry.prev_static_value
-      : null;
+      : kind === 'new' && entry.is_static && entry.static_value != null
+        ? entry.static_value
+        : kind === 'exit' && entry.is_static && entry.static_value != null
+          ? -entry.static_value
+          : null;
   const tone =
-    kind === 'new' || kind === 'buy' || (valueDelta != null && valueDelta > 0)
-      ? 'text-positive'
-      : kind === 'trim' || kind === 'exit' || (valueDelta != null && valueDelta < 0)
-        ? 'text-negative'
-        : 'text-text-secondary';
+    valueDelta != null
+      ? valueDelta > 0 ? 'text-positive' : valueDelta < 0 ? 'text-negative' : 'text-text-secondary'
+      : kind === 'new' || kind === 'buy'
+        ? 'text-positive'
+        : kind === 'trim' || kind === 'exit'
+          ? 'text-negative'
+          : 'text-text-secondary';
 
   // `verb` is the plain-language action; `amount` is the dollar figure that
   // pops in green/red; `detail` is muted desktop-only context.

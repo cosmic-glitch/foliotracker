@@ -1369,6 +1369,18 @@ function formatLocationLong(
   return country ? `${city}, ${country}` : city;
 }
 
+// Self-identified crawlers and headless browsers (AhrefsBot, bingbot, Googlebot,
+// HeadlessChrome, curl, …). Bots never log in, so they only ever land in the
+// anonymous buckets; the Viewer Activity (Anonymous) and Anonymous Visitors
+// panels drop them so a crawler sweep doesn't fan out into a dozen fake cities.
+// Read-time filter (not write-time) so historical rows are covered too. Cloud-IP
+// hits with a normal browser string aren't caught — that heuristic is too
+// fragile to be worth the false positives.
+const BOT_UA_RE = /bot|crawler|spider|crawl|slurp|scrapy|python-requests|curl\/|wget|headless|go-http|java\/|okhttp|facebookexternalhit/i;
+function isBotEvent(event: { user_agent: string | null }): boolean {
+  return BOT_UA_RE.test(event.user_agent || '');
+}
+
 // Anonymous identities are grouped by IP alone (browser/device no longer split
 // rows), so the label carries only location + masked IP — no device/browser.
 function buildAnonLabel(event: { city: string | null; region: string | null; country: string | null; ip_address: string | null }): string {
@@ -1690,6 +1702,7 @@ export async function getAnalyticsData(
         m.set(locKey, { city, region, country, count: 1, lastSeenAt: event.created_at });
       }
     } else {
+      if (isBotEvent(event)) continue;
       let agg = anonLocMap.get(locKey);
       if (!agg) {
         agg = { city, region, country, totalViews: 0, identities: new Set() };
@@ -1766,6 +1779,7 @@ export async function getAnalyticsData(
       const prev = viewerLastVisitMap.get(key);
       if (!prev || event.created_at > prev) viewerLastVisitMap.set(key, event.created_at);
     } else {
+      if (isBotEvent(event)) continue;
       const identity = event.ip_address || 'unknown';
       const key = `${identity}|${portfolio}`;
       if (!anonActivityMap.has(key)) anonActivityMap.set(key, {});

@@ -1096,6 +1096,7 @@ export function AnalyticsDashboard() {
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-text-secondary" />
                 <h2 className="text-lg font-semibold text-text-primary">Viewer Activity (Anonymous)</h2>
+                <span className="text-xs text-text-secondary">excludes crawlers</span>
               </div>
               {data.anonymousActivityByDay.length > 0 ? (
                 <GroupedActivityTable

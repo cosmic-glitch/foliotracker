@@ -15,7 +15,7 @@ export function MarketStatusBadge({ status }: MarketStatusBadgeProps) {
   const { label, shortLabel, color, dotColor } = config[status];
 
   return (
-    <div className={`flex items-center gap-2 text-sm ${color}`}>
+    <div className={`flex items-center gap-2 text-sm whitespace-nowrap ${color}`}>
       <span className={`w-2 h-2 rounded-full ${dotColor} ${status === 'open' ? 'animate-pulse' : ''}`} />
       <span className="hidden md:inline">{label}</span>
       <span className="md:hidden">{shortLabel}</span>

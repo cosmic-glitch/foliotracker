@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, Plus, Users, Lock, LogIn, LogOut, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
+import { TrendingUp, Plus, Users, Lock, LogIn, ChevronRight, UserPlus, Briefcase, Shield } from 'lucide-react';
 import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
@@ -450,9 +450,9 @@ export function LandingPage() {
           <div className="flex items-center justify-between">
             <button
               onClick={() => window.location.reload()}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity"
             >
-              <div className="p-2 bg-accent/10 rounded-lg">
+              <div className="p-1.5 md:p-2 bg-accent/10 rounded-lg">
                 <TrendingUp className="w-6 h-6 text-accent" />
               </div>
               {/* Title + a small "views today" social-proof line stacked beside
@@ -474,7 +474,7 @@ export function LandingPage() {
               </div>
             </button>
             <div className="flex items-center gap-1.5 md:gap-3">
-              {loggedInAs && (
+              {loggedInAs ? (
                 <UserMenu
                   loggedInAs={loggedInAs}
                   onEdit={() => navigate(`/${loggedInAs}/edit`, { state: { token: getToken() } })}
@@ -482,6 +482,17 @@ export function LandingPage() {
                   onLogout={logout}
                   showEditAndPermissions
                 />
+              ) : (
+                // Signed-out counterpart to the UserMenu chip (same shape), so
+                // sign-in is visible above the fold on mobile — the bottom
+                // Sign in button sits below the whole Users list.
+                <button
+                  onClick={() => setShowSignIn(true)}
+                  className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-accent/10 rounded-lg hover:bg-accent/15 transition-colors"
+                >
+                  <LogIn className="hidden sm:block w-3.5 h-3.5 text-accent" />
+                  <span className="text-sm font-medium text-accent whitespace-nowrap">Sign in</span>
+                </button>
               )}
               <MarketStatusBadge status={getMarketStatus()} />
             </div>
@@ -599,16 +610,10 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Auth actions */}
-            {loggedInAs ? (
-              <button
-                onClick={logout}
-                className="flex items-center justify-center gap-2 w-full bg-background hover:bg-card-hover border border-border text-text-primary font-medium py-3 px-4 rounded-xl transition-colors mt-6"
-              >
-                <LogOut className="w-5 h-5" />
-                Log out
-              </button>
-            ) : (
+            {/* Auth actions — signed-out only; logging out lives in the
+                header UserMenu (a full-width button here was an easy mis-tap
+                on mobile). */}
+            {!loggedInAs && (
               <div className="flex gap-3 mt-6">
                 {data?.canCreate && (
                   <Link

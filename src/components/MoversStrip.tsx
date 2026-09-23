@@ -41,8 +41,9 @@ export interface MarketMover {
   previousClose?: number;
   regularPrice?: number;
   extendedPrice?: number;
-  // Handles (portfolio ids) holding this name, in the same order the Users list
-  // shows them. See the ownership note below for how they're rendered.
+  // Handles (portfolio ids) holding this name: creation order from the server,
+  // re-ordered per viewer by LandingPage (self first, then shared-with-me). See
+  // the ownership note below for how they're rendered.
   holders: string[];
   // Fundamentals for the ticker detail panel. Optional so older cached
   // payloads (pre-fundamentals) degrade gracefully — the panel just omits them.
@@ -109,7 +110,7 @@ const FIT_SLACK_PX = 4;
 const MORE_LINK_RESERVE_PX = 64;
 
 // Compact ownership label for the row's flexible final column. Names are shown
-// in Users-list order and separated with middle dots; when only a prefix fits,
+// in `holders` order and separated with middle dots; when only a prefix fits,
 // "+N" preserves the omitted count without spending space on "held by".
 function holderLabel(m: MarketMover, visibleCount = m.holders.length): string {
   const holders = m.holders.map((h) => h.toUpperCase());

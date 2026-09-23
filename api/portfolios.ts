@@ -431,9 +431,10 @@ interface MarketMover {
   previousClose: number;
   regularPrice: number;
   extendedPrice: number;
-  // The handles (portfolio ids) holding this name, in creation order — the same
-  // order and identity the landing-page Users list shows. The strip renders as
-  // many as fit in its compact ownership column, then adds "+N" for the rest.
+  // The handles (portfolio ids) holding this name, in creation order. The
+  // landing page re-orders them per viewer (self, then shared-with-me — see
+  // `movers` in LandingPage.tsx); the strip renders as many as fit in its
+  // compact ownership column, then adds "+N" for the rest.
   holders: string[];
   // Fundamentals for the ticker detail panel (see MoverFundamentals).
   fundamentals: MoverFundamentals;

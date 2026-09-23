@@ -339,6 +339,33 @@ export function LandingPage() {
     };
   }, [refetchPortfolios]);
 
+  // Movers for the active price basis, with each row's holders re-ordered for
+  // the logged-in viewer: their own handle first, then portfolios shared with
+  // them in full (non-public rows the server returned dollar values for), then
+  // everyone else — each tier keeping the server's creation order (stable sort).
+  // The strip truncates to "AB · CD +4" when space runs out, so without this a
+  // viewer often couldn't see their own handle on a name they hold. Public
+  // portfolios don't count as "shared" — everyone can see those.
+  const movers = useMemo(() => {
+    const list =
+      (showExtendedHours ? data?.movers?.extended : data?.movers?.regular) ?? [];
+    if (!loggedInAs) return list;
+    const me = loggedInAs.toLowerCase();
+    const sharedWithMe = new Set(
+      (data?.portfolios ?? [])
+        .filter((p) => p.visibility !== 'public' && p.totalValue !== null)
+        .map((p) => p.id.toLowerCase())
+    );
+    const tier = (handle: string) => {
+      const id = handle.toLowerCase();
+      return id === me ? 0 : sharedWithMe.has(id) ? 1 : 2;
+    };
+    return list.map((m) => ({
+      ...m,
+      holders: [...m.holders].sort((a, b) => tier(a) - tier(b)),
+    }));
+  }, [data, showExtendedHours, loggedInAs]);
+
   const portfolios = useMemo(() => {
     const raw = data?.portfolios ?? [];
     if (raw.length === 0) return raw;
@@ -479,11 +506,7 @@ export function LandingPage() {
                 the prints are pre-market; any other time (evening, overnight,
                 weekend) they're the last after-hours session's. */}
             <MoversStrip
-              movers={
-                (showExtendedHours
-                  ? data?.movers?.extended
-                  : data?.movers?.regular) ?? []
-              }
+              movers={movers}
               session={
                 showExtendedHours && data?.movers?.extendedBasis === 'extended-only'
                   ? getMarketStatus() === 'pre-market'

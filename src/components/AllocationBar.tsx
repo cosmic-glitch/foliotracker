@@ -33,7 +33,7 @@ export function AllocationBar({ percent, maxPercent }: { percent: number; maxPer
             padding is a 12px width floor, which made 0.9% and 3.3% bars look
             the same length. */}
         <div
-          className={`h-5 rounded transition-all duration-500 flex items-center justify-end overflow-hidden shrink-0 ${labelInside ? 'px-1.5' : ''} ${isNegative ? 'bg-negative/80' : 'bg-accent/80'}`}
+          className={`h-5 rounded transition-all duration-500 flex items-center justify-end overflow-hidden shrink-0 ${labelInside ? 'px-1.5' : ''} ${isNegative ? 'bg-negative/80' : 'bg-accent/80 bar-raised'}`}
           style={{ width: `${scaledWidth}%` }}
         >
           {labelInside && (

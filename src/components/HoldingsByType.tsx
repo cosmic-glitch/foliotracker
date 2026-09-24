@@ -164,7 +164,7 @@ export function HoldingsByType({ holdings, hideValues = false }: HoldingsByTypeP
                 </span>
                 <div className="flex-1 min-w-0 flex items-center gap-1">
                   <div
-                    className={`h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 ${isNegative ? 'bg-negative/80' : 'bg-accent/80'}`}
+                    className={`h-5 rounded transition-all duration-500 flex items-center justify-end px-1.5 ${isNegative ? 'bg-negative/80' : 'bg-accent/80 bar-raised'}`}
                     style={{ width: `${barWidth}%` }}
                   >
                     {barWidth >= 20 && (

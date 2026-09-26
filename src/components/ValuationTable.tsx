@@ -7,8 +7,10 @@ import { consolidateHoldings } from '../utils/equivalentTickers';
 // The "PE" tab: every market-priced holding's valuation multiples side by
 // side. Same four figures companiesmarketcap.org publishes — trailing PE,
 // forward PE (ongoing FY), forward PE next FY, forward PE FY+2. One table
-// serves both desktop and mobile; five narrow columns fit a phone without a
-// separate layout, unlike HoldingsTable's wide fundamentals sprawl.
+// serves both desktop and mobile. Mobile is the primary surface: columns
+// stay narrow (px-2, inactive sort icons hidden below sm) so all five fit a
+// phone, and the table wrapper scrolls horizontally as a backstop so a
+// column can never be clipped.
 
 type SortColumn = 'ticker' | 'peRatio' | 'forwardPE' | 'forwardPENext' | 'forwardPENext2';
 type SortDirection = 'asc' | 'desc';
@@ -100,12 +102,18 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
   };
 
   const renderSortIcon = (column: SortColumn) => {
-    if (sortConfig.column !== column) {
-      return <ArrowUpDown className="w-3.5 h-3.5 text-text-secondary/70 group-hover:text-text-secondary" />;
-    }
-    return sortConfig.direction === 'asc'
-      ? <ChevronUp className="w-3.5 h-3.5 text-accent" />
-      : <ChevronDown className="w-3.5 h-3.5 text-accent" />;
+    const isActive = sortConfig.column === column;
+    // Inactive columns hide their icon on phones to save width; the header
+    // is still a sort button, and the active column always shows its chevron.
+    const visibility = isActive ? 'inline-flex' : 'hidden sm:inline-flex';
+    const icon = !isActive ? (
+      <ArrowUpDown className="w-3.5 h-3.5 text-text-secondary/70 group-hover:text-text-secondary" />
+    ) : sortConfig.direction === 'asc' ? (
+      <ChevronUp className="w-3.5 h-3.5 text-accent" />
+    ) : (
+      <ChevronDown className="w-3.5 h-3.5 text-accent" />
+    );
+    return <span className={visibility}>{icon}</span>;
   };
 
   if (rows.length === 0) {
@@ -120,11 +128,12 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
+      <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-border">
             {COLUMNS.map(({ column, label, title }) => (
-              <th key={column} className="text-left text-text-secondary text-sm font-medium px-3 md:px-4 py-2 whitespace-nowrap">
+              <th key={column} className="text-left text-text-secondary text-sm font-medium px-2 md:px-4 py-2 whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => handleSort(column)}
@@ -141,25 +150,26 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         <tbody>
           {rows.map((holding) => (
             <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-              <td className="px-3 md:px-4 py-2 whitespace-nowrap">
+              <td className="px-2 md:px-4 py-2 whitespace-nowrap">
                 <span className="font-semibold text-text-primary">{holding.ticker}</span>
               </td>
-              <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.peRatio != null ? formatPERatio(holding.peRatio) : ''}
               </td>
-              <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}
               </td>
-              <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.forwardPENext != null ? formatPERatio(holding.forwardPENext) : ''}
               </td>
-              <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.forwardPENext2 != null ? formatPERatio(holding.forwardPENext2) : ''}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
       <div className="border-t border-border px-3 md:px-4 py-3 space-y-1.5 text-xs text-text-secondary">
         <p>
           <span className="font-medium text-text-primary">PE</span> — based on EPS of the last

@@ -70,7 +70,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
       const requestSymbols = Array.from(new Set(
         staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
       ));
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -82,6 +82,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
           pe_ratio: number | null;
           forward_eps: number | null;
           forward_eps_next: number | null;
+          forward_eps_next2: number | null;
           week_52_high: number | null;
           operating_margin: number | null;
           revenue_growth_3y: number | null;
@@ -100,6 +101,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
               pe_ratio: data.peRatio ?? null,
               forward_eps: data.forwardEPS != null ? data.forwardEPS / ratio : null,
               forward_eps_next: data.forwardEPSNext != null ? data.forwardEPSNext / ratio : null,
+              forward_eps_next2: data.forwardEPSNext2 != null ? data.forwardEPSNext2 / ratio : null,
               week_52_high: data.week52High != null ? data.week52High / ratio : null,
               operating_margin: data.operatingMargin ?? null,
               revenue_growth_3y: data.revenueGrowth3Y ?? null,
@@ -196,6 +198,7 @@ function computeHoldings(
         peRatio: null,
         forwardPE: null,
         forwardPENext: null,
+        forwardPENext2: null,
         pctTo52WeekHigh: null,
         week52High: null,
         operatingMargin: null,
@@ -236,6 +239,9 @@ function computeHoldings(
         : null;
       const forwardPENext = (fund?.forward_eps_next && fund.forward_eps_next > 0 && price.currentPrice > 0)
         ? price.currentPrice / fund.forward_eps_next
+        : null;
+      const forwardPENext2 = (fund?.forward_eps_next2 && fund.forward_eps_next2 > 0 && price.currentPrice > 0)
+        ? price.currentPrice / fund.forward_eps_next2
         : null;
       const yahooHigh = yahoo52WeekHighs.get(holding.ticker);
       const effective52WeekHigh = (yahooHigh && yahooHigh > 0)
@@ -281,6 +287,7 @@ function computeHoldings(
         peRatio,
         forwardPE,
         forwardPENext,
+        forwardPENext2,
         pctTo52WeekHigh,
         week52High: effective52WeekHigh,
         operatingMargin: fund?.operating_margin ?? null,

@@ -16,6 +16,7 @@ export interface MoverFundamentals {
   peRatio?: number | null;
   forwardPE: number | null;
   forwardPENext?: number | null;
+  forwardPENext2?: number | null;
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;

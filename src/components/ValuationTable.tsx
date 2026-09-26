@@ -5,12 +5,12 @@ import { formatPERatio } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
 // The "PE" tab: every market-priced holding's valuation multiples side by
-// side. Same three figures companiesmarketcap.org publishes — trailing PE,
-// forward PE (ongoing FY), forward PE next FY. One table serves both
-// desktop and mobile; four narrow columns fit a phone without a separate
-// layout, unlike HoldingsTable's wide fundamentals sprawl.
+// side. Same four figures companiesmarketcap.org publishes — trailing PE,
+// forward PE (ongoing FY), forward PE next FY, forward PE FY+2. One table
+// serves both desktop and mobile; five narrow columns fit a phone without a
+// separate layout, unlike HoldingsTable's wide fundamentals sprawl.
 
-type SortColumn = 'ticker' | 'peRatio' | 'forwardPE' | 'forwardPENext';
+type SortColumn = 'ticker' | 'peRatio' | 'forwardPE' | 'forwardPENext' | 'forwardPENext2';
 type SortDirection = 'asc' | 'desc';
 
 function getSortValue(holding: Holding, column: SortColumn): string | number | null {
@@ -23,6 +23,8 @@ function getSortValue(holding: Holding, column: SortColumn): string | number | n
       return holding.forwardPE;
     case 'forwardPENext':
       return holding.forwardPENext;
+    case 'forwardPENext2':
+      return holding.forwardPENext2;
   }
 }
 
@@ -43,6 +45,11 @@ const COLUMNS: Array<{ column: SortColumn; label: string; title?: string }> = [
     label: 'FwdPE+1',
     title: "FwdPE on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)",
   },
+  {
+    column: 'forwardPENext2',
+    label: 'FwdPE+2',
+    title: "FwdPE on the fiscal year after next's EPS estimate (pure projection — thinner analyst coverage than FwdPE+1)",
+  },
 ];
 
 interface ValuationTableProps {
@@ -59,7 +66,7 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
   // loss-making companies without a forward estimate have nothing to show.
   const rows = useMemo(() => {
     const withData = consolidateHoldings(holdings).filter(
-      (h) => !h.isStatic && (h.peRatio != null || h.forwardPE != null || h.forwardPENext != null),
+      (h) => !h.isStatic && (h.peRatio != null || h.forwardPE != null || h.forwardPENext != null || h.forwardPENext2 != null),
     );
     const sorted = [...withData];
     sorted.sort((a, b) => {
@@ -146,6 +153,9 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
               <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.forwardPENext != null ? formatPERatio(holding.forwardPENext) : ''}
               </td>
+              <td className="px-3 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+                {holding.forwardPENext2 != null ? formatPERatio(holding.forwardPENext2) : ''}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -165,6 +175,11 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
           <span className="font-medium text-text-primary">FwdPE+1</span> — based on estimated
           EPS of the next fiscal year; no reported quarters, so no one-time items, but estimates
           that far out carry less certainty. The table sorts by this.
+        </p>
+        <p>
+          <span className="font-medium text-text-primary">FwdPE+2</span> — based on estimated
+          EPS of the fiscal year after next; same purity as FwdPE+1, but thinner analyst
+          coverage makes it the least certain of the four.
         </p>
       </div>
     </div>

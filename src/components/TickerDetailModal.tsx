@@ -40,6 +40,7 @@ export interface TickerDetailSubject {
   peRatio?: number | null;
   forwardPE?: number | null;
   forwardPENext?: number | null;
+  forwardPENext2?: number | null;
   operatingMargin?: number | null;
   revenueGrowth3Y?: number | null;
   epsGrowth3Y?: number | null;
@@ -399,6 +400,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     holding.peRatio != null ||
     holding.forwardPE != null ||
     holding.forwardPENext != null ||
+    holding.forwardPENext2 != null ||
     holding.operatingMargin != null ||
     holding.revenueGrowth3Y != null ||
     holding.epsGrowth3Y != null ||
@@ -574,6 +576,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                 {holding.peRatio != null && <Stat label="Trailing PE" value={formatPERatio(holding.peRatio)} />}
                 {holding.forwardPE != null && <Stat label="Forward PE" value={formatPERatio(holding.forwardPE)} />}
                 {holding.forwardPENext != null && <Stat label="Forward PE (next FY)" value={formatPERatio(holding.forwardPENext)} />}
+                {holding.forwardPENext2 != null && <Stat label="Forward PE (FY+2)" value={formatPERatio(holding.forwardPENext2)} />}
                 {holding.operatingMargin != null && <Stat label="Operating margin" value={formatMarginOrGrowth(holding.operatingMargin)} />}
                 {holding.revenueGrowth3Y != null && <Stat label="Revenue growth (3Y)" value={formatMarginOrGrowth(holding.revenueGrowth3Y)} />}
                 {holding.epsGrowth3Y != null && <Stat label="EPS growth (3Y)" value={formatMarginOrGrowth(holding.epsGrowth3Y)} />}

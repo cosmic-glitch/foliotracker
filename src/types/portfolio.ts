@@ -27,6 +27,9 @@ export interface Holding {
   // Forward P/E on next fiscal year's EPS estimate (pure projection), vs
   // forwardPE's ongoing-FY blend of reported quarters + projections.
   forwardPENext: number | null;
+  // Forward P/E on the fiscal year after next (FY+2 estimate, thinner
+  // analyst coverage).
+  forwardPENext2: number | null;
   pctTo52WeekHigh: number | null;
   week52High: number | null;
   operatingMargin: number | null;

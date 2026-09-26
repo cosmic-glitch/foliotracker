@@ -826,6 +826,7 @@ export interface DbFundamentalsCache {
   pe_ratio: number | null;
   forward_eps: number | null;
   forward_eps_next: number | null;
+  forward_eps_next2: number | null;
   week_52_high: number | null;
   operating_margin: number | null;
   revenue_growth_3y: number | null;
@@ -860,6 +861,7 @@ export async function upsertFundamentalsCache(
     pe_ratio: number | null;
     forward_eps: number | null;
     forward_eps_next: number | null;
+    forward_eps_next2: number | null;
     week_52_high: number | null;
     operating_margin: number | null;
     revenue_growth_3y: number | null;
@@ -1091,6 +1093,10 @@ export interface SnapshotHolding {
   // reported quarters mixed in), vs forwardPE's ongoing-FY blend.
   // Optional: snapshots written before this field was introduced lack it.
   forwardPENext?: number | null;
+  // Forward P/E on the fiscal year after next (FY+2 estimate, thinner
+  // analyst coverage). Optional: snapshots written before this field was
+  // introduced lack it.
+  forwardPENext2?: number | null;
   pctTo52WeekHigh: number | null;
   week52High: number | null;
   operatingMargin: number | null;

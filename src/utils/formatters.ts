@@ -98,7 +98,7 @@ export function formatLargeValue(value: number | null): string {
 
 export function formatPERatio(value: number | null): string {
   if (value === null || value === undefined) return '--';
-  return `${value.toFixed(1)}x`;
+  return value.toFixed(1);
 }
 
 export function formatMarginOrGrowth(value: number | null): string {

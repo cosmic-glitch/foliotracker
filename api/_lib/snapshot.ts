@@ -41,10 +41,12 @@ const FUNDAMENTALS_STALE_HOURS = 12;
 // company-level fields copy unscaled. The site's canonical class can flip:
 // Berkshire was served as BRK-A (alias BRK-B→BRK-A, ratio 1500) until
 // ~Jul 2026, when the site switched to serving BRK-B directly and BRK-A
-// went empty — so that alias is gone. If a ticker's fundamentals fossilize,
-// probe the API for which class it serves now.
+// went empty — so that alias is gone. GOOG did the same flip ~Sep 2026
+// (GOOG→GOOGL alias removed: the site now serves GOOG directly and GOOGL
+// returns empty). If a ticker's fundamentals fossilize, probe the API for
+// which class it serves now.
 const FUNDAMENTALS_SHARE_CLASS_ALIASES: Record<string, { canonical: string; perShareRatio: number }> = {
-  GOOG: { canonical: 'GOOGL', perShareRatio: 1 },
+  // No active aliases.
 };
 
 // Fetch fundamentals from companiesmarketcap API, using cache when fresh

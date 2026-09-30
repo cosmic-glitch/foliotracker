@@ -1,72 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQueries } from '@tanstack/react-query';
 import { ArrowDown, ArrowLeftRight, Check, Copy, TrendingUp } from 'lucide-react';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
-import { useUnlockedPortfolios } from '../hooks/useUnlockedPortfolios';
 import { usePortfolioList, isComparable } from '../hooks/usePortfolioList';
-import { portfolioKeys } from '../hooks/usePortfolioData';
-import { consolidateHoldings } from '../utils/equivalentTickers';
-import type { Holding } from '../types/portfolio';
+import { useComparePortfolios, latestUpdated } from '../hooks/useComparePortfolios';
+import { canonicalTicker, consolidateHoldings } from '../utils/equivalentTickers';
 import { Footer } from '../components/Footer';
 import { AllocationBar } from '../components/AllocationBar';
-
-const MAX_COMPARE = 4;
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
-interface CompareResult {
-  id: string;
-  displayName: string | null;
-  holdings: Holding[];
-  // requiresAuth stub or 404: the viewer can't see even allocations.
-  inaccessible: boolean;
-  // 200 carrying the server's "snapshot not yet available" message with no
-  // holdings — not an empty portfolio, just not computable yet.
-  pending: boolean;
-  lastUpdated: string | null;
-}
-
-async function fetchComparePortfolio(
-  id: string,
-  token: string | null,
-  loggedInAs: string | null,
-): Promise<CompareResult> {
-  const url = new URL(`${API_BASE_URL}/api/portfolio`, window.location.origin);
-  url.searchParams.set('id', id);
-  if (token) url.searchParams.set('token', token);
-  if (loggedInAs) url.searchParams.set('logged_in_as', loggedInAs);
-  const response = await fetch(url.toString(), { cache: 'no-store' });
-  if (response.status === 404) {
-    return { id, displayName: null, holdings: [], inaccessible: true, pending: false, lastUpdated: null };
-  }
-  if (!response.ok) throw new Error(`Failed to fetch ${id} (${response.status})`);
-  const json = await response.json();
-  // Allocation-only responses zero out $ fields but keep `allocation` — the
-  // only field this page reads, so restricted portfolios compare safely.
-  if (json.requiresAuth || !Array.isArray(json.holdings)) {
-    return { id, displayName: json.displayName ?? null, holdings: [], inaccessible: true, pending: false, lastUpdated: null };
-  }
-  const pending = json.holdings.length === 0 && typeof json.message === 'string';
-  return {
-    id,
-    displayName: json.displayName ?? null,
-    holdings: json.holdings as Holding[],
-    inaccessible: false,
-    pending,
-    lastUpdated: typeof json.lastUpdated === 'string' ? json.lastUpdated : null,
-  };
-}
-
-type CompareEntry =
-  | { status: 'ok'; result: CompareResult }
-  | { status: 'error'; id: string; message: string }
-  | { status: 'loading'; id: string };
+import { TickerCompare } from '../components/TickerCompare';
 
 type RowFilter = 'all' | 'common' | 'different';
+type View = 'portfolios' | 'ticker';
 
 export function ComparePage() {
-  const { loggedInAs, getToken: getLoginToken } = useLoggedInPortfolio();
-  const { getToken: getUnlockedToken } = useUnlockedPortfolios();
+  const { loggedInAs } = useLoggedInPortfolio();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rowFilter, setRowFilter] = useState<RowFilter>('common');
   const [includeStatic, setIncludeStatic] = useState(true);
@@ -75,6 +22,43 @@ export function ComparePage() {
   const [sortById, setSortById] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Both views keep their state in the URL so links are shareable:
+  // ?ids=a,b,c (portfolios view) and ?view=ticker&ticker=NVDA. Each view's
+  // param survives switching to the other and back.
+  const view: View = searchParams.get('view') === 'ticker' ? 'ticker' : 'portfolios';
+  const ticker = useMemo(() => {
+    const raw = searchParams.get('ticker')?.trim().toUpperCase();
+    return raw ? canonicalTicker(raw) : null;
+  }, [searchParams]);
+
+  const updateParams = (mutate: (next: URLSearchParams) => void, replace = true) => {
+    const next = new URLSearchParams(searchParams);
+    mutate(next);
+    setSearchParams(next, { replace });
+  };
+
+  const setView = (v: View) =>
+    updateParams((next) => {
+      if (v === 'ticker') next.set('view', 'ticker');
+      else next.delete('view');
+    });
+
+  const setTicker = (t: string | null) =>
+    updateParams((next) => {
+      if (t) next.set('ticker', t);
+      else next.delete('ticker');
+    });
+
+  // From a portfolios-table row: a real navigation (pushes history) so Back
+  // returns to the table.
+  const openTickerView = (t: string) => {
+    updateParams((next) => {
+      next.set('view', 'ticker');
+      next.set('ticker', t);
+    }, false);
+    window.scrollTo({ top: 0 });
+  };
+
   // Selection lives in the URL (?ids=a,b,c) so comparisons are shareable.
   const selectedIds = useMemo(() => {
     const raw = searchParams.get('ids') ?? '';
@@ -82,32 +66,23 @@ export function ComparePage() {
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
-    return [...new Set(ids)].slice(0, MAX_COMPARE);
+    return [...new Set(ids)];
   }, [searchParams]);
 
-  const setSelectedIds = (ids: string[]) => {
-    const next = new URLSearchParams(searchParams);
-    if (ids.length === 0) next.delete('ids');
-    else next.set('ids', ids.join(','));
-    setSearchParams(next, { replace: true });
-  };
+  const setSelectedIds = (ids: string[]) =>
+    updateParams((next) => {
+      if (ids.length === 0) next.delete('ids');
+      else next.set('ids', ids.join(','));
+    });
 
   const toggleId = (id: string) => {
     const key = id.toLowerCase();
     if (selectedIds.includes(key)) {
       setSelectedIds(selectedIds.filter((s) => s !== key));
-    } else if (selectedIds.length < MAX_COMPARE) {
+    } else {
       setSelectedIds([...selectedIds, key]);
     }
   };
-
-  // Same token resolution as the detail page (App.tsx): a password-unlocked
-  // portfolio's session token, or the login token when logged in as this id.
-  // Without it the server treats owners as restricted and private portfolios
-  // load as inaccessible. (?share= tokens are single-portfolio and out of
-  // scope for comparison.)
-  const tokenFor = (id: string): string | null =>
-    getUnlockedToken(id) ?? (loggedInAs === id ? getLoginToken() : null);
 
   // Shared list query — same key + full-response fetcher as the landing page,
   // so the two pages can't poison each other's cache with divergent shapes.
@@ -133,42 +108,15 @@ export function ComparePage() {
     [selectedIds, comparableById],
   );
 
-  // One query per portfolio, keyed like the detail page (portfolioKeys.detail
-  // + auth suffix). Toggling a checkbox only fetches the added id, successes
-  // share cache with the detail page, one failure can't blank the rest, and
-  // EditPortfolio's ['portfolio', id] invalidation applies here too.
-  const compareQueries = useQueries({
-    queries: validIds.map((id) => ({
-      queryKey: [...portfolioKeys.detail(id), tokenFor(id) ?? 'no-auth', loggedInAs ?? 'no-login'],
-      queryFn: () => fetchComparePortfolio(id, tokenFor(id), loggedInAs),
-      staleTime: 60 * 1000,
-      gcTime: 10 * 60 * 1000,
-    })),
-  });
+  // The ticker view looks across every portfolio the viewer can see; the
+  // portfolios view only fetches the selection. Same query keys either way,
+  // so switching views reuses whatever is already cached.
+  const comparableIds = useMemo(() => comparable.map((p) => p.id.toLowerCase()), [comparable]);
+  const fetchIds = view === 'ticker' ? comparableIds : validIds;
+  const { okResults, failed, loading: compareLoading } = useComparePortfolios(fetchIds);
 
-  const entries: CompareEntry[] = validIds.map((id, i) => {
-    const q = compareQueries[i];
-    if (q.data) return { status: 'ok', result: q.data };
-    if (q.error) return { status: 'error', id, message: q.error.message };
-    return { status: 'loading', id };
-  });
-
-  const compareLoading = compareQueries.some((q) => q.isLoading);
-  // Settled payloads, memoized on the stable query results (not on
-  // render-created arrays, which the React Compiler can't preserve).
-  const okResults = useMemo(() => {
-    const out: CompareResult[] = [];
-    for (const q of compareQueries) {
-      if (q.data) out.push(q.data);
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [validIds, compareQueries]);
   const inaccessible = okResults.filter((r) => r.inaccessible);
   const pendingList = okResults.filter((r) => r.pending);
-  const failed = entries.filter(
-    (e): e is { status: 'error'; id: string; message: string } => e.status === 'error',
-  );
 
   // Per-portfolio ticker → allocation % map. Holdings pass through
   // consolidateHoldings (GOOG/GOOGL merged) like AllocationView. Excluding
@@ -180,11 +128,24 @@ export function ComparePage() {
       .map((r) => {
         const consolidated = consolidateHoldings(r.holdings);
         const kept = includeStatic ? consolidated : consolidated.filter((h) => !h.isStatic);
+        // Canonical keys so GOOG in one portfolio and GOOGL in another share
+        // a row (consolidateHoldings only merges within a portfolio).
         const map = new Map<string, number>();
-        for (const h of kept) map.set(h.ticker, h.allocation);
+        for (const h of kept) {
+          const t = canonicalTicker(h.ticker);
+          map.set(t, (map.get(t) ?? 0) + h.allocation);
+        }
         return { id: r.id, displayName: r.displayName, map };
       });
   }, [okResults, includeStatic]);
+
+  // Static names (cash, property) aren't tickers, so their rows don't link
+  // into the ticker view.
+  const staticNames = useMemo(() => {
+    const out = new Set<string>();
+    for (const r of okResults) for (const h of r.holdings) if (h.isStatic) out.add(h.ticker);
+    return out;
+  }, [okResults]);
 
   const rows = useMemo(() => {
     const tickers = new Set<string>();
@@ -223,18 +184,8 @@ export function ComparePage() {
   };
 
   const showTable = allocMaps.length >= 2;
-  const loading = listLoading || (validIds.length > 0 && compareLoading);
-
-  // Latest snapshot timestamp across compared portfolios — null (footer
-  // hidden, like the landing page) until at least one result has loaded.
-  const footerUpdated = useMemo(() => {
-    const dates = okResults
-      .filter((r) => !r.inaccessible && !r.pending)
-      .map((r) => (r.lastUpdated ? new Date(r.lastUpdated) : null))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()));
-    if (dates.length === 0) return null;
-    return dates.reduce((a, b) => (a > b ? a : b));
-  }, [okResults]);
+  const loading = listLoading || (fetchIds.length > 0 && compareLoading);
+  const footerUpdated = useMemo(() => latestUpdated(okResults), [okResults]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -252,7 +203,7 @@ export function ComparePage() {
             </div>
             <button
               onClick={copyLink}
-              disabled={validIds.length < 2}
+              disabled={view === 'ticker' ? !ticker : validIds.length < 2}
               className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-40"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -263,21 +214,61 @@ export function ComparePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-3 md:py-8 space-y-4">
+        <div role="tablist" aria-label="Compare by" className="flex rounded-lg overflow-hidden border border-border text-sm w-fit">
+          {(['portfolios', 'ticker'] as View[]).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`px-4 py-2 font-medium transition-colors ${
+                view === v ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {v === 'portfolios' ? 'Portfolios' : 'Ticker'}
+            </button>
+          ))}
+        </div>
+
+        {view === 'ticker' ? (
+          listLoading ? (
+            <div className="text-center text-sm text-text-secondary py-6">Loading portfolios...</div>
+          ) : (
+            <TickerCompare
+              results={okResults}
+              failed={failed}
+              loading={compareLoading}
+              ticker={ticker}
+              onSelectTicker={setTicker}
+            />
+          )
+        ) : (
+        <>
         {/* Picker — names are short, so chips wrap into a few rows instead
             of one tall row-per-portfolio list. */}
         <section aria-label="Select portfolios" className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <h2 className="text-sm font-semibold text-text-primary">
-              Portfolios ({selectedIds.length}/{MAX_COMPARE})
+              Portfolios{selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
             </h2>
-            {selectedIds.length > 0 && (
-              <button
-                onClick={() => setSelectedIds([])}
-                className="text-xs underline text-text-secondary hover:text-text-primary"
-              >
-                Clear
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {comparable.length > 0 && validIds.length < comparable.length && (
+                <button
+                  onClick={() => setSelectedIds(comparableIds)}
+                  className="text-xs underline text-text-secondary hover:text-text-primary"
+                >
+                  Select all
+                </button>
+              )}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setSelectedIds([])}
+                  className="text-xs underline text-text-secondary hover:text-text-primary"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
           <div className="p-3">
             {listLoading ? (
@@ -290,18 +281,16 @@ export function ComparePage() {
               <div className="flex flex-wrap gap-2">
                 {comparable.map((p) => {
                   const checked = selectedIds.includes(p.id.toLowerCase());
-                  const full = !checked && selectedIds.length >= MAX_COMPARE;
                   return (
                     <button
                       key={p.id}
                       onClick={() => toggleId(p.id)}
                       aria-pressed={checked}
-                      disabled={full}
                       title={p.display_name ? p.id : undefined}
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
                         checked
                           ? 'bg-accent border-accent text-white'
-                          : 'border-border text-text-primary hover:bg-card-hover disabled:opacity-40 disabled:hover:bg-transparent'
+                          : 'border-border text-text-primary hover:bg-card-hover'
                       }`}
                     >
                       {(p.display_name || p.id).toUpperCase()}
@@ -386,7 +375,7 @@ export function ComparePage() {
               </button>
             </div>
             {/* Horizontal scroll with sticky ticker column keeps the table
-                usable on narrow phones even with 4 portfolios selected. */}
+                usable on narrow phones with many portfolios selected. */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
@@ -420,8 +409,18 @@ export function ComparePage() {
                 <tbody className="divide-y divide-border">
                   {rows.map((row) => (
                     <tr key={row.ticker}>
-                      <td className="sticky left-0 bg-card font-mono font-medium text-text-primary px-4 py-2">
-                        {row.ticker}
+                      <td className="sticky left-0 bg-card px-4 py-2">
+                        {staticNames.has(row.ticker) ? (
+                          <span className="font-mono font-medium text-text-primary">{row.ticker}</span>
+                        ) : (
+                        <button
+                          onClick={() => openTickerView(row.ticker)}
+                          title={`See ${row.ticker} across all portfolios`}
+                          className="font-mono font-medium text-text-primary hover:text-accent transition-colors text-left"
+                        >
+                          {row.ticker}
+                        </button>
+                        )}
                       </td>
                       {row.pcts.map((pct, i) => (
                         <td key={allocMaps[i].id} className="px-3 py-1.5 min-w-[150px]">
@@ -450,10 +449,12 @@ export function ComparePage() {
             <p className="px-4 py-2.5 text-[11px] text-text-secondary border-t border-border">
               Allocation percentages of net worth — sorted by largest weight. Bars share one
               scale across all portfolios. Holdings are consolidated the same way as the
-              portfolio page.
+              portfolio page. Tap a ticker to see it across every portfolio.
               {!includeStatic && ' Cash/static rows are hidden, not redistributed.'}
             </p>
           </section>
+        )}
+        </>
         )}
       </main>
 

@@ -13,6 +13,15 @@ for (const group of EQUIVALENT_TICKERS) {
 }
 
 /**
+ * Canonical ticker for cross-portfolio matching. consolidateHoldings only
+ * merges within one portfolio, so a GOOGL-only portfolio still reports GOOGL —
+ * map through this before comparing tickers across portfolios.
+ */
+export function canonicalTicker(ticker: string): string {
+  return tickerToGroup.get(ticker)?.[0] ?? ticker;
+}
+
+/**
  * Consolidates holdings that represent equivalent tickers (e.g., GOOG/GOOGL)
  * into a single combined holding for display purposes.
  */

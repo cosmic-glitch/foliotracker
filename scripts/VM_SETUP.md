@@ -36,16 +36,25 @@ claude --version   # sanity check
 
 ## 4. Authenticate to the Max subscription on the VM
 
-`claude login` normally opens a browser. On a headless VM, try these in
-order until one works:
+Auth is a long-lived OAuth token (~1 year) in `CLAUDE_CODE_OAUTH_TOKEN`, not
+`claude login` credentials — nothing to refresh and no browser needed on the VM.
 
-1. **Device flow:** run `claude login` and follow the prompt — recent CLI
-   versions print a code + URL you open on any other machine.
-2. **SSH with X-forwarding:** `ssh -X vm` and run `claude login` inside that
-   session so the browser pops on your local display.
-3. **Copy credentials from your Mac:** after `claude login` on the Mac,
-   `scp -r ~/.claude vm:~/` (verify the Linux path at first install — it may
-   be `~/.claude/` or `~/.config/claude/`).
+1. Run `claude setup-token` (on the VM or the Mac — it prints a URL to open
+   in any browser) and copy the printed token.
+2. Put it as the **first line of `crontab -e`** so every cron job inherits it:
+   ```
+   CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-…
+   ```
+3. Make interactive shells and `ssh vm '<cmd>'` reuse that same line — add
+   this near the top of `~/.bashrc`, **above** the "If not running
+   interactively" early return:
+   ```bash
+   eval "$(crontab -l 2>/dev/null | grep "^CLAUDE_CODE_OAUTH_TOKEN=")" && export CLAUDE_CODE_OAUTH_TOKEN
+   ```
+
+The crontab line is the single source of truth: when the token expires, rerun
+`claude setup-token` and replace that one line. The env var takes precedence
+over any `~/.claude/.credentials.json`.
 
 Verify auth by running a trivial prompt:
 ```bash
@@ -71,7 +80,7 @@ source .env.local && npx tsx scripts/migrate-ticker-news.ts
 
 ## 7. Install the cron entry
 
-On the VM, `crontab -e`:
+On the VM, `crontab -e` (below the `CLAUDE_CODE_OAUTH_TOKEN=` line from step 4):
 
 ```
 50 5 * * * $HOME/foliotracker/scripts/generate-news.sh >> $HOME/foliotracker/scripts/news.log 2>&1

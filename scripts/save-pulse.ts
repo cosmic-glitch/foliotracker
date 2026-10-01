@@ -37,6 +37,24 @@ interface SessionEvent {
   total_cost_usd?: number;
 }
 
+interface Mover {
+  ticker: string;
+  name: string;
+}
+
+// Movers the pulse text mentions, by ticker or by the first word of the
+// company name ("Micron" for "Micron Technology, Inc.") — a heuristic that's
+// good enough for a log warning.
+function namedMovers(text: string, movers: { regularSession?: Mover[] | null; extendedHours?: Mover[] | null }): string[] {
+  const all = [...(movers.regularSession ?? []), ...(movers.extendedHours ?? [])];
+  const named = all.filter((m) => {
+    const first = m.name.replace(/^The\s+/, '').split(/[\s,.]+/)[0];
+    return [m.ticker, first].some((word) =>
+      word.length > 1 && new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text));
+  });
+  return [...new Set(named.map((m) => m.ticker))];
+}
+
 // The final reply text, after logging the session's searches and stats.
 function readSession(): string {
   const events: SessionEvent[] = fs.readFileSync(SESSION_PATH, 'utf8')
@@ -95,6 +113,12 @@ async function main(): Promise<void> {
           /^https?:\/\//.test((s as MarketPulseSource).url))
         .slice(0, 3)
     : [];
+
+  // Prompt hard rule 3: a named mover needs a source explaining its move.
+  const named = namedMovers(`${headline} ${body}`, input.movers ?? {});
+  if (named.length && !sources.length) {
+    console.warn(`save-pulse: names ${named.join(', ')} with no sources (prompt rule 3)`);
+  }
 
   await insertMarketPulse({
     market_status: input.marketStatus,

@@ -6,10 +6,12 @@ import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { MoversStrip } from '../components/MoversStrip';
 import { UpcomingEvents } from '../components/UpcomingEvents';
+import { MarketPulse } from '../components/MarketPulse';
 import { UserMenu } from '../components/UserMenu';
 import { getMarketStatus } from '../lib/market-hours';
 import { usePortfolioList, isFullyBlurred, isDemoPortfolio, type Portfolio } from '../hooks/usePortfolioList';
 import { useLoggedInPortfolio } from '../hooks/useLoggedInPortfolio';
+import { useMarketPulse } from '../hooks/useMarketPulse';
 import { useLandingViewAnalytics } from '../hooks/useAnalytics';
 import { useCountUp } from '../hooks/usePeakReveal';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
@@ -313,6 +315,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   useLandingViewAnalytics(loggedInAs);
+  const { data: pulse } = useMarketPulse(loggedInAs, getToken);
   const { showExtendedHours } = useExtendedHours();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
@@ -510,6 +513,10 @@ export function LandingPage() {
         <div className="md:flex md:gap-6">
           {/* Left column: Users table + Create button */}
           <div className="md:flex-1 min-w-0">
+            {/* AI market snapshot — preview-gated to specific logged-in
+                portfolios server-side; renders nothing otherwise. */}
+            <MarketPulse pulse={pulse} />
+
             {/* With Extended Hours on, the strip ranks by the extended-session-
                 only move whenever the API confirms that basis is live (else it
                 serves the regular list, so no label). Pre-market vs after-hours

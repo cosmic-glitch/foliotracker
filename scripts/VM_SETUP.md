@@ -259,3 +259,25 @@ market-hours gating (unlike the snapshot refresh). Like the news job, the script
 `git pull`s `main` first so prompt/script edits propagate without manual SSH,
 and logs to `scripts/events.log`.
 
+
+## 12. Market pulse cron
+
+`scripts/generate-pulse.sh` writes the landing page's 2–3 sentence market
+snapshot to the append-only `market_pulse` table. One-time migration:
+
+```bash
+set -a; source .env.local; set +a && npx tsx scripts/migrate-market-pulse.ts
+```
+
+Crontab (fires every half hour on weekdays; `prepare-pulse-input.ts` self-gates
+to trading days 8:30–16:30 ET, so off-window ticks exit before touching git or
+the model):
+
+```
+0,30 * * * 1-5 $HOME/bin/hc-run foliotracker-pulse $HOME/foliotracker/scripts/generate-pulse.sh >/dev/null 2>&1
+```
+
+Manual run outside the window: `FORCE=1 ~/foliotracker/scripts/generate-pulse.sh`;
+log in `scripts/pulse.log`. Unlike the news/events jobs, the session gets only
+the WebSearch tool (no file/shell access, no `--dangerously-skip-permissions`) —
+the wrapper inlines the input and captures the reply itself.

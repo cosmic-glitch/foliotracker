@@ -45,8 +45,12 @@ scripts/news-output/
 # Claude-generated upcoming-events run artifacts (regenerated daily)
 scripts/events-output/
 
-# Cron lockfile for refresh-snapshots.sh
+# Claude-generated market-pulse run artifacts (regenerated every 30 min)
+scripts/pulse-output/
+
+# Cron lockfiles
 scripts/refresh-snapshots.lock
+scripts/pulse.lock
 
 # Local Supabase CLI temp metadata
 supabase/.temp/

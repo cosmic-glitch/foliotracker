@@ -1057,6 +1057,42 @@ export async function replaceUpcomingEvents(
   }
 }
 
+// Market pulse — AI-written 2–3 sentence market snapshot, one row per
+// generation (append-only, so past pulses stay reviewable while the prompt
+// evolves). Written by scripts/save-pulse.ts, served by api/events.ts?type=pulse.
+export interface MarketPulseSource {
+  title: string;
+  url: string;
+}
+
+export interface DbMarketPulse {
+  id: string;
+  generated_at: string;
+  market_status: string; // getMarketStatus() at generation time
+  headline: string;
+  body: string;
+  sources: MarketPulseSource[];
+  model: string | null;
+  input: unknown; // market data handed to the generator, for later review
+}
+
+export async function insertMarketPulse(
+  pulse: Omit<DbMarketPulse, 'id' | 'generated_at'>
+): Promise<void> {
+  const { error } = await supabase.from('market_pulse').insert(pulse);
+  if (error) throw error;
+}
+
+export async function getRecentMarketPulses(limit: number): Promise<DbMarketPulse[]> {
+  const { data, error } = await supabase
+    .from('market_pulse')
+    .select('*')
+    .order('generated_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as DbMarketPulse[];
+}
+
 // Portfolio snapshot types and functions
 export interface SnapshotHolding {
   ticker: string;

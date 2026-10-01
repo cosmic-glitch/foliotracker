@@ -1,19 +1,15 @@
 import { Activity } from 'lucide-react';
 import type { MarketPulse as Pulse } from '../hooks/useMarketPulse';
 
-// "1:30 PM ET" today, "Wed 4:30 PM ET" on an earlier day — the pulse only
-// regenerates in market hours, so evenings and weekends show the last close.
+// Viewer-local time: "10:30 AM" today, "Wed 1:30 PM" on an earlier day — the
+// pulse only regenerates in market hours, so evenings and weekends show the
+// last close.
 function formatPulseTime(iso: string): string {
   const d = new Date(iso);
-  const dayKey = (x: Date) => x.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const time = d.toLocaleTimeString('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  if (dayKey(d) === dayKey(new Date())) return `${time} ET`;
-  const weekday = d.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
-  return `${weekday} ${time} ET`;
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  return `${weekday} ${time}`;
 }
 
 // Landing-page market snapshot: a headline + 2–3 sentences, written by

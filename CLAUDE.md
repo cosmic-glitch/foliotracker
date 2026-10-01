@@ -60,7 +60,7 @@ Reachable at `ssh av@myhetzner` (Tailscale). Jobs run via user crontab wrapped i
 | News generation | daily 05:50 | `scripts/generate-news.sh` (`claude -p` per asset class) |
 | Events generation | Sundays 07:30 | `scripts/generate-events.sh` (`claude -p` → `save-events.ts`) |
 | DB backup | 06:30 every 3rd day | `scripts/backup-db.sh` (30-day retention; also runs locally) |
-| Market pulse | :00/:30 weekdays, self-gated to trading days 8:30–16:30 ET | `scripts/generate-pulse.sh` (`FORCE=1` bypasses gating; `PULSE_MODEL`, default `claude-sonnet-5-5`) |
+| Market pulse | :05/:35 weekdays, self-gated to trading days 8:35–16:05 ET | `scripts/generate-pulse.sh` (`FORCE=1` bypasses gating; `PULSE_MODEL`, default `claude-sonnet-5-5`) |
 
 Wrappers self-sync via `git pull --ff-only origin main`; the news/events jobs need `claude` on `PATH`. Both `claude -p` jobs **pin their model** (`NEWS_MODEL`, default `claude-sonnet-5`) rather than inheriting the box's `~/.claude/settings.json` default: a usage cap on the ambient model kills every cron sharing it, and the box's other autopilot (wsj_club) runs on Opus, so the two stay on separate buckets. Override one run with `NEWS_MODEL=… bash scripts/generate-news.sh`. The snapshot refresh retries once on a transient failure (Supabase 504s) before failing the tick.
 

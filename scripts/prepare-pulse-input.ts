@@ -5,8 +5,9 @@
  * Gate: exits 10 (wrapper treats as "skip") outside the generation window —
  * trading days from 60 min before the open through 30 min after the close
  * (early-close aware, via isMarketOpen's NYSE calendar). The crontab fires at
- * :00/:30 every weekday, so that yields 8:30, 9:00, … 16:30 ET (13:30 on half
- * days). --force bypasses it.
+ * :05/:35 every weekday, so that yields 8:35, 9:05, … 16:05 ET (13:05 on half
+ * days) — five past, so the close edition sees settled closing prints and the
+ * 8:30/10:00 data releases are already out. --force bypasses it.
  *
  * Input: writes scripts/pulse-output/input.json — index / futures / rates /
  * commodity quotes straight from Yahoo, the landing page's movers strip (the
@@ -35,11 +36,10 @@ const MINUTE = 60_000;
 
 function inWindow(now: Date): boolean {
   // Open now, opening within the hour, or closed within the last half hour.
-  // 31 not 30: cron fires a few seconds past :30, and close+30 must still pass.
   return (
     isMarketOpen(now) ||
     isMarketOpen(new Date(now.getTime() + 60 * MINUTE)) ||
-    isMarketOpen(new Date(now.getTime() - 31 * MINUTE))
+    isMarketOpen(new Date(now.getTime() - 30 * MINUTE))
   );
 }
 

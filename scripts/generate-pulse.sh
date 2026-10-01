@@ -1,8 +1,8 @@
 #!/bin/bash
 # Market pulse generator — the landing page's 2–3 sentence market snapshot.
 #
-# Fired by cron at :00/:30 on weekdays; prepare-pulse-input.ts self-gates to
-# trading days 8:30–16:30 ET (exit 10 = skip). Each live tick: fetch quotes →
+# Fired by cron at :05/:35 on weekdays; prepare-pulse-input.ts self-gates to
+# trading days 8:35–16:05 ET (exit 10 = skip). Each live tick: fetch quotes →
 # one `claude -p` session (web search for the "why") replies with JSON →
 # save-pulse.ts appends it to market_pulse.
 #

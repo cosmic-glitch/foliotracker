@@ -269,12 +269,13 @@ snapshot to the append-only `market_pulse` table. One-time migration:
 set -a; source .env.local; set +a && npx tsx scripts/migrate-market-pulse.ts
 ```
 
-Crontab (fires every half hour on weekdays; `prepare-pulse-input.ts` self-gates
-to trading days 8:30–16:30 ET, so off-window ticks exit before touching git or
-the model):
+Crontab (fires at :05/:35 on weekdays — five past, so the close edition sees
+settled closing prints and the 8:30/10:00 data releases are out;
+`prepare-pulse-input.ts` self-gates to trading days 8:35–16:05 ET, so off-window
+ticks exit before touching git or the model):
 
 ```
-0,30 * * * 1-5 $HOME/bin/hc-run foliotracker-pulse $HOME/foliotracker/scripts/generate-pulse.sh >/dev/null 2>&1
+5,35 * * * 1-5 $HOME/bin/hc-run foliotracker-pulse $HOME/foliotracker/scripts/generate-pulse.sh >/dev/null 2>&1
 ```
 
 Manual run outside the window: `FORCE=1 ~/foliotracker/scripts/generate-pulse.sh`;

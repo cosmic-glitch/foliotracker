@@ -272,12 +272,35 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+// The chart range is a per-device preference shared across tickers, so a
+// switch to 1M carries over to the next ticker opened. Read synchronously in
+// the useState initializer so the first fetch already uses the stored range.
+const RANGE_STORAGE_KEY = 'foliotracker-ticker-range';
+
+function readStoredRange(): TickerRange {
+  try {
+    const stored = localStorage.getItem(RANGE_STORAGE_KEY);
+    if (TICKER_RANGES.some((r) => r.value === stored)) return stored as TickerRange;
+  } catch {
+    // storage unavailable (private mode etc.) — fall through to the default
+  }
+  return '1y';
+}
+
+function storeRange(range: TickerRange) {
+  try {
+    localStorage.setItem(RANGE_STORAGE_KEY, range);
+  } catch {
+    // non-fatal: the choice just won't persist
+  }
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">{children}</h3>;
 }
 
 export function TickerDetailModal({ subject: holding, onClose }: TickerDetailModalProps) {
-  const [range, setRange] = useState<TickerRange>('1y');
+  const [range, setRange] = useState<TickerRange>(readStoredRange);
   const history = useTickerHistory(holding.ticker, range);
   const showNews = NEWS_INSTRUMENT_TYPES.has(holding.instrumentType);
   const news = useTickerNews(showNews ? holding.ticker : null);
@@ -479,7 +502,10 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                   <button
                     key={r.value}
                     type="button"
-                    onClick={() => setRange(r.value)}
+                    onClick={() => {
+                      setRange(r.value);
+                      storeRange(r.value);
+                    }}
                     className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
                       range === r.value
                         ? 'bg-accent text-white'
@@ -597,7 +623,6 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
               ) : newsMarkdown ? (
                 <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline marker:text-text-secondary">
                   <ReactMarkdown>{newsMarkdown}</ReactMarkdown>
-                  <p className="not-prose mt-2 text-[11px] text-text-secondary">Last updated: {newsEntry!.summaryDate}</p>
                 </div>
               ) : newsEntry ? (
                 <p className="text-sm text-text-secondary">{NO_MATERIAL_NEWS_SENTINEL}</p>

@@ -6,7 +6,7 @@ The JSON at the end of this prompt (`input`):
 
 - `nowET`, `marketStatus` (`pre-market` | `open` | `after-hours` | `closed`).
 - `market`: live quotes. Index `changePercent` is vs the prior close. Before the open (`pre-market`), index rows still show the *previous* session; the futures rows (`ES=F`, `NQ=F`) are the live pre-open read. `^TNX` is the 10-year yield in percent with its move in `changeBps`.
-- `movers`: the biggest moves among stocks this group holds (`heldBy` = how many of them own it) — the same list readers see right next to the pulse, so the numbers alone add little; the why is what's interesting. `regularSession` is the regular-session move (before the open, that's the previous session); `extendedHours`, when present, is the pre-market or after-hours move since the last close.
+- `movers`: the biggest moves among stocks this group holds (`heldBy` = how many of them own it) — the same list readers see right next to the pulse, so the numbers alone add little; the why is what's interesting, and a mover with no story behind it is better left out. `regularSession` is the regular-session move (before the open, that's the previous session); `extendedHours`, when present, is the pre-market or after-hours move since the last close.
 - `earlierPulsesToday`: what earlier editions said today (newest first). Don't repeat them; if the story has shifted (a rally faded, losses pared, a new driver), lead with that shift.
 
 ## Research

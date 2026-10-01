@@ -9,7 +9,8 @@
  * days). --force bypasses it.
  *
  * Input: writes scripts/pulse-output/input.json — index / futures / rates /
- * commodity quotes straight from Yahoo, plus today's earlier pulses. The model
+ * commodity quotes straight from Yahoo, the landing page's movers strip (the
+ * big moves in names this group holds), plus today's earlier pulses. The model
  * takes every number from this file and uses web search only for the *why*:
  * the prototype showed search-sourced figures disagreeing between two reads of
  * the same page.
@@ -26,6 +27,9 @@ import { getRecentMarketPulses } from '../api/_lib/db.js';
 
 const OUT_PATH = 'scripts/pulse-output/input.json';
 const SKIP_EXIT_CODE = 10;
+// The landing page's own payload, so the pulse talks about the same movers the
+// strip beside it shows (computeMarketMovers in api/portfolios.ts).
+const MOVERS_URL = 'https://foliotracker.pro/api/portfolios';
 
 const MINUTE = 60_000;
 
@@ -69,6 +73,41 @@ function etTime(d: Date): string {
   });
 }
 
+interface ApiMover {
+  ticker: string;
+  name: string;
+  changePercent: number;
+  holders: string[];
+}
+
+// Best-effort: a down API shouldn't cost the pulse, just its stock angle.
+async function fetchMovers(): Promise<{
+  regularSession: { ticker: string; name: string; changePercent: number; heldBy: number }[];
+  extendedHours: { ticker: string; name: string; changePercent: number; heldBy: number }[] | null;
+}> {
+  const shape = (ms: ApiMover[]) =>
+    ms.map((m) => ({
+      ticker: m.ticker,
+      name: m.name,
+      changePercent: round(m.changePercent, 2),
+      heldBy: m.holders.length,
+    }));
+  try {
+    const res = await fetch(MOVERS_URL, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { movers } = await res.json();
+    return {
+      regularSession: shape(movers.regular),
+      // `extended` is only its own ranking when extendedBasis says so; otherwise
+      // it's a copy of `regular`.
+      extendedHours: movers.extendedBasis === 'extended-only' ? shape(movers.extended) : null,
+    };
+  } catch (err) {
+    console.warn(`prepare-pulse: movers fetch failed (${err instanceof Error ? err.message : err}); continuing without`);
+    return { regularSession: [], extendedHours: null };
+  }
+}
+
 async function main(): Promise<void> {
   const now = new Date();
   if (!process.argv.includes('--force') && !inWindow(now)) {
@@ -76,7 +115,10 @@ async function main(): Promise<void> {
     process.exit(SKIP_EXIT_CODE);
   }
 
-  const quotes = await getMultipleQuotes(SYMBOLS.map((s) => s.symbol));
+  const [quotes, movers] = await Promise.all([
+    getMultipleQuotes(SYMBOLS.map((s) => s.symbol)),
+    fetchMovers(),
+  ]);
   const market = SYMBOLS.flatMap(({ symbol, label, kind }) => {
     const q = quotes.get(symbol);
     if (!q) return [];
@@ -108,12 +150,13 @@ async function main(): Promise<void> {
     nowET: etTime(now),
     marketStatus: getMarketStatus(now),
     market,
+    movers,
     earlierPulsesToday: earlier,
   };
 
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, JSON.stringify(input, null, 2) + '\n');
-  console.log(`[${now.toISOString()}] prepare-pulse: wrote ${OUT_PATH} (${market.length} quotes, ${earlier.length} earlier pulses, status=${input.marketStatus})`);
+  console.log(`[${now.toISOString()}] prepare-pulse: wrote ${OUT_PATH} (${market.length} quotes, ${movers.regularSession.length} movers, ${earlier.length} earlier pulses, status=${input.marketStatus})`);
 }
 
 main().catch((err) => {

@@ -21,7 +21,7 @@ const INPUT_PATH = 'scripts/pulse-output/input.json';
 // verbose run shouldn't blank the card) but warned on so drift shows in the log;
 // only an empty or wildly long pulse is rejected.
 const HEADLINE_MAX = 40;
-const BODY_WORDS_MAX = 55;
+const BODY_WORDS_MAX = 65;
 const BODY_HARD_MAX_CHARS = 600;
 
 async function main(): Promise<void> {

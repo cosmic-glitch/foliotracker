@@ -9,7 +9,9 @@
 # The session is sandboxed to WebSearch only: no file, shell, or MCP access,
 # and no permission bypass. The market data is inlined into the prompt and the
 # wrapper (not the model) writes the reply to disk, so untrusted web content
-# can't steer it into doing anything but answering.
+# can't steer it into doing anything but answering. The session streams its
+# events (stream-json) to disk so save-pulse.ts can log which searches it ran,
+# not just its final reply.
 #
 # Required env (from .env.local): SUPABASE_URL, SUPABASE_SERVICE_KEY.
 # Required on PATH: claude, npx, node. FORCE=1 bypasses the time gate.
@@ -62,8 +64,8 @@ else
   log "git pull FAILED at $(git rev-parse --short HEAD); proceeding"
 fi
 
-# Clear the previous reply so a failed session can't re-save a stale pulse.
-rm -f "$OUT_DIR/response.txt"
+# Clear the previous session so a failed one can't re-save a stale pulse.
+rm -f "$OUT_DIR/session.jsonl"
 
 log "starting claude session ($PULSE_MODEL)"
 PROMPT="$(cat "$PROJECT_DIR/scripts/pulse-prompt.md")
@@ -74,8 +76,10 @@ claude -p "$PROMPT" \
   --allowedTools WebSearch \
   --strict-mcp-config \
   --disable-slash-commands \
+  --output-format stream-json \
+  --verbose \
   < /dev/null \
-  > "$OUT_DIR/response.txt" 2>> "$LOG_FILE"
+  > "$OUT_DIR/session.jsonl" 2>> "$LOG_FILE"
 log "claude session exited"
 
 npx tsx "$PROJECT_DIR/scripts/save-pulse.ts" "$PULSE_MODEL" >> "$LOG_FILE" 2>&1

@@ -34,12 +34,6 @@ interface TickerCompareProps {
 
 const labelOf = (r: CompareResult) => (r.displayName || r.id).toUpperCase();
 
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
 // One ticker's weight across every portfolio the viewer can see. Only
 // allocation % is read (never dollars), so allocation-only portfolios take
 // part on equal footing and portfolio size stays out of the picture.
@@ -132,13 +126,9 @@ export function TickerCompare({ results, failed, loading, ticker, onSelectTicker
 
   const selected = ticker ? index.get(ticker) ?? null : null;
   const holders = selected ? [...selected.holders].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)) : [];
-  const nonHolders = selected
-    ? usable.filter((r) => !selected.holders.some((h) => h.id === r.id)).map((r) => ({ id: r.id, label: labelOf(r) }))
-    : [];
   // One scale for every row, like the portfolios view: the largest weight
   // fills its track and the rest are proportional.
   const maxPct = Math.max(0, ...holders.map((h) => h.pct));
-  const medianPct = holders.length ? median(holders.map((h) => h.pct)) : 0;
 
   const skipped = [
     ...failed.map((f) => f.id.toUpperCase()),
@@ -267,7 +257,6 @@ export function TickerCompare({ results, failed, loading, ticker, onSelectTicker
               <p className="text-xs text-text-secondary mt-0.5">
                 Held by <span className="font-semibold text-text-primary">{holders.length}</span> of {usable.length}{' '}
                 {usable.length === 1 ? 'portfolio' : 'portfolios'}
-                {holders.length > 1 && <> · median {medianPct.toFixed(1)}%</>}
                 {loading && ' · loading more…'}
               </p>
             </div>
@@ -293,23 +282,6 @@ export function TickerCompare({ results, failed, loading, ticker, onSelectTicker
               </li>
             ))}
           </ul>
-          {nonHolders.length > 0 && (
-            <p className="px-4 py-2.5 text-xs text-text-secondary border-t border-border">
-              Not held by:{' '}
-              {nonHolders.map((p, i) => (
-                <span key={p.id}>
-                  {i > 0 && ', '}
-                  <Link to={`/${p.id}`} className="hover:text-text-primary transition-colors">
-                    {p.label}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          )}
-          <p className="px-4 py-2.5 text-[11px] text-text-secondary border-t border-border">
-            Share of each portfolio's net worth. Bars share one scale. Equivalent share
-            classes (GOOG/GOOGL) are combined.
-          </p>
         </section>
       )}
 

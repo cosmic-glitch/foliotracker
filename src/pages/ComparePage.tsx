@@ -446,12 +446,6 @@ export function ComparePage() {
                 </tbody>
               </table>
             </div>
-            <p className="px-4 py-2.5 text-[11px] text-text-secondary border-t border-border">
-              Allocation percentages of net worth — sorted by largest weight. Bars share one
-              scale across all portfolios. Holdings are consolidated the same way as the
-              portfolio page. Tap a ticker to see it across every portfolio.
-              {!includeStatic && ' Cash/static rows are hidden, not redistributed.'}
-            </p>
           </section>
         )}
         </>

@@ -98,7 +98,7 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6">
+      <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-6">
           <h3 className="text-lg font-semibold text-text-primary">
             Permissions

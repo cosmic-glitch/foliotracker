@@ -161,7 +161,7 @@ export function ShareModal({ portfolioId, ownerToken, onClose }: Props) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-2">
           <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Link2 className="w-5 h-5 text-text-secondary" />

@@ -535,15 +535,15 @@ export function LandingPage() {
               isLoading={isLoading}
             />
 
+            {/* AI market snapshot (public); renders nothing until a pulse exists. */}
+            <MarketPulse pulse={pulse} />
+
             {/* Upcoming macro releases + held-ticker earnings. Self-fetching
                 (useUpcomingEvents) and self-hiding when the feed is empty. */}
             <UpcomingEvents />
 
-            {/* AI market snapshot (public); renders nothing until a pulse exists. */}
-            <MarketPulse pulse={pulse} />
-
-            {/* Portfolios List — same notepad-tab shell as the movers/upcoming/
-                pulse strips above, so they read as a matched stack. A folder tab
+            {/* Portfolios List — same notepad-tab shell as the movers/pulse/
+                upcoming strips above, so they read as a matched stack. A folder tab
                 (users icon + "Users") juts from the card's top-left; the rows
                 fill the card body below. The timeframe toggle that once lived in
                 this header now lives in UserMenu's "30-Day View" row — same

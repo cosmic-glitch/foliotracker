@@ -56,8 +56,8 @@ function holderLabel(holders: string[] | null): string | null {
 // Display title for an earnings row. The generator stores the full company name
 // ("Goldman Sachs Q2 earnings") but on the narrow mobile strip that leaves no
 // room for the inline "held by …" suffix, so we render the TICKER instead
-// ("GS Q2 earnings") — short, and consistent with the movers strip directly
-// above (which is ticker-keyed too). The ticker comes from the event's own
+// ("GS Q2 earnings") — short, and consistent with the movers strip above
+// (which is ticker-keyed too). The ticker comes from the event's own
 // `tickers` field; we keep the quarter/earnings tail from the stored title
 // (format is "<Company> Q# FY## earnings", so everything from "Q#" on) and strip
 // any redundant 4-digit year ("Q2 2026 earnings" → "Q2 earnings") so rows read
@@ -73,7 +73,7 @@ function earningsDisplayTitle(e: {
   return `${ticker} ${tail.replace(/\s+20\d{2}/, '')}`;
 }
 
-// "Upcoming" strip directly below MoversStrip on the landing page. Same shell
+// "Upcoming" strip below MoversStrip and MarketPulse on the landing page. Same shell
 // and the same notepad-tab-with-label + inline expand link (a blue "N more" at
 // the bottom-right of the last row) pattern as the movers strip, so the two read
 // as a matched pair: what moved / what's coming. A
@@ -96,7 +96,7 @@ function earningsDisplayTitle(e: {
 // Earnings rows render the TICKER, not the company name ("GS Q2 earnings", not
 // "Goldman Sachs Q2 earnings") via earningsDisplayTitle below — short enough to
 // fit the inline holder suffix on one mobile line, and consistent with the
-// movers strip directly above (also ticker-keyed). They carry a muted
+// movers strip above (also ticker-keyed). They carry a muted
 // "held by AV, VD" suffix after the title — the portfolio handles that own the
 // name (same handles as the movers strip / Users list), via holderLabel above —
 // appended inline within the title cell, not as a separate column (see the

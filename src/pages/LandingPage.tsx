@@ -517,10 +517,6 @@ export function LandingPage() {
         <div className="md:flex md:gap-6">
           {/* Left column: Users table + Create button */}
           <div className="md:flex-1 min-w-0">
-            {/* AI market snapshot — preview-gated to specific logged-in
-                portfolios server-side; renders nothing otherwise. */}
-            <MarketPulse pulse={pulse} />
-
             {/* With Extended Hours on, the strip ranks by the extended-session-
                 only move whenever the API confirms that basis is live (else it
                 serves the regular list, so no label). Pre-market vs after-hours
@@ -543,8 +539,11 @@ export function LandingPage() {
                 (useUpcomingEvents) and self-hiding when the feed is empty. */}
             <UpcomingEvents />
 
-            {/* Portfolios List — same notepad-tab shell as the movers/upcoming
-                strips above, so the three read as a matched stack. A folder tab
+            {/* AI market snapshot (public); renders nothing until a pulse exists. */}
+            <MarketPulse pulse={pulse} />
+
+            {/* Portfolios List — same notepad-tab shell as the movers/upcoming/
+                pulse strips above, so they read as a matched stack. A folder tab
                 (users icon + "Users") juts from the card's top-left; the rows
                 fill the card body below. The timeframe toggle that once lived in
                 this header now lives in UserMenu's "30-Day View" row — same

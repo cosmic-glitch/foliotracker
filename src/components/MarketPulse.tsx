@@ -14,7 +14,7 @@ function formatPulseTime(iso: string): string {
 
 // Landing-page market snapshot: a headline + 2–3 sentences, written by
 // scripts/generate-pulse.sh. Same notepad-tab shell as the movers/upcoming
-// strips below it (shared w-36 tab width). Renders nothing until there's a
+// strips above it (shared w-36 tab width). Renders nothing until there's a
 // pulse.
 export function MarketPulse({ pulse }: { pulse: Pulse | null | undefined }) {
   if (!pulse) return null;

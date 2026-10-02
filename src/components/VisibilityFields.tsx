@@ -7,9 +7,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export type Visibility = 'public' | 'private' | 'selective';
 
 const OPTIONS: { value: Visibility; label: string; description: string; Icon: ComponentType<{ className?: string }> }[] = [
-  { value: 'public', label: 'Public', description: 'Anyone can see full details', Icon: Globe },
-  { value: 'private', label: 'Private', description: 'Only you, with your password', Icon: Lock },
-  { value: 'selective', label: 'Selective', description: 'You plus FolioTracker users you choose', Icon: Users },
+  { value: 'public', label: 'Public', description: 'Anyone can see dollar values', Icon: Globe },
+  { value: 'private', label: 'Private', description: 'Only you can see dollar values', Icon: Lock },
+  { value: 'selective', label: 'Selective', description: 'You and people you choose can see dollar values', Icon: Users },
 ];
 
 interface VisibilityFieldsProps {
@@ -86,7 +86,7 @@ export function VisibilityFields({
       {visibility === 'selective' && (
         <div className="pt-1 space-y-3">
           <p className="text-xs text-text-secondary">
-            People you add see full details while logged in to their own portfolio.
+            People you add see dollar values while logged in to their own portfolio.
           </p>
 
           <select
@@ -137,7 +137,7 @@ export function VisibilityFields({
           visitors still get the allocation-only view. */}
       {visibility !== 'public' && (
         <p className="text-xs text-text-secondary">
-          Everyone else sees allocation percentages only — no dollar amounts or share counts.
+          Everyone else sees allocation percentages only, not dollar values.
         </p>
       )}
     </div>

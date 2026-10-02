@@ -315,7 +315,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   useLandingViewAnalytics(loggedInAs);
-  const { data: pulse, refetch: refetchPulse } = useMarketPulse(loggedInAs, getToken);
+  const { data: pulse, refetch: refetchPulse } = useMarketPulse();
   const { showExtendedHours } = useExtendedHours();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
@@ -330,12 +330,11 @@ export function LandingPage() {
   // Returning to the app (iOS home-screen app resumed, tab refocused) refetches
   // what changes while it's backgrounded — React Query's interval pauses while
   // hidden, so without this the pulse stayed stale until a kill and relaunch.
-  // refetch() ignores `enabled`, hence the guard for the logged-out pulse.
   useEffect(() => {
     const handleTabVisible = () => {
       if (document.visibilityState !== 'visible') return;
       void refetchPortfolios();
-      if (loggedInAs) void refetchPulse();
+      void refetchPulse();
     };
 
     window.addEventListener('focus', handleTabVisible);
@@ -345,7 +344,7 @@ export function LandingPage() {
       window.removeEventListener('focus', handleTabVisible);
       document.removeEventListener('visibilitychange', handleTabVisible);
     };
-  }, [refetchPortfolios, refetchPulse, loggedInAs]);
+  }, [refetchPortfolios, refetchPulse]);
 
   // Movers for the active price basis, with each row's holders re-ordered for
   // the logged-in viewer: their own handle first, then portfolios shared with

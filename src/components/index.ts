@@ -11,6 +11,7 @@ export { NewsTicker } from './NewsTicker';
 export { Footer } from './Footer';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { PermissionsModal } from './PermissionsModal';
+export { VisibilityFields } from './VisibilityFields';
 export { ShareModal } from './ShareModal';
 export { AIResearchSection } from './AIResearchSection';
 export { HoldingsHistory } from './HoldingsHistory';

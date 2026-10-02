@@ -12,7 +12,6 @@ import { invalidatePortfoliosListCache, deletePortfolioFromRedis } from './_lib/
 interface PermissionsResponse {
   visibility: Visibility;
   viewers: string[];
-  allocationPublic: boolean;
 }
 
 export default async function handler(
@@ -64,7 +63,6 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: portfolio.visibility,
         viewers,
-        allocationPublic: portfolio.allocation_public,
       };
 
       res.status(200).json(response);
@@ -72,7 +70,7 @@ export default async function handler(
     }
 
     if (req.method === 'PUT') {
-      const { password, token, visibility, viewers, allocationPublic } = req.body;
+      const { password, token, visibility, viewers } = req.body;
 
       if (!token && !password) {
         res.status(401).json({ error: 'Password is required' });
@@ -97,15 +95,10 @@ export default async function handler(
         return;
       }
 
-      // Bundle column updates into a single round-trip.
-      const settings: {
-        visibility?: Visibility;
-        allocation_public?: boolean;
-      } = {};
-      if (visibility) settings.visibility = visibility;
-      if (typeof allocationPublic === 'boolean') settings.allocation_public = allocationPublic;
-      if (Object.keys(settings).length > 0) {
-        await updatePortfolioSettings(portfolioId, settings);
+      // allocation_public is deliberately not writable: it stays at its
+      // default (true) for every portfolio.
+      if (visibility) {
+        await updatePortfolioSettings(portfolioId, { visibility: visibility as Visibility });
       }
 
       // Update viewers if provided (only relevant for selective visibility)
@@ -133,7 +126,6 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: updatedPortfolio!.visibility,
         viewers: updatedViewers,
-        allocationPublic: updatedPortfolio!.allocation_public,
       };
 
       res.status(200).json(response);

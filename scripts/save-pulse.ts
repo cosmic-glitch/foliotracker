@@ -3,7 +3,7 @@
  * Persist one market pulse to the append-only market_pulse table, alongside
  * the input.json the session was given. generate-pulse.sh captures the session
  * as stream-json events in scripts/pulse-output/session.jsonl: we log the web
- * searches it ran (to tell "searched, found no driver" from "never searched")
+ * searches and fetches it ran (to tell "searched, found no driver" from "never searched")
  * and take its final reply from the closing `result` event. That reply should
  * be a bare JSON object; we take the outermost {...} in case it adds stray
  * prose or a fence.
@@ -63,10 +63,13 @@ function readSession(): string {
     .map((line) => JSON.parse(line));
 
   const queries: string[] = [];
+  const fetches: string[] = [];
   for (const e of events) {
     if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
-    for (const block of e.message.content as { type?: string; name?: string; input?: { query?: string } }[]) {
-      if (block.type === 'tool_use' && block.name === 'WebSearch') queries.push(block.input?.query ?? '?');
+    for (const block of e.message.content as { type?: string; name?: string; input?: { query?: string; url?: string } }[]) {
+      if (block.type !== 'tool_use') continue;
+      if (block.name === 'WebSearch') queries.push(block.input?.query ?? '?');
+      if (block.name === 'WebFetch') fetches.push(block.input?.url ?? '?');
     }
   }
 
@@ -75,7 +78,8 @@ function readSession(): string {
   const secs = Math.round((result.duration_ms ?? 0) / 1000);
   const cost = result.total_cost_usd?.toFixed(3) ?? '?';
   console.log(`save-pulse: session ${result.num_turns ?? '?'} turns, ${secs}s, $${cost}; ` +
-    `${queries.length} searches${queries.length ? ': ' + queries.map((q) => `"${q}"`).join(' | ') : ''}`);
+    `${queries.length} searches${queries.length ? ': ' + queries.map((q) => `"${q}"`).join(' | ') : ''}; ` +
+    `${fetches.length} fetches${fetches.length ? ': ' + fetches.join(' | ') : ''}`);
   if (queries.length === 0) console.warn('save-pulse: session ran no web searches');
   if (result.is_error || typeof result.result !== 'string') {
     throw new Error(`session ended in error: ${String(result.result).slice(0, 200)}`);

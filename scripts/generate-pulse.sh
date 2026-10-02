@@ -3,15 +3,19 @@
 #
 # Fired by cron at :05/:35 on weekdays; prepare-pulse-input.ts self-gates to
 # trading days 8:35–16:05 ET (exit 10 = skip). Each live tick: fetch quotes →
-# one `claude -p` session (web search for the "why") replies with JSON →
+# one `claude -p` session (web search/fetch for the "why") replies with JSON →
 # save-pulse.ts appends it to market_pulse.
 #
-# The session is sandboxed to WebSearch only: no file, shell, or MCP access,
-# and no permission bypass. The market data is inlined into the prompt and the
-# wrapper (not the model) writes the reply to disk, so untrusted web content
-# can't steer it into doing anything but answering. The session streams its
-# events (stream-json) to disk so save-pulse.ts can log which searches it ran,
-# not just its final reply.
+# The session is sandboxed to WebSearch + WebFetch: no file, shell, or MCP
+# access, and no permission bypass. WebFetch is there because search results
+# are bare link titles with no dates, so without opening a page the model can't
+# confirm a "why X is up today" story is from today (prompt rule 3) and drops
+# every stock. The prompt holds only public market data, so a fetch has nothing
+# to leak. The market data is inlined into the prompt and the wrapper (not the
+# model) writes the reply to disk, so untrusted web content can't steer it into
+# doing anything but answering. The session streams its events (stream-json)
+# to disk so save-pulse.ts can log which searches/fetches it ran, not just its
+# final reply.
 #
 # Required env (from .env.local): SUPABASE_URL, SUPABASE_SERVICE_KEY.
 # Required on PATH: claude, npx, node. FORCE=1 bypasses the time gate.
@@ -72,8 +76,8 @@ PROMPT="$(cat "$PROJECT_DIR/scripts/pulse-prompt.md")
 $(cat "$OUT_DIR/input.json")"
 claude -p "$PROMPT" \
   --model "$PULSE_MODEL" \
-  --tools WebSearch \
-  --allowedTools WebSearch \
+  --tools WebSearch,WebFetch \
+  --allowedTools WebSearch,WebFetch \
   --strict-mcp-config \
   --disable-slash-commands \
   --output-format stream-json \

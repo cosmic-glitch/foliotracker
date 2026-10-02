@@ -7,9 +7,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export type Visibility = 'public' | 'private' | 'selective';
 
 const OPTIONS: { value: Visibility; label: string; description: string; Icon: ComponentType<{ className?: string }> }[] = [
-  { value: 'public', label: 'Public', description: 'Anyone can view', Icon: Globe },
-  { value: 'private', label: 'Private', description: 'Only you (with password)', Icon: Lock },
-  { value: 'selective', label: 'Selective', description: 'Only specific users (when logged in)', Icon: Users },
+  { value: 'public', label: 'Public', description: 'Anyone can see full details', Icon: Globe },
+  { value: 'private', label: 'Private', description: 'Only you, with your password', Icon: Lock },
+  { value: 'selective', label: 'Selective', description: 'You plus FolioTracker users you choose', Icon: Users },
 ];
 
 interface VisibilityFieldsProps {
@@ -83,18 +83,10 @@ export function VisibilityFields({
         ))}
       </div>
 
-      {/* allocation_public is always true (no longer user-settable): restricted
-          visitors still get the allocation-only view. */}
-      {visibility !== 'public' && (
-        <p className="text-xs text-text-secondary">
-          Allocation percentages are always visible to everyone. Dollar amounts and share counts stay hidden.
-        </p>
-      )}
-
       {visibility === 'selective' && (
         <div className="pt-1 space-y-3">
           <p className="text-xs text-text-secondary">
-            Add users who can view this portfolio when they're logged in.
+            People you add see full details while logged in to their own portfolio.
           </p>
 
           <select
@@ -107,7 +99,7 @@ export function VisibilityFields({
             }}
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
           >
-            <option value="">Select a user</option>
+            <option value="">Add a user…</option>
             {availablePortfolios.map((id) => (
               <option key={id} value={id}>
                 {id.toUpperCase()}
@@ -125,6 +117,7 @@ export function VisibilityFields({
                   <button
                     type="button"
                     onClick={() => onViewersChange(viewers.filter((v) => v !== viewerId))}
+                    aria-label={`Remove ${viewerId.toUpperCase()}`}
                     className="p-1 hover:bg-negative/10 hover:text-negative rounded transition-colors"
                   >
                     <Trash2 className="w-4 h-4 text-text-secondary hover:text-negative" />
@@ -134,10 +127,18 @@ export function VisibilityFields({
             </div>
           ) : (
             <p className="text-sm text-text-secondary text-center py-4 bg-background rounded-lg border border-border">
-              No viewers added yet
+              No one added yet
             </p>
           )}
         </div>
+      )}
+
+      {/* allocation_public is always true (no longer user-settable): restricted
+          visitors still get the allocation-only view. */}
+      {visibility !== 'public' && (
+        <p className="text-xs text-text-secondary">
+          Everyone else sees allocation percentages only — no dollar amounts or share counts.
+        </p>
       )}
     </div>
   );

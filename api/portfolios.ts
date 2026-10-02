@@ -1137,7 +1137,7 @@ export default async function handler(
 
     if (req.method === 'PUT') {
       // Update existing portfolio (or preview classification)
-      const { id, password, token, holdings: holdingsInput, visibility, viewers, newPassword } = req.body;
+      const { id, password, token, holdings: holdingsInput, newPassword } = req.body;
       const isPreview = req.query.preview === 'true';
 
       if (!id || typeof id !== 'string') {
@@ -1232,31 +1232,11 @@ export default async function handler(
         });
       }
 
-      // Update portfolio settings (visibility and/or password)
-      const settings: { is_private?: boolean; visibility?: Visibility; password_hash?: string } = {};
-      if (visibility && ['public', 'private', 'selective'].includes(visibility)) {
-        settings.visibility = visibility as Visibility;
-        settings.is_private = visibility === 'private';
-      }
+      // Visibility/viewers are owned by api/permissions.ts; this endpoint only
+      // changes holdings and (optionally) the password.
       if (newPassword && typeof newPassword === 'string' && newPassword.length >= 4) {
-        settings.password_hash = await bcrypt.hash(newPassword, 10);
-      }
-      if (Object.keys(settings).length > 0) {
-        await updatePortfolioSettings(id, settings);
-      }
-
-      // Invalidate all sessions if password was changed
-      if (settings.password_hash) {
+        await updatePortfolioSettings(id, { password_hash: await bcrypt.hash(newPassword, 10) });
         await deleteSessionsForPortfolio(id);
-      }
-
-      // Update viewers if selective visibility
-      if (visibility === 'selective' && Array.isArray(viewers)) {
-        const validViewers = viewers.filter((v: unknown) => typeof v === 'string').map((v: string) => v.toLowerCase());
-        await setPortfolioViewers(id, validViewers);
-      } else if (visibility && visibility !== 'selective') {
-        // Clear viewers if switching away from selective
-        await setPortfolioViewers(id, []);
       }
 
       // Fetch previous holdings for history diff (best-effort)
@@ -1266,7 +1246,7 @@ export default async function handler(
         console.warn('[holdings_history] update record failed:', e)
       );
 
-      // Invalidate Redis caches (visibility or display_name may have changed)
+      // Invalidate Redis caches
       await invalidatePortfoliosListCache();
       await deletePortfolioFromRedis(id); // Will be re-cached on next read
 

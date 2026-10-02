@@ -38,11 +38,14 @@ LOG_FILE="$PROJECT_DIR/scripts/pulse.log"
 LOCK_FILE="$PROJECT_DIR/scripts/pulse.lock"
 log() { echo "[$(date -u +%FT%TZ)] generate-pulse: $*" >> "$LOG_FILE"; }
 
-# A slow session must not overlap the next tick.
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
-  log "previous run still going, skipping"
-  exit 0
+# A slow session must not overlap the next tick. A post-pull restart (below)
+# inherits fd 9 and so already holds the lock.
+if [ -z "${PULSE_RESTARTED:-}" ]; then
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    log "previous run still going, skipping"
+    exit 0
+  fi
 fi
 
 set -a
@@ -60,10 +63,18 @@ set -e
 if [ "$RC" -eq 10 ]; then exit 0; fi
 if [ "$RC" -ne 0 ]; then log "prepare failed (rc=$RC)"; exit "$RC"; fi
 
-# Self-sync with main so prompt edits propagate without SSH. Done after the
-# gate, so this run uses the checkout's prompt and the next one the pulled one.
+# Self-sync with main so edits propagate without SSH. Done after the gate, so
+# off-window ticks never touch GitHub. bash keeps executing the copy of this
+# script it started with, and prepare-pulse-input.ts has already run, so when
+# the pull brings in a new commit we restart from the top (once — the restart
+# pulls again but finds nothing new) and the whole run uses the new code.
+HEAD_BEFORE="$(git rev-parse HEAD)"
 if git pull --ff-only origin main >> "$LOG_FILE" 2>&1; then
   log "git pull OK at $(git rev-parse --short HEAD)"
+  if [ "$(git rev-parse HEAD)" != "$HEAD_BEFORE" ] && [ -z "${PULSE_RESTARTED:-}" ]; then
+    log "new commit pulled, restarting on it"
+    PULSE_RESTARTED=1 exec bash "$SCRIPT_DIR/generate-pulse.sh"
+  fi
 else
   log "git pull FAILED at $(git rev-parse --short HEAD); proceeding"
 fi

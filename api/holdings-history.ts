@@ -49,6 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           is_private: dbPortfolio.is_private,
           visibility: dbPortfolio.visibility,
           allocation_public: dbPortfolio.allocation_public,
+          gains_owner_only: dbPortfolio.gains_owner_only,
+          changes_owner_only: dbPortfolio.changes_owner_only,
         };
       }
     }
@@ -63,8 +65,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // share links. Allocation-only viewers (allocation_only share link, or a
     // restricted viewer on an allocation_public portfolio) are denied — the
     // log carries share counts and static values, which are dollar data.
+    // When the owner turned on "show Changes tab only to me", only an
+    // owner/admin token or password gets through — not share links, invited
+    // viewers, or public visitors.
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
     let authenticated = false;
+    let isOwner = false;
     if (shareToken) {
       const link = await getShareLinkByToken(shareToken);
       if (!link || link.portfolio_id !== portfolioId.toLowerCase() || !isShareLinkValid(link)) {
@@ -76,6 +82,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       authenticated = true;
+      if (token || password) {
+        isOwner = (await authenticateRequest(portfolioId, token, password)).authenticated;
+      }
     } else if (token || password) {
       const result = await authenticateRequest(portfolioId, token, password);
       authenticated = result.authenticated;
@@ -83,6 +92,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
+      isOwner = true;
+    }
+    if (portfolio.changes_owner_only && !isOwner) {
+      res.status(403).json({ error: 'Changes are visible to the owner only' });
+      return;
     }
 
     let restricted = false;

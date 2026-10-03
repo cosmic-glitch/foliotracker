@@ -13,6 +13,8 @@ interface PermissionsModalProps {
 export function PermissionsModal({ portfolioId, token, onClose }: PermissionsModalProps) {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [viewers, setViewers] = useState<string[]>([]);
+  const [gainsOwnerOnly, setGainsOwnerOnly] = useState(false);
+  const [changesOwnerOnly, setChangesOwnerOnly] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,8 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
         const permData = await permResponse.json();
         setVisibility(permData.visibility);
         setViewers(permData.viewers || []);
+        setGainsOwnerOnly(!!permData.gainsOwnerOnly);
+        setChangesOwnerOnly(!!permData.changesOwnerOnly);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load permissions');
       } finally {
@@ -56,6 +60,8 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
           token,
           visibility,
           viewers,
+          gainsOwnerOnly,
+          changesOwnerOnly,
         }),
       });
 
@@ -107,6 +113,28 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
               onViewersChange={setViewers}
             />
 
+            <div className="space-y-2">
+              <OwnerOnlySwitch
+                label="Show CG tab only to me"
+                description="Hide cost basis and unrealized gains from everyone else"
+                checked={gainsOwnerOnly}
+                onChange={setGainsOwnerOnly}
+              />
+              <OwnerOnlySwitch
+                label="Show Changes tab only to me"
+                description="Hide your holdings change log from everyone else"
+                checked={changesOwnerOnly}
+                onChange={setChangesOwnerOnly}
+              />
+              {/* Everyone but the owner gets the allocation-only view of a
+                  private portfolio, which never shows either tab. */}
+              {visibility === 'private' && (
+                <p className="text-xs text-text-secondary">
+                  While Private, both tabs are already visible only to you.
+                </p>
+              )}
+            </div>
+
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
               <button
@@ -134,5 +162,40 @@ export function PermissionsModal({ portfolioId, token, onClose }: PermissionsMod
         )}
       </div>
     </div>
+  );
+}
+
+interface OwnerOnlySwitchProps {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+function OwnerOnlySwitch({ label, description, checked, onChange }: OwnerOnlySwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-card-hover text-left transition-colors"
+    >
+      <div className="flex-1">
+        <p className="font-medium text-text-primary">{label}</p>
+        <p className="text-xs text-text-secondary">{description}</p>
+      </div>
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? 'bg-accent' : 'bg-border'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+            checked ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
   );
 }

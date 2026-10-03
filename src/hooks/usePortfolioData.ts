@@ -76,6 +76,7 @@ interface ApiPortfolioResponse {
   staleTickers?: string[];
   viewMode?: 'full' | 'allocation_only';
   viewSource?: 'share_link' | 'restricted';
+  changesHidden?: boolean;
 }
 
 interface PrivatePortfolioResponse {
@@ -416,6 +417,7 @@ export function usePortfolioData(
       deepResearchAt: p.deepResearchAt,
       staleTickers: p.staleTickers ?? [],
       viewMode: p.viewMode ?? 'full',
+      changesHidden: p.changesHidden ?? false,
     };
   }, [portfolioQuery.data, chartData, historyQuery.data?.data, historyQuery.data?.benchmark, intradayQuery.data, showExtendedHours]);
 

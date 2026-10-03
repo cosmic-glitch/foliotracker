@@ -60,6 +60,9 @@ interface PortfolioResponse {
   // 'share_link' = viewer arrived via a ?share=... token in allocation_only mode.
   // 'restricted' = viewer lacks owner-level permission on a portfolio that allows public allocation.
   viewSource?: 'share_link' | 'restricted';
+  // True when the owner made the Changes tab owner-only and this viewer isn't
+  // the owner — /api/holdings-history would 403, so the FE hides the tab.
+  changesHidden: boolean;
   // Satisfies PortfolioResponseLike's index signature (anonymize.ts) so this
   // object can be passed to the generic stripPortfolioForAllocationOnly.
   [k: string]: unknown;
@@ -116,6 +119,8 @@ export default async function handler(
           is_private: dbPortfolio.is_private,
           visibility: dbPortfolio.visibility,
           allocation_public: dbPortfolio.allocation_public,
+          gains_owner_only: dbPortfolio.gains_owner_only,
+          changes_owner_only: dbPortfolio.changes_owner_only,
         };
       }
     }
@@ -132,6 +137,9 @@ export default async function handler(
 
     let authResult = { authenticated: false, isAdmin: false };
     let shareLinkMode: ShareLinkMode | null = null;
+    // Owner (or admin) proven by token/password — the only viewer the
+    // "show only to me" tab switches let through. Share links never count.
+    let isOwner = false;
 
     // Share token: if present, validate and short-circuit visibility checks.
     if (shareToken) {
@@ -142,13 +150,20 @@ export default async function handler(
       }
       authResult = { authenticated: true, isAdmin: false };
       shareLinkMode = link.mode;
+      // An owner opening their own share link still sends their token.
+      if (token || password) {
+        isOwner = (await authenticateRequest(portfolioId, token, password)).authenticated;
+      }
     } else if (token || password) {
       authResult = await authenticateRequest(portfolioId, token, password);
       if ((token || password) && !authResult.authenticated) {
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
+      isOwner = true;
     }
+    const hideGains = !!portfolio.gains_owner_only && !isOwner;
+    const changesHidden = !!portfolio.changes_owner_only && !isOwner;
 
     // Compute whether the viewer lacks owner-level access. Share-token viewers
     // are already marked `authenticated: true` above, so they bypass this.
@@ -203,6 +218,7 @@ export default async function handler(
         isPrivate: portfolio.visibility === 'private',
         visibility: portfolio.visibility,
         message: 'Snapshot not yet available. Please wait for the next refresh cycle.',
+        changesHidden,
       };
       if (restricted && allocationPublic) {
         emptyResponse.viewMode = 'allocation_only';
@@ -260,7 +276,22 @@ export default async function handler(
       lastErrorAt: snapshot.last_error_at,
       deepResearch: deepResearch.deep_research,
       deepResearchAt: deepResearch.deep_research_at,
+      changesHidden,
     };
+
+    // Owner-only CG tab: drop every cost-basis-derived field so the client's
+    // hasCostBasis check hides the tab. Runs before the allocation-only strip,
+    // which would otherwise keep profitLossPercent / totalGainPercent.
+    if (hideGains) {
+      response.holdings = response.holdings.map((h) => ({
+        ...h,
+        costBasis: null,
+        profitLoss: null,
+        profitLossPercent: null,
+      }));
+      response.totalGain = null;
+      response.totalGainPercent = null;
+    }
 
     // Anonymize when either (a) the viewer arrived via an allocation-only share
     // link, or (b) the viewer is restricted on a portfolio with allocation_public

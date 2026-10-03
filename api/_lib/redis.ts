@@ -26,6 +26,10 @@ export interface CachedPortfolio {
   // Consumers should read this with `?? true` to tolerate blobs cached before
   // the field was added in migration 010.
   allocation_public: boolean;
+  // Read with `?? false` — blobs cached before migration 014 lack them, and
+  // the list cache (setPortfoliosInRedis) never carries them.
+  gains_owner_only?: boolean;
+  changes_owner_only?: boolean;
 }
 
 /**
@@ -124,6 +128,8 @@ export async function setPortfolioInRedis(portfolio: DbPortfolio): Promise<void>
       is_private: portfolio.is_private,
       visibility: portfolio.visibility,
       allocation_public: portfolio.allocation_public,
+      gains_owner_only: portfolio.gains_owner_only,
+      changes_owner_only: portfolio.changes_owner_only,
     };
     await redis.set(`${PORTFOLIO_PREFIX}${portfolio.id.toLowerCase()}`, cached);
   } catch (error) {

@@ -44,6 +44,7 @@ External data: **Yahoo Finance** (quotes/history/news, free, no key) and **compa
 - Portfolio login = password (bcrypt) → session token; login state in localStorage (`useLoggedInPortfolio`)
 - Visibility: `public` / `private` / `selective` (owner + invited viewers)
 - `allocation_public` is **always true** — no UI or API writes it (toggle removed 2026-10-02, when every row was already true). Non-public portfolios therefore appear on the landing page in allocation-only form and feed the movers breadth. Read paths still branch on the column; those `false` branches are dead
+- **Owner-only tabs** (`gains_owner_only` / `changes_owner_only`, migration 014, Permissions modal): only an owner/admin token or password passes — not share links or invited viewers. CG is enforced by `api/portfolio.ts` nulling cost basis/gains (the client's `hasCostBasis` then hides the tab); Changes by a 403 from `api/holdings-history.ts` plus the `changesHidden` flag on the portfolio response
 - **Admin override is a hardcoded bcrypt hash** (`ADMIN_HASH`, duplicated in `api/portfolios.ts`, `api/login.ts`, `api/_lib/db.ts` — change all three); it grants any private portfolio and gates `/analytics`. The `ADMIN_PASSWORD` env var is read by nothing
 
 ## Environment

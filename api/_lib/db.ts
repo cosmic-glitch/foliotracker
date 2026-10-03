@@ -21,6 +21,10 @@ export interface DbPortfolio {
   is_private: boolean;
   visibility: Visibility;
   allocation_public: boolean;
+  // "Show only to me" switches (migration 014): hide the CG / Changes tab
+  // from everyone but the owner (and admin), even dollar-value viewers.
+  gains_owner_only: boolean;
+  changes_owner_only: boolean;
   deep_research: string | null;
   deep_research_at: string | null;
 }
@@ -355,6 +359,8 @@ export async function updatePortfolioSettings(
     password_hash?: string;
     visibility?: Visibility;
     allocation_public?: boolean;
+    gains_owner_only?: boolean;
+    changes_owner_only?: boolean;
   }
 ): Promise<void> {
   const { error } = await supabase

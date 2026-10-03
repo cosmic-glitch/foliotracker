@@ -92,6 +92,10 @@ export interface PortfolioData {
   viewMode?: 'full' | 'allocation_only';
   // Distinguishes the two paths above so the banner picks the right copy.
   viewSource?: 'share_link' | 'restricted';
+  // The owner made the Changes tab owner-only and this viewer isn't the owner.
+  // (The owner-only CG switch needs no flag: the API strips cost basis, so
+  // the tab's own hasCostBasis check hides it.)
+  changesHidden?: boolean;
 }
 
 export interface HoldingConfig {

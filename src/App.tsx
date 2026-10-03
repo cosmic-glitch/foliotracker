@@ -128,9 +128,10 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  // Changes are visible to anyone who can see dollar values (viewMode 'full');
-  // the server applies the same rule, so allocation-only viewers get 403 → [].
-  const canViewHistory = !isAllocationOnly && !!data && !isLoading;
+  // Changes are visible to anyone who can see dollar values (viewMode 'full'),
+  // unless the owner made the tab owner-only (changesHidden); the server
+  // applies the same rules, so anyone else gets 403 → [].
+  const canViewHistory = !isAllocationOnly && !!data && !isLoading && !data.changesHidden;
   const { data: holdingsHistory, isLoading: isHoldingsHistoryLoading } = useHoldingsHistory(
     portfolioId || '',
     storedToken,
@@ -160,7 +161,8 @@ function App() {
 
   // The CG tab only exists when at least one holding carries a cost basis —
   // an "enter a cost basis" empty state would be noise for portfolios that
-  // never use the feature.
+  // never use the feature. This also enforces the owner-only CG switch: the
+  // API strips cost basis for non-owners.
   const hasCostBasis = !!data?.holdings.some((h) => h.costBasis !== null);
 
   // If the tab disappears out from under us (viewer drops to allocation-only,

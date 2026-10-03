@@ -12,6 +12,8 @@ import { invalidatePortfoliosListCache, deletePortfolioFromRedis } from './_lib/
 interface PermissionsResponse {
   visibility: Visibility;
   viewers: string[];
+  gainsOwnerOnly: boolean;
+  changesOwnerOnly: boolean;
 }
 
 export default async function handler(
@@ -63,6 +65,8 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: portfolio.visibility,
         viewers,
+        gainsOwnerOnly: !!portfolio.gains_owner_only,
+        changesOwnerOnly: !!portfolio.changes_owner_only,
       };
 
       res.status(200).json(response);
@@ -70,7 +74,7 @@ export default async function handler(
     }
 
     if (req.method === 'PUT') {
-      const { password, token, visibility, viewers } = req.body;
+      const { password, token, visibility, viewers, gainsOwnerOnly, changesOwnerOnly } = req.body;
 
       if (!token && !password) {
         res.status(401).json({ error: 'Password is required' });
@@ -95,10 +99,22 @@ export default async function handler(
         return;
       }
 
+      if (
+        (gainsOwnerOnly !== undefined && typeof gainsOwnerOnly !== 'boolean') ||
+        (changesOwnerOnly !== undefined && typeof changesOwnerOnly !== 'boolean')
+      ) {
+        res.status(400).json({ error: 'gainsOwnerOnly and changesOwnerOnly must be booleans' });
+        return;
+      }
+
       // allocation_public is deliberately not writable: it stays at its
       // default (true) for every portfolio.
-      if (visibility) {
-        await updatePortfolioSettings(portfolioId, { visibility: visibility as Visibility });
+      const settings: Parameters<typeof updatePortfolioSettings>[1] = {};
+      if (visibility) settings.visibility = visibility as Visibility;
+      if (gainsOwnerOnly !== undefined) settings.gains_owner_only = gainsOwnerOnly;
+      if (changesOwnerOnly !== undefined) settings.changes_owner_only = changesOwnerOnly;
+      if (Object.keys(settings).length > 0) {
+        await updatePortfolioSettings(portfolioId, settings);
       }
 
       // Update viewers if provided (only relevant for selective visibility)
@@ -126,6 +142,8 @@ export default async function handler(
       const response: PermissionsResponse = {
         visibility: updatedPortfolio!.visibility,
         viewers: updatedViewers,
+        gainsOwnerOnly: !!updatedPortfolio!.gains_owner_only,
+        changesOwnerOnly: !!updatedPortfolio!.changes_owner_only,
       };
 
       res.status(200).json(response);

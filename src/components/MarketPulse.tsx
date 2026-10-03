@@ -28,13 +28,16 @@ export function MarketPulse({ pulse }: { pulse: Pulse | null | undefined }) {
         </span>
       </div>
       <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm md:text-[15px] font-semibold text-text-primary">{pulse.headline}</h2>
-          <span className="shrink-0 text-xs text-text-secondary tabular-nums">
+        <h2 className="text-sm md:text-[15px] font-semibold text-text-primary">{pulse.headline}</h2>
+        {/* Timestamp floats right at the end of the body: it shares the last
+            line when there's room, and only drops to its own line when not.
+            flow-root contains the float so the card's padding wraps it. */}
+        <p className="flow-root mt-1 text-sm md:text-[15px] leading-snug text-text-secondary">
+          {pulse.body}
+          <span className="float-right ml-3 mt-0.5 md:mt-1 text-xs tabular-nums whitespace-nowrap">
             {formatPulseTime(pulse.generatedAt)}
           </span>
-        </div>
-        <p className="mt-1 text-sm md:text-[15px] leading-snug text-text-secondary">{pulse.body}</p>
+        </p>
       </div>
     </div>
   );

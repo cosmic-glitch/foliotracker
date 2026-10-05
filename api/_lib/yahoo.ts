@@ -192,6 +192,50 @@ export async function getCompanyName(symbol: string): Promise<string | null> {
   return info?.name || null;
 }
 
+export interface NewsArticle {
+  title: string;
+  publisher: string;
+  link: string;
+  publishedAt: Date;
+  // Tickers Yahoo tagged the article with; the first is usually its main subject.
+  relatedTickers: string[];
+}
+
+// Yahoo's search endpoint doubles as a per-ticker news feed, newest first, each
+// item with a publish time. Quality is mixed (wire stories beside opinion pieces
+// and listicles, plus articles that only mention the ticker), so callers filter.
+export async function getTickerNews(ticker: string, count = 25): Promise<NewsArticle[]> {
+  return withRetry(async () => {
+    const response = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${count}&quotesCount=0&listsCount=0`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10_000) }
+    );
+
+    if (!response.ok) {
+      if (response.status === 429 || response.status >= 500) {
+        throw new Error(`Yahoo API error ${response.status} (will retry)`);
+      }
+      console.error(`Yahoo news API error for ${ticker}: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    return (data.news ?? []).map((item: {
+      title?: string;
+      publisher?: string;
+      link?: string;
+      providerPublishTime?: number;
+      relatedTickers?: string[];
+    }) => ({
+      title: item.title || 'No title',
+      publisher: item.publisher || 'Unknown',
+      link: item.link || '',
+      publishedAt: new Date((item.providerPublishTime || 0) * 1000),
+      relatedTickers: item.relatedTickers || [],
+    }));
+  });
+}
+
 // Historical data functions
 export async function getHistoricalData(
   symbol: string,

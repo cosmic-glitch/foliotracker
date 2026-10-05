@@ -179,6 +179,14 @@ export function getCurrentTradingSessionRange(now: Date = new Date()): { start: 
   };
 }
 
+// Regular-session close of the trading day before the current/most recent
+// session: the close that session's day change is measured from.
+export function getPreviousSessionClose(now: Date = new Date()): Date {
+  const prev = previousTradingDateKey(mostRecentTradingSessionDateKey(now));
+  const close = regularCloseMinutes(prev);
+  return createETDate(prev, Math.floor(close / 60), close % 60);
+}
+
 export function getStartOfTradingDay(now: Date = new Date()): Date {
   return getCurrentTradingSessionRange(now).start;
 }

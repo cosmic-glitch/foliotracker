@@ -11,10 +11,10 @@
  *
  * Input: writes scripts/pulse-output/input.json — index / futures / rates /
  * commodity quotes straight from Yahoo, the landing page's movers strip (the
- * big moves in names this group holds), plus today's earlier pulses. The model
- * takes every number from this file and uses web search only for the *why*:
- * the prototype showed search-sourced figures disagreeing between two reads of
- * the same page.
+ * big moves in names this group holds), Yahoo headlines for those movers, plus
+ * today's earlier pulses. The model takes every number from this file and uses
+ * the headlines and web search only for the *why*: the prototype showed
+ * search-sourced figures disagreeing between two reads of the same page.
  *
  * Usage:
  *   set -a; source .env.local; set +a && npx tsx scripts/prepare-pulse-input.ts [--force]
@@ -22,8 +22,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getMultipleQuotes } from '../api/_lib/yahoo.js';
-import { getMarketStatus, isMarketOpen } from '../api/_lib/cache.js';
+import { getMultipleQuotes, getTickerNews } from '../api/_lib/yahoo.js';
+import { getMarketStatus, getPreviousSessionClose, isMarketOpen } from '../api/_lib/cache.js';
 import { getRecentMarketPulses } from '../api/_lib/db.js';
 
 const OUT_PATH = 'scripts/pulse-output/input.json';
@@ -108,6 +108,40 @@ async function fetchMovers(): Promise<{
   }
 }
 
+// Headlines per mover, published since the last regular close, so the model
+// gets the "why" with a trustworthy date attached. Web search alone kept missing
+// these: results are undated titles, and the matching pages were often
+// paywalled or showed no date, so rule 3 dropped the stock. Kept: articles whose
+// main subject is the ticker, or whose title names it ("…; Broadcom Rises" in a
+// TSMC story). Best-effort per ticker.
+const NEWS_TICKERS_MAX = 8;
+const NEWS_PER_TICKER = 5;
+
+async function fetchMoverNews(
+  movers: { ticker: string; name: string }[],
+  since: Date,
+): Promise<Record<string, { publishedET: string; publisher: string; title: string; url: string }[]>> {
+  const unique = [...new Map(movers.map((m) => [m.ticker, m])).values()].slice(0, NEWS_TICKERS_MAX);
+  const entries = await Promise.all(unique.map(async ({ ticker, name }) => {
+    // Company name case-insensitively ("NVIDIA" vs "Nvidia"); the ticker only
+    // as written, so APP doesn't match "app".
+    const word = (w: string, flags = '') => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, flags);
+    const firstWord = name.replace(/^The\s+/, '').split(/[\s,.]+/)[0];
+    const named = (title: string) => word(ticker).test(title) || (firstWord.length > 2 && word(firstWord, 'i').test(title));
+    try {
+      const items = (await getTickerNews(ticker))
+        .filter((a) => a.publishedAt >= since && (a.relatedTickers[0] === ticker || named(a.title)))
+        .slice(0, NEWS_PER_TICKER)
+        .map((a) => ({ publishedET: etTime(a.publishedAt), publisher: a.publisher, title: a.title, url: a.link }));
+      return [ticker, items] as const;
+    } catch (err) {
+      console.warn(`prepare-pulse: news fetch for ${ticker} failed (${err instanceof Error ? err.message : err})`);
+      return [ticker, []] as const;
+    }
+  }));
+  return Object.fromEntries(entries.filter(([, items]) => items.length));
+}
+
 async function main(): Promise<void> {
   const now = new Date();
   if (!process.argv.includes('--force') && !inWindow(now)) {
@@ -139,6 +173,11 @@ async function main(): Promise<void> {
     throw new Error('No S&P 500 quote from Yahoo — refusing to generate a pulse without market data');
   }
 
+  const moverNews = await fetchMoverNews(
+    [...(movers.extendedHours ?? []), ...movers.regularSession],
+    getPreviousSessionClose(now),
+  );
+
   // Today's earlier pulses (newest first) so the next one can say what changed
   // instead of repeating itself. "Today" = the same ET calendar date.
   const todayET = now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -151,12 +190,13 @@ async function main(): Promise<void> {
     marketStatus: getMarketStatus(now),
     market,
     movers,
+    moverNews,
     earlierPulsesToday: earlier,
   };
 
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, JSON.stringify(input, null, 2) + '\n');
-  console.log(`[${now.toISOString()}] prepare-pulse: wrote ${OUT_PATH} (${market.length} quotes, ${movers.regularSession.length} movers, ${earlier.length} earlier pulses, status=${input.marketStatus})`);
+  console.log(`[${now.toISOString()}] prepare-pulse: wrote ${OUT_PATH} (${market.length} quotes, ${movers.regularSession.length} movers, ${Object.keys(moverNews).length} with news, ${earlier.length} earlier pulses, status=${input.marketStatus})`);
 }
 
 main().catch((err) => {

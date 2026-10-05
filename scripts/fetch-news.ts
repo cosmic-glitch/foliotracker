@@ -5,36 +5,9 @@
 //   npx tsx scripts/fetch-news.ts AAPL MSFT GOOGL
 //   npx tsx scripts/fetch-news.ts AAPL --json
 
-// Retry configuration
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY_MS = 1000;
+import { getTickerNews, type NewsArticle } from '../api/_lib/yahoo.js';
+
 const DELAY_BETWEEN_REQUESTS_MS = 200;
-
-// News article interface
-interface NewsArticle {
-  title: string;
-  publisher: string;
-  link: string;
-  publishedAt: Date;
-  relatedTickers: string[];
-}
-
-// Retry helper with exponential backoff
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  retries: number = MAX_RETRIES,
-  delay: number = INITIAL_RETRY_DELAY_MS
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) {
-      throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    return withRetry(fn, retries - 1, delay * 2);
-  }
-}
 
 // Format relative time (e.g., "2 hours ago")
 function formatRelativeTime(date: Date): string {
@@ -59,50 +32,15 @@ function formatRelativeTime(date: Date): string {
 
 // Fetch news from Yahoo Finance search endpoint
 async function fetchYahooNews(ticker: string, directOnly: boolean = true): Promise<NewsArticle[]> {
-  return await withRetry(async () => {
-    // Request more articles so we have enough after filtering
-    const newsCount = directOnly ? 25 : 10;
-    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=${newsCount}&quotesCount=0&listsCount=0`;
+  // Request more articles so we have enough after filtering
+  const articles = await getTickerNews(ticker, directOnly ? 25 : 10);
 
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    });
+  // Filter to only articles where ticker is the primary subject (first in relatedTickers)
+  if (directOnly) {
+    return articles.filter((article) => article.relatedTickers[0] === ticker).slice(0, 10);
+  }
 
-    if (!response.ok) {
-      if (response.status === 429 || response.status >= 500) {
-        throw new Error(`Yahoo API error ${response.status} (will retry)`);
-      }
-      console.error(`Yahoo API error for ${ticker}: ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json();
-    const newsItems = data.news || [];
-
-    const articles = newsItems.map((item: {
-      title?: string;
-      publisher?: string;
-      link?: string;
-      providerPublishTime?: number;
-      relatedTickers?: string[];
-    }) => ({
-      title: item.title || 'No title',
-      publisher: item.publisher || 'Unknown',
-      link: item.link || '',
-      publishedAt: new Date((item.providerPublishTime || 0) * 1000),
-      relatedTickers: item.relatedTickers || [],
-    }));
-
-    // Filter to only articles where ticker is the primary subject (first in relatedTickers)
-    if (directOnly) {
-      const filtered = articles.filter((article: NewsArticle) =>
-        article.relatedTickers[0] === ticker
-      );
-      return filtered.slice(0, 10); // Return max 10
-    }
-
-    return articles;
-  });
+  return articles;
 }
 
 // Format and print news for a ticker

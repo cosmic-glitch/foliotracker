@@ -80,7 +80,7 @@ function readSession(): string {
   console.log(`save-pulse: session ${result.num_turns ?? '?'} turns, ${secs}s, $${cost}; ` +
     `${queries.length} searches${queries.length ? ': ' + queries.map((q) => `"${q}"`).join(' | ') : ''}; ` +
     `${fetches.length} fetches${fetches.length ? ': ' + fetches.join(' | ') : ''}`);
-  if (queries.length === 0) console.warn('save-pulse: session ran no web searches');
+  if (queries.length === 0 && fetches.length === 0) console.warn('save-pulse: session ran no web searches or fetches');
   if (result.is_error || typeof result.result !== 'string') {
     throw new Error(`session ended in error: ${String(result.result).slice(0, 200)}`);
   }

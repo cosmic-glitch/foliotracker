@@ -35,6 +35,7 @@ export interface TickerDetailSubject {
   // present the header can split the day into at-close / extended figures.
   regularMarketPrice?: number;
   extendedPrice?: number;
+  marketCap?: number | null;
   revenue?: number | null;
   earnings?: number | null;
   peRatio?: number | null;
@@ -263,11 +264,45 @@ function ChartTooltip({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+// Fundamentals as label-over-value tiles in fixed rows of four, one theme per
+// row (size & profitability / valuation / growth & range). Each row is its own
+// 4-column grid, so columns line up across rows while a null field just drops
+// its tile — an ETF collapses to a single row with the two 52-week tiles, and
+// no row ever borrows a tile from another theme. Labels are sized to fit four
+// across a phone-width sheet; the PE labels match the PE tab's headers.
+type StatTile = { label: string; title?: string; value: string | null };
+
+function fundamentalRows(h: TickerDetailSubject): StatTile[][] {
+  const fmt = <T,>(v: T | null | undefined, f: (v: T) => string) => (v != null ? f(v) : null);
+  return [
+    [
+      { label: 'Market cap', value: fmt(h.marketCap, formatLargeValue) },
+      { label: 'Revenue', value: fmt(h.revenue, formatLargeValue) },
+      { label: 'Earnings', value: fmt(h.earnings, formatLargeValue) },
+      { label: 'Op margin', title: 'Operating margin', value: fmt(h.operatingMargin, formatMarginOrGrowth) },
+    ],
+    [
+      { label: 'PE', title: 'Trailing PE on the last four reported quarters', value: fmt(h.peRatio, formatPERatio) },
+      { label: 'FwdPE', title: "Forward PE on the ongoing fiscal year's EPS estimate", value: fmt(h.forwardPE, formatPERatio) },
+      { label: 'FwdPE+1', title: "Forward PE on next fiscal year's EPS estimate", value: fmt(h.forwardPENext, formatPERatio) },
+      { label: 'FwdPE+2', title: "Forward PE on the fiscal year after next's EPS estimate", value: fmt(h.forwardPENext2, formatPERatio) },
+    ],
+    [
+      { label: 'Rev growth 3Y', title: 'Revenue growth (3Y)', value: fmt(h.revenueGrowth3Y, formatMarginOrGrowth) },
+      { label: 'EPS growth 3Y', title: 'EPS growth (3Y)', value: fmt(h.epsGrowth3Y, formatMarginOrGrowth) },
+      { label: '52W high', title: '52-week high', value: fmt(h.week52High, formatPrice) },
+      { label: 'To 52W high', title: '% to 52-week high', value: fmt(h.pctTo52WeekHigh, formatPctTo52WeekHigh) },
+    ],
+  ]
+    .map((row) => row.filter((t) => t.value != null))
+    .filter((row) => row.length > 0);
+}
+
+function Stat({ label, title, value }: StatTile) {
   return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-text-secondary">{label}</span>
-      <span className="font-medium text-text-primary">{value}</span>
+    <div className="min-w-0" title={title}>
+      <p className="text-[11px] leading-tight text-text-secondary truncate">{label}</p>
+      <p className="text-sm font-medium text-text-primary tabular-nums leading-snug">{value}</p>
     </div>
   );
 }
@@ -417,18 +452,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
     };
   }, [holding.extendedPrice, holding.currentPrice, holding.regularMarketPrice, holding.previousClose]);
 
-  const hasFundamentals =
-    holding.revenue != null ||
-    holding.earnings != null ||
-    holding.peRatio != null ||
-    holding.forwardPE != null ||
-    holding.forwardPENext != null ||
-    holding.forwardPENext2 != null ||
-    holding.operatingMargin != null ||
-    holding.revenueGrowth3Y != null ||
-    holding.epsGrowth3Y != null ||
-    holding.pctTo52WeekHigh != null ||
-    holding.week52High != null;
+  const statRows = fundamentalRows(holding);
 
   // Summary generation is gated to a pilot portfolio for ETFs/MFs (see
   // scripts/prepare-news-input.ts), so a missing entry means "pending" for a
@@ -591,24 +615,17 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
             )}
           </section>
 
-          {/* Fundamentals — the same fields the retired "i" popover showed.
-              No heading: with the position section gone this is the only
+          {/* Fundamentals (see fundamentalRows). No heading: it's the only
               stats block, so a label would just cost space. */}
-          {hasFundamentals && (
-            <section>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-                {holding.revenue != null && <Stat label="Revenue" value={formatLargeValue(holding.revenue)} />}
-                {holding.earnings != null && <Stat label="Earnings" value={formatLargeValue(holding.earnings)} />}
-                {holding.peRatio != null && <Stat label="Trailing PE" value={formatPERatio(holding.peRatio)} />}
-                {holding.forwardPE != null && <Stat label="Forward PE" value={formatPERatio(holding.forwardPE)} />}
-                {holding.forwardPENext != null && <Stat label="Forward PE (next FY)" value={formatPERatio(holding.forwardPENext)} />}
-                {holding.forwardPENext2 != null && <Stat label="Forward PE (FY+2)" value={formatPERatio(holding.forwardPENext2)} />}
-                {holding.operatingMargin != null && <Stat label="Operating margin" value={formatMarginOrGrowth(holding.operatingMargin)} />}
-                {holding.revenueGrowth3Y != null && <Stat label="Revenue growth (3Y)" value={formatMarginOrGrowth(holding.revenueGrowth3Y)} />}
-                {holding.epsGrowth3Y != null && <Stat label="EPS growth (3Y)" value={formatMarginOrGrowth(holding.epsGrowth3Y)} />}
-                {holding.week52High != null && <Stat label="52-week high" value={formatPrice(holding.week52High)} />}
-                {holding.pctTo52WeekHigh != null && <Stat label="% to 52-week high" value={formatPctTo52WeekHigh(holding.pctTo52WeekHigh)} />}
-              </div>
+          {statRows.length > 0 && (
+            <section className="space-y-2.5">
+              {statRows.map((row) => (
+                <div key={row[0].label} className="grid grid-cols-4 gap-x-1.5 sm:gap-x-4">
+                  {row.map((tile) => (
+                    <Stat key={tile.label} {...tile} />
+                  ))}
+                </div>
+              ))}
             </section>
           )}
 

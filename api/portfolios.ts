@@ -404,6 +404,7 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // revenue/earnings/P/E); the UI omits null rows.
 // Mirrored in src/components/MoversStrip.tsx (separate build targets — keep in sync).
 interface MoverFundamentals {
+  marketCap: number | null;
   revenue: number | null;
   earnings: number | null;
   peRatio: number | null;
@@ -520,6 +521,7 @@ function computeMarketMovers(
         regPrice > 0 ? ((h.currentPrice - regPrice) / regPrice) * 100 : 0;
 
       const fundamentals: MoverFundamentals = {
+        marketCap: h.marketCap ?? null,
         revenue: h.revenue,
         earnings: h.earnings,
         peRatio: h.peRatio ?? null,

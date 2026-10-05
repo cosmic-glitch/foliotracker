@@ -91,6 +91,7 @@ function stripHolding(h: AnyHolding): AnyHolding {
     operatingMargin: null,
     revenueGrowth3Y: null,
     epsGrowth3Y: null,
+    marketCap: null,
     regularMarketPrice: 0,
   };
 }

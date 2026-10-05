@@ -11,6 +11,7 @@ import { useTickerDetailParam } from '../hooks/useTickerDetailParam';
 // Fields added after the first payload shape are optional so a client cache
 // from before a deploy degrades to a hidden row rather than a type error.
 export interface MoverFundamentals {
+  marketCap?: number | null;
   revenue: number | null;
   earnings: number | null;
   peRatio?: number | null;

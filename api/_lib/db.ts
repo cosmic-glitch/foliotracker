@@ -837,6 +837,9 @@ export interface DbFundamentalsCache {
   operating_margin: number | null;
   revenue_growth_3y: number | null;
   eps_growth_3y: number | null;
+  // Implied share count (marketCap ÷ price at fetch time, in this ticker's
+  // share units); × live price gives the market cap. Migration 'shares-outstanding'.
+  shares_outstanding: number | null;
   updated_at: string;
 }
 
@@ -872,6 +875,7 @@ export async function upsertFundamentalsCache(
     operating_margin: number | null;
     revenue_growth_3y: number | null;
     eps_growth_3y: number | null;
+    shares_outstanding: number | null;
   }>
 ): Promise<void> {
   if (fundamentals.length === 0) return;
@@ -1144,6 +1148,9 @@ export interface SnapshotHolding {
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
+  // Live market cap (implied shares × current price). Optional: snapshots
+  // written before this field was introduced lack it.
+  marketCap?: number | null;
   regularMarketPrice: number;
   // JSONB-stored; the index signature lets future fields land in
   // holdings_json without a type change, and keeps SnapshotHolding[]

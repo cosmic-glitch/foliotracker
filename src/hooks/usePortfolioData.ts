@@ -66,6 +66,7 @@ interface ApiPortfolioResponse {
     operatingMargin?: number | null;
     revenueGrowth3Y?: number | null;
     epsGrowth3Y?: number | null;
+    marketCap?: number | null;
     regularMarketPrice?: number;
   }>;
   lastUpdated: string;
@@ -281,6 +282,7 @@ export function usePortfolioData(
       operatingMargin: h.operatingMargin ?? null,
       revenueGrowth3Y: h.revenueGrowth3Y ?? null,
       epsGrowth3Y: h.epsGrowth3Y ?? null,
+      marketCap: h.marketCap ?? null,
       regularMarketPrice: h.regularMarketPrice ?? h.currentPrice,
       extendedPrice: h.currentPrice,
     }));

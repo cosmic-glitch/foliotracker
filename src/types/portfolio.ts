@@ -35,6 +35,8 @@ export interface Holding {
   operatingMargin: number | null;
   revenueGrowth3Y: number | null;
   epsGrowth3Y: number | null;
+  // Live market cap (implied shares × current price, computed server-side).
+  marketCap: number | null;
   regularMarketPrice: number;
   // The snapshot's extended-hours price, kept even when the Extended Hours
   // toggle is off and currentPrice has been rewritten to the regular close.

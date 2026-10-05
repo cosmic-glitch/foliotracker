@@ -73,7 +73,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
       const requestSymbols = Array.from(new Set(
         staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
       ));
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y`;
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y,marketCap,price`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -90,6 +90,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
           operating_margin: number | null;
           revenue_growth_3y: number | null;
           eps_growth_3y: number | null;
+          shares_outstanding: number | null;
         }> = [];
 
         for (const ticker of staleTickers) {
@@ -109,6 +110,9 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
               operating_margin: data.operatingMargin ?? null,
               revenue_growth_3y: data.revenueGrowth3Y ?? null,
               eps_growth_3y: data.epsGrowth3Y ?? null,
+              // marketCap is company-level, so the implied count is in
+              // canonical shares; × ratio converts to the held class's units.
+              shares_outstanding: data.marketCap > 0 && data.price > 0 ? (data.marketCap / data.price) * ratio : null,
             };
             upserts.push(entry);
             cached.set(ticker, { ...entry, updated_at: new Date().toISOString() });
@@ -207,6 +211,7 @@ function computeHoldings(
         operatingMargin: null,
         revenueGrowth3Y: null,
         epsGrowth3Y: null,
+        marketCap: null,
         regularMarketPrice: value,
       });
       totalValue += value;
@@ -245,6 +250,9 @@ function computeHoldings(
         : null;
       const forwardPENext2 = (fund?.forward_eps_next2 && fund.forward_eps_next2 > 0 && price.currentPrice > 0)
         ? price.currentPrice / fund.forward_eps_next2
+        : null;
+      const marketCap = (fund?.shares_outstanding && fund.shares_outstanding > 0 && price.currentPrice > 0)
+        ? fund.shares_outstanding * price.currentPrice
         : null;
       const yahooHigh = yahoo52WeekHighs.get(holding.ticker);
       const effective52WeekHigh = (yahooHigh && yahooHigh > 0)
@@ -296,6 +304,7 @@ function computeHoldings(
         operatingMargin: fund?.operating_margin ?? null,
         revenueGrowth3Y: fund?.revenue_growth_3y ?? null,
         epsGrowth3Y: fund?.eps_growth_3y ?? null,
+        marketCap,
         regularMarketPrice: regPrice?.currentPrice ?? price.currentPrice,
       });
 

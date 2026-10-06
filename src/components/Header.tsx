@@ -13,9 +13,13 @@ interface HeaderProps {
   onShare?: () => void;
   onLogout?: () => void;
   showEditAndPermissions?: boolean;
+  // Sub-page of a portfolio (e.g. History): the portfolio crumb becomes a
+  // link back to `portfolioHref` and `pageTitle` is the current crumb.
+  portfolioHref?: string;
+  pageTitle?: string;
 }
 
-export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions }: HeaderProps) {
+export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions, portfolioHref, pageTitle }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 py-2 md:py-4">
@@ -31,7 +35,19 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
               {portfolioId && (
                 <>
                   <span className="text-text-secondary font-normal">›</span>
-                  <span>{portfolioId.toUpperCase()}</span>
+                  {portfolioHref ? (
+                    <Link to={portfolioHref} className="text-text-secondary hover:text-accent transition-colors">
+                      {portfolioId.toUpperCase()}
+                    </Link>
+                  ) : (
+                    <span>{portfolioId.toUpperCase()}</span>
+                  )}
+                </>
+              )}
+              {pageTitle && (
+                <>
+                  <span className="text-text-secondary font-normal">›</span>
+                  <span>{pageTitle}</span>
                 </>
               )}
             </h1>

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -120,7 +119,8 @@ export function PortfolioHistory() {
   const [searchParams] = useSearchParams();
   const shareToken = searchParams.get('share');
   const { getToken } = useUnlockedPortfolios();
-  const { loggedInAs, getToken: getLoginToken } = useLoggedInPortfolio();
+  const { loggedInAs, logout, getToken: getLoginToken } = useLoggedInPortfolio();
+  const navigate = useNavigate();
   const storedToken = portfolioId
     ? (getToken(portfolioId) || (loggedInAs === portfolioId.toLowerCase() ? getLoginToken() : null))
     : null;
@@ -129,7 +129,7 @@ export function PortfolioHistory() {
 
   const { data, isLoading, error, dataUpdatedAt } = usePortfolioHistory(portfolioId, storedToken, loggedInAs, shareToken);
   const [range, setRange] = useState<RangeKey>('ALL');
-  const [allocationMode, setAllocationMode] = useState<AllocationMode>('type');
+  const [allocationMode, setAllocationMode] = useState<AllocationMode>('holdings');
 
   const allDays = useMemo(() => data?.days ?? [], [data]);
   const lastDate = allDays.length ? allDays[allDays.length - 1].date : null;
@@ -148,21 +148,20 @@ export function PortfolioHistory() {
     return start ? allDays.filter((d) => d.date >= start) : allDays;
   }, [allDays, activeRange, lastDate]);
 
-  const backHref = `/${portfolioId}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`;
-  const displayName = data?.displayName || portfolioId.toUpperCase();
+  const portfolioHref = `/${portfolioId}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header portfolioId={portfolioId} loggedInAs={loggedInAs} />
+      <Header
+        portfolioId={portfolioId}
+        portfolioHref={portfolioHref}
+        pageTitle="History"
+        loggedInAs={loggedInAs}
+        onLogout={() => { logout(); navigate('/'); }}
+      />
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-3 md:py-6 space-y-4 md:space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <Link to={backHref} className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-accent transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-              {displayName}
-            </Link>
-            <h2 className="text-2xl font-semibold text-text-primary mt-1">Portfolio History</h2>
-          </div>
+        {/* The page title lives in the Header breadcrumb (AV › History). */}
+        <div className="flex">
           {allDays.length > 0 && (
             <div className="flex gap-1 bg-card border border-border rounded-lg p-1" role="group" aria-label="Date range">
               {availableRanges.map((r) => (
@@ -224,10 +223,7 @@ export function PortfolioHistory() {
 interface ValuePoint {
   ts: number;
   date: string | null;
-  solid: number | null;
-  estimated: number | null;
   value: number | null;
-  source: HistoryDay['source'] | null;
 }
 
 // Bridge series (`bridge0`, `bridge1`, …) live as extra keys on the points.
@@ -236,7 +232,7 @@ function setBridge(p: ValuePoint, key: string, v: number | null) {
 }
 
 function ValueHistory({ days }: { days: HistoryDay[] }) {
-  const { points, bridgeKeys, hasEstimated, hasGap, min, max } = useMemo(() => {
+  const { points, bridgeKeys, min, max } = useMemo(() => {
     const pts: ValuePoint[] = [];
     const bridges: string[] = [];
     let lo = Infinity;
@@ -251,34 +247,15 @@ function ValueHistory({ days }: { days: HistoryDay[] }) {
         const key = `bridge${bridges.length}`;
         bridges.push(key);
         setBridge(pts[pts.length - 1], key, prev.totalValue);
-        pts.push({ ts: (toTs(prev.date) + toTs(d.date)) / 2, date: null, solid: null, estimated: null, value: null, source: null });
-        const point: ValuePoint = { ts: toTs(d.date), date: d.date, solid: null, estimated: null, value: v, source: d.source };
+        pts.push({ ts: (toTs(prev.date) + toTs(d.date)) / 2, date: null, value: null });
+        const point: ValuePoint = { ts: toTs(d.date), date: d.date, value: v };
         setBridge(point, key, v);
         pts.push(point);
       } else {
-        pts.push({ ts: toTs(d.date), date: d.date, solid: null, estimated: null, value: v, source: d.source });
+        pts.push({ ts: toTs(d.date), date: d.date, value: v });
       }
-      const p = pts[pts.length - 1];
-      if (d.source === 'estimated') p.estimated = v;
-      else p.solid = v;
     });
-    // Join estimated and solid stretches: an estimated point bordering a
-    // solid one also gets a solid value (and vice versa) so the lines meet.
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1];
-      const b = pts[i];
-      if (a.value == null || b.value == null) continue;
-      if (a.estimated != null && b.solid != null) a.solid = a.value;
-      if (a.solid != null && b.estimated != null) b.solid = b.value;
-    }
-    return {
-      points: pts,
-      bridgeKeys: bridges,
-      hasEstimated: days.some((d) => d.source === 'estimated'),
-      hasGap: bridges.length > 0,
-      min: lo,
-      max: hi,
-    };
+    return { points: pts, bridgeKeys: bridges, min: lo, max: hi };
   }, [days]);
 
   const first = days[0];
@@ -330,29 +307,14 @@ function ValueHistory({ days }: { days: HistoryDay[] }) {
             {bridgeKeys.map((k) => (
               <Line key={k} dataKey={k} stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="2 4" dot={false} connectNulls isAnimationActive={false} activeDot={false} />
             ))}
-            <Line dataKey="estimated" stroke="#3b82f6" strokeOpacity={0.6} strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} activeDot={false} />
-            <Line dataKey="solid" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+            <Line dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      {(hasEstimated || hasGap) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-text-secondary">
-          <span className="inline-flex items-center gap-1.5">
-            <svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke="#3b82f6" strokeWidth="2" /></svg>
-            Holdings known
-          </span>
-          {hasEstimated && (
-            <span className="inline-flex items-center gap-1.5">
-              <svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke="#3b82f6" strokeOpacity="0.6" strokeWidth="2" strokeDasharray="5 3" /></svg>
-              Estimated
-            </span>
-          )}
-          {hasGap && (
-            <span className="inline-flex items-center gap-1.5">
-              <svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 3" /></svg>
-              No data
-            </span>
-          )}
+      {bridgeKeys.length > 0 && (
+        <div className="mt-2 text-[11px] text-text-secondary inline-flex items-center gap-1.5">
+          <svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 3" /></svg>
+          No data
         </div>
       )}
     </section>
@@ -366,9 +328,6 @@ function ValueTooltip({ active, payload }: { active?: boolean; payload?: Array<{
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
       <p className="text-text-secondary text-xs mb-1">{longDate(p.date)}</p>
       <p className="text-sm text-text-primary font-semibold tabular-nums">{formatCurrency(p.value)}</p>
-      {p.source === 'estimated' && (
-        <p className="text-[11px] text-text-secondary mt-0.5">Estimated · holdings from nearest backup</p>
-      )}
     </div>
   );
 }
@@ -446,7 +405,7 @@ function AllocationHistory({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-semibold text-text-primary">Allocation over time</h3>
         <div className="flex gap-1 bg-background border border-border rounded-lg p-0.5" role="group" aria-label="Group allocation by">
-          {(['type', 'holdings'] as const).map((m) => (
+          {(['holdings', 'type'] as const).map((m) => (
             <button
               key={m}
               onClick={() => onModeChange(m)}
@@ -589,7 +548,6 @@ function MonthlyTable({ days }: { days: HistoryDay[] }) {
             <tr key={day.date} className="border-b border-border last:border-0">
               <td className="px-3 sm:px-6 py-2 text-text-primary">
                 {new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}
-                {day.source === 'estimated' && <span className="text-text-secondary text-xs"> · est.</span>}
               </td>
               <td className="px-3 py-2 text-right tabular-nums text-text-primary">{formatCurrency(day.totalValue ?? 0)}</td>
               <td className={`px-3 sm:px-6 py-2 text-right tabular-nums ${change == null ? 'text-text-secondary' : change >= 0 ? 'text-positive' : 'text-negative'}`}>
@@ -610,14 +568,19 @@ function MonthlyTable({ days }: { days: HistoryDay[] }) {
 // ── How it's built ───────────────────────────────────────────────────────
 function Methodology({ days }: { days: HistoryDay[] }) {
   const firstRecorded = days.find((d) => d.source === 'recorded');
+  // Estimated days (holdings carried between backups) aren't marked on the
+  // charts — measured drift between backups is ≤ ~2%, about a day's move —
+  // so the footnote just dates where they end.
+  const lastEstimatedIdx = days.map((d) => d.source).lastIndexOf('estimated');
+  const precise = lastEstimatedIdx >= 0 ? days[lastEstimatedIdx + 1] : undefined;
   return (
     <p className="text-xs text-text-secondary leading-relaxed">
       {firstRecorded
         ? <>Recorded after every market close since {longDate(firstRecorded.date)}. </>
         : <>Daily recording starts after the next market close. </>}
-      Earlier days were rebuilt from database backups and the holdings change log, priced at each day&rsquo;s
-      closing prices; &ldquo;estimated&rdquo; days carry holdings from the nearest backup. Changes in value include
-      money added or withdrawn, not just market moves.
+      Earlier days were rebuilt from database backups and the holdings change log at each day&rsquo;s closing
+      prices{precise ? <>; values before {longDate(precise.date)} may be off by 1&ndash;2%</> : null}. Changes in value
+      include money added or withdrawn, not just market moves.
     </p>
   );
 }

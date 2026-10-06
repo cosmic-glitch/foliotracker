@@ -638,8 +638,11 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
               ) : news.error ? (
                 <p className="text-sm text-text-secondary">Failed to load news</p>
               ) : newsMarkdown ? (
-                <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline marker:text-text-secondary">
-                  <ReactMarkdown>{newsMarkdown}</ReactMarkdown>
+                <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary marker:text-text-secondary">
+                  {/* Citations render as plain muted source names, not links */}
+                  <ReactMarkdown components={{ a: ({ children }) => <span className="text-text-secondary">{children}</span> }}>
+                    {newsMarkdown}
+                  </ReactMarkdown>
                 </div>
               ) : newsEntry ? (
                 <p className="text-sm text-text-secondary">{NO_MATERIAL_NEWS_SENTINEL}</p>

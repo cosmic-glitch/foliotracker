@@ -269,10 +269,7 @@ function ValueHistory({ days }: { days: HistoryDay[] }) {
   return (
     <section className="bg-card rounded-2xl border border-border p-3 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
-        <div>
-          <p className="text-xs text-text-secondary">Value · {longDate(last.date)} close</p>
-          <p className="text-2xl md:text-3xl font-semibold text-text-primary tabular-nums">{formatCurrency(last.totalValue ?? 0)}</p>
-        </div>
+        <p className="text-2xl md:text-3xl font-semibold text-text-primary tabular-nums">{formatCurrency(last.totalValue ?? 0)}</p>
         <div className="sm:text-right">
           <p className="text-xs text-text-secondary">Since {shortDate(toTs(first.date))}, {first.date.slice(0, 4)}</p>
           <p className={`text-base font-semibold tabular-nums ${changeColor}`}>

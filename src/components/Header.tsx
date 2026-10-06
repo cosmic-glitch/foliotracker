@@ -46,6 +46,7 @@ export function Header({ marketStatus, portfolioId, loggedInAs, onEdit, onPermis
                 onShare={onShare}
                 onLogout={onLogout}
                 showEditAndPermissions={showEditAndPermissions}
+                portfolioId={portfolioId}
               />
             )}
             <Link to="/" className="flex items-center gap-1.5 p-2 hover:bg-card rounded-lg transition-colors text-text-secondary text-sm" title="All Portfolios">

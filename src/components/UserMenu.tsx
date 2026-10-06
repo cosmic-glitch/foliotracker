@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange, Scale } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange, Scale, History } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe } from '../context/TimeframeContext';
@@ -12,9 +12,11 @@ interface UserMenuProps {
   onShare?: () => void;
   onLogout: () => void;
   showEditAndPermissions?: boolean;
+  // Portfolio the History item opens; defaults to the logged-in one.
+  portfolioId?: string;
 }
 
-export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions = true }: UserMenuProps) {
+export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout, showEditAndPermissions = true, portfolioId }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -97,6 +99,13 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
           >
             <Scale className="w-4 h-4 text-text-secondary" />
             Compare
+          </button>
+          <button
+            onClick={() => { setOpen(false); navigate(`/${portfolioId ?? loggedInAs}/history`); }}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            <History className="w-4 h-4 text-text-secondary" />
+            Portfolio History
           </button>
           <div className="mx-3 my-1 border-t border-border" />
           <button

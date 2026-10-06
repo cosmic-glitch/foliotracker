@@ -68,6 +68,11 @@ interface ChartPoint {
 
 const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 7 days.';
 
+// Summaries cite sources inline — `… guide raise [Reuters](url).` or the older
+// `… streak ([GuruFocus](url), [CNBC](url)).` — which are noise in this compact
+// view, so drop each citation run along with its leading space and wrapping parens.
+const NEWS_CITATIONS = /\s*\(?\[[^\]]*\]\([^)]*\)(?:,\s*\[[^\]]*\]\([^)]*\))*\)?/g;
+
 const NEWS_INSTRUMENT_TYPES = new Set([
   'Common Stock',
   'American Depositary Receipt',
@@ -461,7 +466,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
   const newsEntry = news.data?.news[holding.ticker];
   const newsMarkdown =
     newsEntry && newsEntry.summaryMarkdown.trim() !== NO_MATERIAL_NEWS_SENTINEL
-      ? newsEntry.summaryMarkdown.trim()
+      ? newsEntry.summaryMarkdown.replace(NEWS_CITATIONS, '').trim()
       : null;
   const isEtfLike = holding.instrumentType === 'ETF' || holding.instrumentType === 'Mutual Fund';
   const hideNews = !news.isLoading && !news.error && !newsEntry && isEtfLike;
@@ -639,10 +644,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
                 <p className="text-sm text-text-secondary">Failed to load news</p>
               ) : newsMarkdown ? (
                 <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary marker:text-text-secondary">
-                  {/* Citations render as plain muted source names, not links */}
-                  <ReactMarkdown components={{ a: ({ children }) => <span className="text-text-secondary">{children}</span> }}>
-                    {newsMarkdown}
-                  </ReactMarkdown>
+                  <ReactMarkdown>{newsMarkdown}</ReactMarkdown>
                 </div>
               ) : newsEntry ? (
                 <p className="text-sm text-text-secondary">{NO_MATERIAL_NEWS_SENTINEL}</p>

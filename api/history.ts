@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, getPortfolioSnapshot, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid, type ShareLinkMode } from './_lib/db.js';
+import { getPortfolio, getPortfolioSnapshot, getPortfolioDailyValues, authenticateRequest, isAllowedViewer, getShareLinkByToken, isShareLinkValid, type ShareLinkMode } from './_lib/db.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, type CachedPortfolio } from './_lib/redis.js';
 
 interface HistoricalDataPoint {
@@ -119,6 +119,31 @@ export default async function handler(
       return;
     }
     // Public portfolios + restricted+allocPublic viewers: fall through.
+
+    // Portfolio History screen (?range=all): every recorded/backfilled day.
+    // Folded into this endpoint because the Hobby plan caps the deployment at
+    // 12 functions. Allocation-only viewers get weights (%) but no dollar
+    // values, matching what api/portfolio.ts strips.
+    if (req.query.range === 'all') {
+      const allocationOnly =
+        shareLinkMode === 'allocation_only' || (restricted && allocationPublic);
+      const rows = await getPortfolioDailyValues(portfolioId);
+      const days = rows.map((r) => ({
+        date: r.date,
+        source: r.source,
+        totalValue: allocationOnly ? null : r.total_value,
+        holdings: r.holdings.map((h) => ({
+          ticker: h.ticker,
+          name: h.name,
+          isStatic: h.isStatic,
+          instrumentType: h.instrumentType,
+          weight: r.total_value !== 0 ? (h.value / r.total_value) * 100 : 0,
+          value: allocationOnly ? null : h.value,
+        })),
+      }));
+      res.status(200).json({ displayName: portfolio.display_name, days, allocationOnly });
+      return;
+    }
 
     // Read from Redis first, fall back to DB
     let snapshotStart = Date.now();

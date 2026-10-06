@@ -27,6 +27,7 @@ import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
 import { loginToPortfolio } from './lib/auth';
 import type { Holding } from './types/portfolio';
+import { ChevronRight } from 'lucide-react';
 
 // Thought experiment: what would the portfolio be worth if every tradeable
 // holding hit its 52-week high? Static holdings and holdings with missing
@@ -40,6 +41,16 @@ function computePeakPotentialTotal(holdings: Holding[]): number {
   }, 0);
 }
 
+// Entry point to the Portfolio History screen (/:id/history).
+function HistoryLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link to={href} className="inline-flex items-center gap-0.5 text-xs font-medium text-text-secondary hover:text-accent transition-colors">
+      {label}
+      <ChevronRight className="w-3.5 h-3.5" />
+    </Link>
+  );
+}
+
 // Layout used in two cases: (1) a viewer arrived via an allocation-only share
 // link, or (2) the viewer lacks owner-level permission on a portfolio whose
 // owner opted into public-allocation. `viewSource` lets us pick the right
@@ -47,9 +58,11 @@ function computePeakPotentialTotal(holdings: Holding[]): number {
 function AllocationOnlyView({
   holdings,
   viewSource,
+  historyHref,
 }: {
   holdings: Holding[];
   viewSource: 'share_link' | 'restricted';
+  historyHref: string;
 }) {
   // Same predicate NewsSection uses to decide whether to render itself; we
   // collapse to a single column when it would otherwise be empty.
@@ -69,6 +82,9 @@ function AllocationOnlyView({
     <>
       <div className="mb-2 px-4 py-2.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-sm">
         {bannerMessage}
+      </div>
+      <div className="flex justify-end mb-2">
+        <HistoryLink href={historyHref} label="Allocation history" />
       </div>
       <div
         className={
@@ -102,6 +118,7 @@ function App() {
   // Share token from URL — set when someone visits /portfolioId?share=<token>
   const [searchParams] = useSearchParams();
   const shareToken = searchParams.get('share');
+  const historyHref = `/${portfolioId}/history${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`;
 
   const {
     data,
@@ -275,6 +292,7 @@ function App() {
               <AllocationOnlyView
                 holdings={data.holdings}
                 viewSource={data.viewSource ?? 'share_link'}
+                historyHref={historyHref}
               />
             ) : (
               <>
@@ -305,6 +323,9 @@ function App() {
                     currentValue={data.totalValue}
                     showExtendedHours={showExtendedHours}
                   />
+                  <div className="flex justify-end mt-1.5">
+                    <HistoryLink href={historyHref} label="Portfolio history" />
+                  </div>
                 </div>
                 <NewsTicker holdings={data.holdings} />
                 {/* Tab Navigation */}

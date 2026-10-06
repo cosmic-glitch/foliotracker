@@ -11,7 +11,7 @@
 //   source .env.local && npx tsx scripts/refresh-snapshots.ts
 //   source .env.local && npx tsx scripts/refresh-snapshots.ts --force   # bypass gating
 
-import { refreshAllSnapshots } from '../api/_lib/snapshot.js';
+import { refreshAllSnapshots, recordDailyValues } from '../api/_lib/snapshot.js';
 import { deleteExpiredSessions } from '../api/_lib/db.js';
 import { isLiveMarketSession } from '../api/_lib/cache.js';
 
@@ -39,6 +39,18 @@ async function main(): Promise<void> {
   });
 
   console.log(`[${new Date().toISOString()}] refresh done in ${Date.now() - started}ms`);
+
+  // Portfolio History rows for today's close (no-op outside the post-close
+  // window). Kept outside the retry so a failure here doesn't redo the
+  // refresh, but still exits non-zero so healthchecks alerts — a missed
+  // evening is a permanent hole in the history unless re-backfilled.
+  try {
+    const recorded = await recordDailyValues(now);
+    if (recorded > 0) console.log(`[${new Date().toISOString()}] recorded daily values for ${recorded} portfolios`);
+  } catch (err) {
+    console.error('recordDailyValues failed:', err);
+    process.exitCode = 1;
+  }
 }
 
 // Supabase's gateway occasionally answers the very first query with a 504

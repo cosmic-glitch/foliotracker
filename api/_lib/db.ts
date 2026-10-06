@@ -1231,6 +1231,59 @@ export async function deletePortfolioSnapshot(portfolioId: string): Promise<void
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------------
+// Portfolio daily values (Portfolio History screen; migration 015)
+// ---------------------------------------------------------------------------
+// 'recorded' = written by the cron after that day's close; 'reconstructed' /
+// 'estimated' = backfilled (scripts/backfill-daily-values.ts) — holdings known
+// for that day vs. carried from the nearest day they were known.
+export type DailyValueSource = 'recorded' | 'reconstructed' | 'estimated';
+
+export interface DailyValueHolding {
+  ticker: string;
+  name: string;
+  shares: number;
+  value: number;
+  isStatic: boolean;
+  instrumentType: string;
+}
+
+export interface DbPortfolioDailyValue {
+  portfolio_id: string;
+  date: string; // YYYY-MM-DD trading date
+  total_value: number;
+  holdings: DailyValueHolding[];
+  source: DailyValueSource;
+}
+
+export async function upsertPortfolioDailyValues(rows: DbPortfolioDailyValue[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('portfolio_daily_values').upsert(
+    rows.map((r) => ({ ...r, updated_at: new Date().toISOString() })),
+    { onConflict: 'portfolio_id,date' }
+  );
+  if (error) throw error;
+}
+
+export async function getPortfolioDailyValues(portfolioId: string): Promise<DbPortfolioDailyValue[]> {
+  // Paginated: PostgREST caps a response at 1000 rows, ~4 years of trading days.
+  const PAGE_SIZE = 1000;
+  const rows: DbPortfolioDailyValue[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('portfolio_daily_values')
+      .select('portfolio_id, date, total_value, holdings, source')
+      .eq('portfolio_id', portfolioId.toLowerCase())
+      .order('date', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...data.map((r) => ({ ...r, total_value: Number(r.total_value) })));
+    if (data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export async function recordSnapshotError(portfolioId: string, errorMessage: string): Promise<void> {
   const { error } = await supabase
     .from('portfolio_snapshots')

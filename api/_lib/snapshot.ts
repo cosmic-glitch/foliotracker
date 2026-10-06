@@ -16,9 +16,11 @@ import {
   type DbPortfolioSnapshot,
   getAllPortfolioSnapshots,
   getPortfolioSnapshot,
+  upsertPortfolioDailyValues,
+  type DbPortfolioDailyValue,
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData } from './yahoo.js';
-import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, isDailyNavStale, createETDate } from './cache.js';
+import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, isDailyNavStale, createETDate, getDailyValueRecordDate } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
 
 const BENCHMARK_TICKER = 'SPY';
@@ -1058,4 +1060,46 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   // Also write to Redis cache
   await setSnapshotInRedis(portfolioId, { ...snapshot, updated_at: new Date().toISOString() });
   console.log(`Snapshot refreshed for portfolio: ${portfolioId}`);
+}
+
+// Portfolio History: after each close, upsert every portfolio's closing value +
+// per-holding breakdown for the day, from the snapshots the refresh just wrote.
+// Runs every tick of the recording window (close+15m → ET midnight), so the
+// last write of the evening wins — late fund NAVs and post-close edits land.
+// Values use the regular-session close (`regularMarketPrice`), never an
+// extended-hours print. Snapshots older than SNAPSHOT_MAX_AGE_MS (refresh
+// failing for that portfolio) are skipped rather than recorded stale.
+const SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
+
+export async function recordDailyValues(now: Date = new Date()): Promise<number> {
+  const date = getDailyValueRecordDate(now);
+  if (!date) return 0;
+
+  const snapshots = await getAllPortfolioSnapshots();
+  const rows: DbPortfolioDailyValue[] = [];
+  for (const snapshot of snapshots) {
+    if (now.getTime() - new Date(snapshot.updated_at).getTime() > SNAPSHOT_MAX_AGE_MS) {
+      console.warn(`[daily-values] skipping ${snapshot.portfolio_id}: snapshot is stale (${snapshot.updated_at})`);
+      continue;
+    }
+    const holdings = (snapshot.holdings_json ?? []).map((h) => ({
+      ticker: h.ticker,
+      name: h.name,
+      shares: h.shares,
+      value: h.isStatic ? h.value : h.shares * (h.regularMarketPrice ?? h.currentPrice),
+      isStatic: h.isStatic,
+      instrumentType: h.instrumentType,
+    }));
+    if (holdings.length === 0) continue;
+    rows.push({
+      portfolio_id: snapshot.portfolio_id,
+      date,
+      total_value: holdings.reduce((sum, h) => sum + h.value, 0),
+      holdings,
+      source: 'recorded',
+    });
+  }
+
+  await upsertPortfolioDailyValues(rows);
+  return rows.length;
 }

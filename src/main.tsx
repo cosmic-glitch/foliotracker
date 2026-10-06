@@ -15,6 +15,7 @@ import { CreatePortfolio } from './pages/CreatePortfolio.tsx'
 import { EditPortfolio } from './pages/EditPortfolio.tsx'
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard.tsx'
 import { ComparePage } from './pages/ComparePage.tsx'
+import { PortfolioHistory } from './pages/PortfolioHistory.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')!).render(
                       /:portfolioId. (api/portfolios.ts reserves the id too.) */}
                   <Route path="/compare" element={<ComparePage />} />
                   <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
+                  <Route path="/:portfolioId/history" element={<PortfolioHistory />} />
                   <Route path="/:portfolioId" element={<App />} />
                 </Routes>
                 <Analytics />

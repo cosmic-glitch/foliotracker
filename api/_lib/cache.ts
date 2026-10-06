@@ -220,6 +220,32 @@ export function getMarketStatus(now: Date = new Date()): 'open' | 'pre-market' |
   return 'closed';
 }
 
+// Portfolio History recording window: once a trading day's regular session has
+// closed (plus a settle margin for the closing auction to print) until ET
+// midnight, returns that day's date key — the day whose closing values the
+// snapshot cron records. Spanning the evening lets late-publishing fund NAVs
+// land before the final write. Null outside the window (weekends, holidays,
+// before the close).
+const DAILY_VALUE_SETTLE_MINUTES = 15;
+
+export function getDailyValueRecordDate(now: Date = new Date()): string | null {
+  const et = parseETParts(now);
+  if (!isTradingDateKey(et.dateKey)) return null;
+  return et.minutesFromMidnight >= regularCloseMinutes(et.dateKey) + DAILY_VALUE_SETTLE_MINUTES
+    ? et.dateKey
+    : null;
+}
+
+export function isTradingDate(dateKey: string): boolean {
+  return isTradingDateKey(dateKey);
+}
+
+// Regular-session close instant for a trading date (1 p.m. ET on half-days).
+export function getRegularCloseTime(dateKey: string): Date {
+  const close = regularCloseMinutes(dateKey);
+  return createETDate(dateKey, Math.floor(close / 60), close % 60);
+}
+
 // A once-daily-priced instrument (mutual fund / money-market NAV) only reprices
 // after the close — for some funds (e.g. Vanguard) hours later. During the
 // *next* regular session, Yahoo keeps serving the prior session's NAV and its

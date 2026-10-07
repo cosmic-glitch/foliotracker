@@ -30,6 +30,15 @@ function parseSortKey(monAbbr: string | undefined, dayStr: string | undefined): 
   return ts;
 }
 
+// Summaries cite sources inline — `… guide raise [Reuters](url).` or the older
+// `… streak ([GuruFocus](url), [CNBC](url)).` — which are noise in the rendered
+// digests, so drop each citation run along with its leading space and wrapping parens.
+const CITATION_RUN_RE = /\s*\(?\[[^\]]*\]\([^)]*\)(?:,\s*\[[^\]]*\]\([^)]*\))*\)?/g;
+
+export function stripNewsCitations(summaryMarkdown: string): string {
+  return summaryMarkdown.replace(CITATION_RUN_RE, '').trim();
+}
+
 export function extractHeadlines(summaryMarkdown: string): Headline[] {
   const lines = summaryMarkdown.split('\n');
   const headlines: Headline[] = [];

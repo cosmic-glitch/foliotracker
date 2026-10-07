@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceArea } from 'recharts';
 import { TICKER_RANGES, useTickerHistory, type TickerRange } from '../hooks/useTickerHistory';
 import { useTickerNews } from '../hooks/usePortfolioNews';
+import { stripNewsCitations } from '../lib/newsHeadline';
 import {
   formatChartDate,
   formatLargeValue,
@@ -67,11 +68,6 @@ interface ChartPoint {
 }
 
 const NO_MATERIAL_NEWS_SENTINEL = 'No material news in the last 7 days.';
-
-// Summaries cite sources inline — `… guide raise [Reuters](url).` or the older
-// `… streak ([GuruFocus](url), [CNBC](url)).` — which are noise in this compact
-// view, so drop each citation run along with its leading space and wrapping parens.
-const NEWS_CITATIONS = /\s*\(?\[[^\]]*\]\([^)]*\)(?:,\s*\[[^\]]*\]\([^)]*\))*\)?/g;
 
 const NEWS_INSTRUMENT_TYPES = new Set([
   'Common Stock',
@@ -466,7 +462,7 @@ export function TickerDetailModal({ subject: holding, onClose }: TickerDetailMod
   const newsEntry = news.data?.news[holding.ticker];
   const newsMarkdown =
     newsEntry && newsEntry.summaryMarkdown.trim() !== NO_MATERIAL_NEWS_SENTINEL
-      ? newsEntry.summaryMarkdown.replace(NEWS_CITATIONS, '').trim()
+      ? stripNewsCitations(newsEntry.summaryMarkdown)
       : null;
   const isEtfLike = holding.instrumentType === 'ETF' || holding.instrumentType === 'Mutual Fund';
   const hideNews = !news.isLoading && !news.error && !newsEntry && isEtfLike;

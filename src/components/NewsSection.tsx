@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import type { Holding } from '../types/portfolio';
 import { usePortfolioNews } from '../hooks/usePortfolioNews';
 import { consolidateHoldings } from '../utils/equivalentTickers';
+import { stripNewsCitations } from '../lib/newsHeadline';
 
 interface NewsSectionProps {
   holdings: Holding[];
@@ -57,7 +58,7 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
         rows.push({ ticker, kind: 'pending' });
         continue;
       }
-      const body = entry.summaryMarkdown.trim();
+      const body = stripNewsCitations(entry.summaryMarkdown);
       if (body === NO_MATERIAL_NEWS_SENTINEL || body.length === 0) continue;
       rows.push({ ticker, kind: 'ai', markdown: body });
     }
@@ -102,7 +103,7 @@ export function NewsSection({ holdings, title }: NewsSectionProps) {
                     <div className="text-sm font-semibold text-text-primary mb-1">
                       {row.ticker}
                     </div>
-                    <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary prose-a:text-accent prose-a:no-underline hover:prose-a:underline marker:text-text-secondary">
+                    <div className="text-sm text-text-primary prose prose-sm max-w-none prose-ul:my-0 prose-li:my-0.5 prose-p:my-0 prose-strong:text-text-primary marker:text-text-secondary">
                       <ReactMarkdown>{row.markdown!}</ReactMarkdown>
                     </div>
                   </div>

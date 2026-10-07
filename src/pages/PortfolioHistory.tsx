@@ -113,6 +113,37 @@ const holdingKey = (h: HistoryDay['holdings'][number]) => (h.isStatic ? `static:
 const holdingLabel = (h: HistoryDay['holdings'][number]) => (h.isStatic ? h.name : canonicalTicker(h.ticker));
 const typeName = (instrumentType: string) => (TYPE_CATEGORY_MAP[instrumentType] ?? TYPE_CATEGORY_MAP.Other).name;
 
+// ── Static-holdings filter ───────────────────────────────────────────────
+// Static holdings only move when the owner re-values them, so they flatten
+// the growth % and add non-market steps. "Excl. static" rebuilds each day
+// from its tradeable holdings: total re-summed, weights re-normalized (over
+// weights, so it works for allocation-only viewers too). Days with no
+// tradeable holding are dropped rather than drawn at $0.
+const EXCLUDE_STATIC_STORAGE_KEY = 'foliotracker.history.excludeStatic';
+
+function readExcludeStatic(): boolean {
+  try {
+    return window.localStorage.getItem(EXCLUDE_STATIC_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function withoutStatic(days: HistoryDay[]): HistoryDay[] {
+  const out: HistoryDay[] = [];
+  for (const d of days) {
+    const holdings = d.holdings.filter((h) => !h.isStatic);
+    if (holdings.length === 0) continue;
+    const weightSum = holdings.reduce((s, h) => s + h.weight, 0);
+    out.push({
+      ...d,
+      totalValue: d.totalValue == null ? null : holdings.reduce((s, h) => s + (h.value ?? 0), 0),
+      holdings: holdings.map((h) => ({ ...h, weight: weightSum !== 0 ? (h.weight / weightSum) * 100 : 0 })),
+    });
+  }
+  return out;
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────
 export function PortfolioHistory() {
   const { portfolioId = '' } = useParams<{ portfolioId: string }>();
@@ -131,7 +162,22 @@ export function PortfolioHistory() {
   const [range, setRange] = useState<RangeKey>('ALL');
   const [allocationMode, setAllocationMode] = useState<AllocationMode>('holdings');
 
-  const allDays = useMemo(() => data?.days ?? [], [data]);
+  const [excludeStatic, setExcludeStatic] = useState(readExcludeStatic);
+  const chooseExcludeStatic = (next: boolean) => {
+    setExcludeStatic(next);
+    try {
+      window.localStorage.setItem(EXCLUDE_STATIC_STORAGE_KEY, next ? '1' : '0');
+    } catch { /* ignore */ }
+  };
+
+  const rawDays = useMemo(() => data?.days ?? [], [data]);
+  // Offer the filter only when it changes something and leaves something.
+  const canExcludeStatic = useMemo(
+    () => rawDays.some((d) => d.holdings.some((h) => h.isStatic)) && rawDays.some((d) => d.holdings.some((h) => !h.isStatic)),
+    [rawDays]
+  );
+  const staticExcluded = excludeStatic && canExcludeStatic;
+  const allDays = useMemo(() => (staticExcluded ? withoutStatic(rawDays) : rawDays), [rawDays, staticExcluded]);
   const lastDate = allDays.length ? allDays[allDays.length - 1].date : null;
   const firstDate = allDays.length ? allDays[0].date : null;
 
@@ -161,7 +207,7 @@ export function PortfolioHistory() {
       />
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-3 md:py-6 space-y-4 md:space-y-6">
         {/* The page title lives in the Header breadcrumb (AV › History). */}
-        <div className="flex">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {allDays.length > 0 && (
             <div className="flex gap-1 bg-card border border-border rounded-lg p-1" role="group" aria-label="Date range">
               {availableRanges.map((r) => (
@@ -174,6 +220,22 @@ export function PortfolioHistory() {
                   }`}
                 >
                   {r.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {canExcludeStatic && (
+            <div className="flex gap-1 bg-card border border-border rounded-lg p-1" role="group" aria-label="Static holdings">
+              {([false, true] as const).map((ex) => (
+                <button
+                  key={String(ex)}
+                  onClick={() => chooseExcludeStatic(ex)}
+                  aria-pressed={staticExcluded === ex}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    staticExcluded === ex ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  {ex ? 'Excl. static' : 'All holdings'}
                 </button>
               ))}
             </div>
@@ -200,7 +262,7 @@ export function PortfolioHistory() {
                 You can see allocation history only — dollar values are hidden.
               </div>
             ) : (
-              <ValueHistory days={days} />
+              <ValueHistory days={days} staticExcluded={staticExcluded} />
             )}
             <AllocationHistory
               days={days}
@@ -210,7 +272,7 @@ export function PortfolioHistory() {
               isDark={isDark}
             />
             {!data?.allocationOnly && <MonthlyTable days={days} />}
-            <Methodology days={allDays} />
+            <Methodology days={rawDays} />
           </>
         )}
       </main>
@@ -231,7 +293,7 @@ function setBridge(p: ValuePoint, key: string, v: number | null) {
   (p as unknown as Record<string, number | null>)[key] = v;
 }
 
-function ValueHistory({ days }: { days: HistoryDay[] }) {
+function ValueHistory({ days, staticExcluded }: { days: HistoryDay[]; staticExcluded: boolean }) {
   const { points, bridgeKeys, min, max } = useMemo(() => {
     const pts: ValuePoint[] = [];
     const bridges: string[] = [];
@@ -269,7 +331,11 @@ function ValueHistory({ days }: { days: HistoryDay[] }) {
   return (
     <section className="bg-card rounded-2xl border border-border p-3 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
-        <p className="text-2xl md:text-3xl font-semibold text-text-primary tabular-nums">{formatCurrency(last.totalValue ?? 0)}</p>
+        <p className="text-2xl md:text-3xl font-semibold text-text-primary tabular-nums">
+          {formatCurrency(last.totalValue ?? 0)}
+          {/* Flags that this won't match the portfolio page's total. */}
+          {staticExcluded && <span className="ml-2 text-xs font-medium text-text-secondary">excl. static</span>}
+        </p>
         <div className="sm:text-right">
           <p className="text-xs text-text-secondary">Since {shortDate(toTs(first.date))}, {first.date.slice(0, 4)}</p>
           <p className={`text-base font-semibold tabular-nums ${changeColor}`}>

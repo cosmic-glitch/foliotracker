@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
+import { ChartLine } from 'lucide-react';
 import type { Holding } from '../types/portfolio';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 import { HoldingsByType } from './HoldingsByType';
 import { AllocationBar } from './AllocationBar';
+import { TickerDetailModal } from './TickerDetailModal';
+import { useTickerDetailParam } from '../hooks/useTickerDetailParam';
 
 interface AllocationViewProps {
   holdings: Holding[];
@@ -41,6 +44,16 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
   const maxAllocation = Math.max(0, ...byValue.map((h) => Math.abs(h.allocation)));
   const maxTickerLength = Math.max(0, ...byValue.map((h) => h.ticker.length));
 
+  // Tickers open the detail panel like the Holdings/CG tabs (`?t=TICKER`;
+  // only one tab renders at a time, so the instances don't double up). Not
+  // for allocation-only viewers — the server zeroes their prices, so the
+  // panel header would read $0. Static holdings have no price series.
+  const { openTicker, openDetail, closeDetail } = useTickerDetailParam();
+  const tickersLinked = !hideValues;
+  const detailHolding = tickersLinked && openTicker
+    ? byValue.find((h) => h.ticker === openTicker && !h.isStatic) ?? null
+    : null;
+
   return (
     <div className="space-y-3 md:space-y-6">
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -58,7 +71,22 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
         <div className="p-3 space-y-0.5">
           {byValue.map((holding) => (
             <div key={holding.ticker} className="flex items-center gap-1.5 px-1">
-              <span className="font-mono font-medium text-text-primary text-sm shrink-0 whitespace-nowrap" style={{ minWidth: `${maxTickerLength}ch` }}>{holding.ticker}</span>
+              {/* minWidth reserves room for the icon too, so every bar starts at the same x */}
+              <span className="font-mono font-medium text-sm shrink-0 whitespace-nowrap" style={{ minWidth: tickersLinked ? `calc(${maxTickerLength}ch + 1rem)` : `${maxTickerLength}ch` }}>
+                {tickersLinked && !holding.isStatic ? (
+                  <button
+                    type="button"
+                    onClick={() => openDetail(holding.ticker)}
+                    className="group/ticker inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 decoration-accent/50"
+                    title={`${holding.ticker} price history & details`}
+                  >
+                    {holding.ticker}
+                    <ChartLine className="w-3 h-3 shrink-0 opacity-60 group-hover/ticker:opacity-100" />
+                  </button>
+                ) : (
+                  <span className="text-text-primary">{holding.ticker}</span>
+                )}
+              </span>
               <div className="flex-1 min-w-0">
                 <AllocationBar percent={holding.allocation} maxPercent={maxAllocation} />
               </div>
@@ -68,6 +96,10 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
       </div>
 
       <HoldingsByType holdings={filteredHoldings} hideValues={hideValues} />
+
+      {detailHolding && (
+        <TickerDetailModal subject={detailHolding} onClose={closeDetail} />
+      )}
     </div>
   );
 }

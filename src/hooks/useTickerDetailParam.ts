@@ -6,8 +6,8 @@ import { useSearchParams } from 'react-router-dom';
 // mobile) closes it, and a link to a specific ticker is shareable. Opening
 // pushes a history entry; closing via the X replaces it so Back from the
 // closed page doesn't re-open the panel. Other params (`share`) are preserved.
-// Shared by every surface that opens TickerDetailModal (holdings table,
-// landing-page movers strip).
+// Shared by every surface that opens TickerDetailModal (holdings, CG and
+// allocation tabs, landing-page movers strip).
 export function useTickerDetailParam() {
   const [searchParams, setSearchParams] = useSearchParams();
   const openTicker = searchParams.get('t');

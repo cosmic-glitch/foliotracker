@@ -17,11 +17,12 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # Pin the session model instead of inheriting the box's ~/.claude/settings.json
 # default: a usage cap on that ambient model silently kills every cron that
-# shares it (Sep 10-12 2026 cost three days of digests). Sonnet is enough for
-# web research + short summaries and sits on its own usage bucket, separate
-# from wsj_club's Opus autopilot. Override for one run with
+# shares it (Sep 10-12 2026 cost three days of digests). The box default is
+# Fable, which has its own weekly cap on Max; Sonnet and Opus share the general
+# weekly limit, and Sonnet draws it down slower. Sonnet is enough for web
+# research + short summaries. Override for one run with
 # NEWS_MODEL=... bash scripts/generate-news.sh
-NEWS_MODEL="${NEWS_MODEL:-claude-sonnet-5}"
+NEWS_MODEL="${NEWS_MODEL:-claude-sonnet-5-5}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"

@@ -42,7 +42,9 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
     [consolidatedHoldings, filteredTotal, hideValues]
   );
   const maxAllocation = Math.max(0, ...byValue.map((h) => Math.abs(h.allocation)));
-  const maxTickerLength = Math.max(0, ...byValue.map((h) => h.ticker.length));
+  // Label column fits the longest name but is capped, so one long static
+  // holding name can't eat the bars' width — longer names truncate.
+  const labelCh = Math.min(12, Math.max(0, ...byValue.map((h) => h.ticker.length)));
 
   // Tickers open the detail panel like the Holdings/CG tabs (`?t=TICKER`;
   // only one tab renders at a time, so the instances don't double up). Not
@@ -71,20 +73,20 @@ export function AllocationView({ holdings, hideValues = false }: AllocationViewP
         <div className="p-3 space-y-0.5">
           {byValue.map((holding) => (
             <div key={holding.ticker} className="flex items-center gap-1.5 px-1">
-              {/* minWidth reserves room for the icon too, so every bar starts at the same x */}
-              <span className="font-mono font-medium text-sm shrink-0 whitespace-nowrap" style={{ minWidth: tickersLinked ? `calc(${maxTickerLength}ch + 1rem)` : `${maxTickerLength}ch` }}>
+              {/* Fixed width (with room for the icon when linked) so every bar starts at the same x */}
+              <span className="font-mono font-medium text-sm shrink-0 whitespace-nowrap" style={{ width: tickersLinked ? `calc(${labelCh}ch + 1rem)` : `${labelCh}ch` }}>
                 {tickersLinked && !holding.isStatic ? (
                   <button
                     type="button"
                     onClick={() => openDetail(holding.ticker)}
-                    className="group/ticker inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 decoration-accent/50"
+                    className="group/ticker inline-flex items-center gap-1 max-w-full text-accent hover:underline underline-offset-2 decoration-accent/50"
                     title={`${holding.ticker} price history & details`}
                   >
-                    {holding.ticker}
+                    <span className="truncate">{holding.ticker}</span>
                     <ChartLine className="w-3 h-3 shrink-0 opacity-60 group-hover/ticker:opacity-100" />
                   </button>
                 ) : (
-                  <span className="text-text-primary">{holding.ticker}</span>
+                  <span className="block truncate text-text-primary" title={holding.ticker}>{holding.ticker}</span>
                 )}
               </span>
               <div className="flex-1 min-w-0">

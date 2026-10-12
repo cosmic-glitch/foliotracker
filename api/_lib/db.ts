@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { getAuthCache, setAuthCache, deleteAuthCache } from './redis.js';
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
@@ -184,19 +185,28 @@ export async function createSession(
   return { token, expiresAt };
 }
 
-export async function verifySessionToken(token: string): Promise<SessionData | null> {
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('portfolio_id, is_admin, expires_at')
-    .eq('token', token)
-    .single();
+type SessionRow = { portfolio_id: string; is_admin: boolean; expires_at: string };
 
-  if (error || !data) return null;
+// Redis-cached (see the auth cache in redis.ts). Only valid sessions are
+// cached; expiry is re-checked on every read, so a cached row ages out on time.
+export async function verifySessionToken(token: string): Promise<SessionData | null> {
+  let data = await getAuthCache<SessionRow>('session', token);
+  if (!data) {
+    const { data: row, error } = await supabase
+      .from('sessions')
+      .select('portfolio_id, is_admin, expires_at')
+      .eq('token', token)
+      .single();
+    if (error || !row) return null;
+    data = row;
+    if (new Date(data.expires_at) >= new Date()) await setAuthCache('session', token, data);
+  }
 
   // Check expiry
   if (new Date(data.expires_at) < new Date()) {
     // Clean up expired token
     await supabase.from('sessions').delete().eq('token', token);
+    await deleteAuthCache('session', [token]);
     return null;
   }
 
@@ -204,12 +214,14 @@ export async function verifySessionToken(token: string): Promise<SessionData | n
 }
 
 export async function deleteSessionsForPortfolio(portfolioId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .delete()
-    .eq('portfolio_id', portfolioId.toLowerCase());
+    .eq('portfolio_id', portfolioId.toLowerCase())
+    .select('token');
 
   if (error) throw error;
+  await deleteAuthCache('session', (data || []).map((row) => row.token));
 }
 
 export async function authenticateRequest(
@@ -298,7 +310,11 @@ export async function listShareLinks(portfolioId: string): Promise<DbShareLink[]
   return (data || []) as DbShareLink[];
 }
 
+// Redis-cached (see the auth cache in redis.ts); unknown tokens are not.
 export async function getShareLinkByToken(token: string): Promise<DbShareLink | null> {
+  const cached = await getAuthCache<DbShareLink>('share_link', token);
+  if (cached) return cached;
+
   const { data, error } = await supabase
     .from('share_links')
     .select('*')
@@ -306,6 +322,7 @@ export async function getShareLinkByToken(token: string): Promise<DbShareLink | 
     .single();
 
   if (error && error.code !== 'PGRST116') throw error;
+  if (data) await setAuthCache('share_link', token, data);
   return (data as DbShareLink) || null;
 }
 
@@ -317,9 +334,10 @@ export async function revokeShareLink(id: string, portfolioId: string): Promise<
     .eq('id', id)
     .eq('portfolio_id', portfolioId.toLowerCase())
     .is('revoked_at', null)
-    .select('id');
+    .select('id, token');
 
   if (error) throw error;
+  await deleteAuthCache('share_link', (data || []).map((row) => row.token));
   return !!data && data.length > 0;
 }
 
@@ -331,6 +349,17 @@ export function isShareLinkValid(link: DbShareLink): boolean {
 
 export async function deletePortfolio(id: string): Promise<void> {
   const normalizedId = id.toLowerCase();
+
+  // The delete cascades to this portfolio's sessions, share links and viewer
+  // rows (including rows naming it as a viewer of others), so collect their
+  // auth-cache keys first. Otherwise a portfolio re-created under the same id
+  // would inherit the old one's cached access until the TTL ran out.
+  const [sessions, shareLinks, viewerOf] = await Promise.all([
+    supabase.from('sessions').select('token').eq('portfolio_id', normalizedId),
+    supabase.from('share_links').select('token').eq('portfolio_id', normalizedId),
+    supabase.from('portfolio_viewers').select('portfolio_id').eq('viewer_id', normalizedId),
+  ]);
+  for (const r of [sessions, shareLinks, viewerOf]) if (r.error) throw r.error;
 
   // Delete holdings first (foreign key constraint)
   const { error: holdingsError } = await supabase
@@ -347,6 +376,12 @@ export async function deletePortfolio(id: string): Promise<void> {
     .eq('id', normalizedId);
 
   if (error) throw error;
+
+  await Promise.all([
+    deleteAuthCache('session', (sessions.data || []).map((r) => r.token)),
+    deleteAuthCache('share_link', (shareLinks.data || []).map((r) => r.token)),
+    deleteAuthCache('viewers', [normalizedId, ...(viewerOf.data || []).map((r) => r.portfolio_id)]),
+  ]);
 }
 
 export async function updatePortfolioSettings(
@@ -715,14 +750,20 @@ export async function upsertDailyPrice(
 }
 
 // Portfolio viewers functions (for selective visibility)
+// Redis-cached (see the auth cache in redis.ts); isAllowedViewer reads it too.
 export async function getPortfolioViewers(portfolioId: string): Promise<string[]> {
+  const cached = await getAuthCache<string[]>('viewers', portfolioId);
+  if (cached) return cached;
+
   const { data, error } = await supabase
     .from('portfolio_viewers')
     .select('viewer_id')
     .eq('portfolio_id', portfolioId.toLowerCase());
 
   if (error) throw error;
-  return (data || []).map((row) => row.viewer_id);
+  const viewers = (data || []).map((row) => row.viewer_id);
+  await setAuthCache('viewers', portfolioId, viewers);
+  return viewers;
 }
 
 export async function setPortfolioViewers(
@@ -731,24 +772,29 @@ export async function setPortfolioViewers(
 ): Promise<void> {
   const normalizedId = portfolioId.toLowerCase();
 
-  // Delete existing viewers
-  const { error: deleteError } = await supabase
-    .from('portfolio_viewers')
-    .delete()
-    .eq('portfolio_id', normalizedId);
+  try {
+    // Delete existing viewers
+    const { error: deleteError } = await supabase
+      .from('portfolio_viewers')
+      .delete()
+      .eq('portfolio_id', normalizedId);
 
-  if (deleteError) throw deleteError;
+    if (deleteError) throw deleteError;
 
-  // Insert new viewers
-  if (viewerIds.length > 0) {
-    const { error: insertError } = await supabase.from('portfolio_viewers').insert(
-      viewerIds.map((viewerId) => ({
-        portfolio_id: normalizedId,
-        viewer_id: viewerId.toLowerCase(),
-      }))
-    );
+    // Insert new viewers
+    if (viewerIds.length > 0) {
+      const { error: insertError } = await supabase.from('portfolio_viewers').insert(
+        viewerIds.map((viewerId) => ({
+          portfolio_id: normalizedId,
+          viewer_id: viewerId.toLowerCase(),
+        }))
+      );
 
-    if (insertError) throw insertError;
+      if (insertError) throw insertError;
+    }
+  } finally {
+    // Also on failure: the delete may have landed without the insert.
+    await deleteAuthCache('viewers', [normalizedId]);
   }
 }
 
@@ -756,15 +802,8 @@ export async function isAllowedViewer(
   portfolioId: string,
   viewerId: string
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('portfolio_viewers')
-    .select('viewer_id')
-    .eq('portfolio_id', portfolioId.toLowerCase())
-    .eq('viewer_id', viewerId.toLowerCase())
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return !!data;
+  const viewers = await getPortfolioViewers(portfolioId);
+  return viewers.includes(viewerId.toLowerCase());
 }
 
 // Price cache types and functions

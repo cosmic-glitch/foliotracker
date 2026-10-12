@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { createHash } from 'crypto';
 import type { DbPortfolioSnapshot, DbPortfolio, DbPriceCache, DbPortfolioListItem, Visibility } from './db.js';
 
 // Initialize Redis client
@@ -282,4 +283,48 @@ export async function setPricesInRedis(prices: DbPriceCache[]): Promise<void> {
   } catch (error) {
     console.error('Redis setPrices error:', error);
   }
+}
+
+// ============================================
+// Auth lookups: sessions, share links, viewer lists
+// ============================================
+
+// Read-through caches for the per-request auth checks. Uncached, each costs a
+// cross-country Supabase round trip (functions run in iad1, Supabase in
+// us-west-2: ~100–350 ms apiece, measured 2026-10) on every portfolio load.
+// Every write path in db.ts invalidates explicitly; the TTL only bounds
+// staleness from writes that bypass it (direct DB edits).
+const AUTH_CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+export type AuthCacheKind = 'session' | 'share_link' | 'viewers';
+
+// Session and share-link tokens are bearer secrets, so their keys carry a
+// hash rather than the token itself. Viewer lists are keyed by portfolio id.
+function authCacheKey(kind: AuthCacheKind, id: string): string {
+  const keyId = kind === 'viewers' ? id.toLowerCase() : createHash('sha256').update(id).digest('hex');
+  return `auth:${kind}:${keyId}`;
+}
+
+export async function getAuthCache<T>(kind: AuthCacheKind, id: string): Promise<T | null> {
+  try {
+    return await redis.get<T>(authCacheKey(kind, id));
+  } catch (error) {
+    console.error('Redis getAuthCache error:', error);
+    return null;
+  }
+}
+
+export async function setAuthCache(kind: AuthCacheKind, id: string, value: unknown): Promise<void> {
+  try {
+    await redis.set(authCacheKey(kind, id), value, { ex: AUTH_CACHE_TTL_SECONDS });
+  } catch (error) {
+    console.error('Redis setAuthCache error:', error);
+  }
+}
+
+// Unlike the other cache writes, this throws: a swallowed failure would leave
+// a revoked link or deleted session valid until the TTL runs out.
+export async function deleteAuthCache(kind: AuthCacheKind, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await redis.del(...ids.map((id) => authCacheKey(kind, id)));
 }

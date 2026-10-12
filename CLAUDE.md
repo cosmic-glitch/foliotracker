@@ -12,7 +12,7 @@ Standard Vite scripts (see `package.json`). `npm run dev` serves the frontend on
 
 Non-obvious spots in the file map:
 - `api/portfolios.ts` does more than CRUD: it also serves the analytics dashboard data (`?action=analytics`), computes the landing-page movers (`movers: { regular, extended }`), and returns `viewsToday`
-- `api/_lib/redis.ts`: `portfolio`/`portfolios`/`history`/`holdings-history` read Redis first, fall back to Supabase (metadata/list/count backfill on a miss; snapshot misses don't); the snapshot refresh writes through. `api/permissions.ts` only *invalidates* Redis
+- `api/_lib/redis.ts`: `portfolio`/`portfolios`/`history`/`holdings-history` read Redis first, fall back to Supabase (metadata/list/count backfill on a miss; snapshot misses don't); the snapshot refresh writes through. `api/permissions.ts` only *invalidates* Redis. Sessions, share links and viewer lists are also read-through cached (`auth:*` keys, 24h TTL), invalidated by the `db.ts` write paths — a direct DB edit to those tables stays live until you delete the key or the TTL expires
 - `api/refresh-prices.ts` is a legacy manual endpoint (`REFRESH_SECRET` auth) — the VM cron replaced its schedule
 
 ## Data model (Supabase)
@@ -69,7 +69,7 @@ Wrappers self-sync via `git pull --ff-only origin main`; the news/events jobs ne
 
 ```bash
 set -a; source .env.local; set +a && npx tsx scripts/migrate-<name>.ts       # migrations (pg against SUPABASE_DB_URL; idiom in scripts/migrate-*.ts; plain `source` doesn't export, so `set -a` is required)
-source .env.local && npx tsx scripts/reset-password.ts <id> <new_password>  # re-hash + invalidate sessions
+set -a; source .env.local; set +a && npx tsx scripts/reset-password.ts <id> <new_password>  # re-hash + invalidate sessions (incl. Redis)
 ```
 
 ## Workflow

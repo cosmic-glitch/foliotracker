@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
 import { stripPortfolioForAllocationOnly } from './_lib/anonymize.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -133,33 +133,56 @@ export default async function handler(
     const shareToken = req.query.share_token as string;
     const loggedInAs = (req.query.logged_in_as as string)?.toLowerCase();
 
-    let authResult = { authenticated: false, isAdmin: false };
-    let shareLinkMode: ShareLinkMode | null = null;
-    // Owner (or admin) proven by token/password — the only viewer the
-    // "show only to me" tab switches let through. Share links never count.
-    let isOwner = false;
+    // The auth check and the data reads below are independent, so they run
+    // concurrently: back to back they cost a round trip each on a cold cache.
+    const authPromise = (async () => {
+      let authResult = { authenticated: false, isAdmin: false };
+      let shareLinkMode: ShareLinkMode | null = null;
+      // Owner (or admin) proven by token/password — the only viewer the
+      // "show only to me" tab switches let through. Share links never count.
+      let isOwner = false;
 
-    // Share token: if present, validate and short-circuit visibility checks.
-    if (shareToken) {
-      const link = await getShareLinkByToken(shareToken);
-      if (!link || link.portfolio_id !== portfolioId.toLowerCase() || !isShareLinkValid(link)) {
-        res.status(401).json({ error: 'Share link invalid or expired' });
-        return;
+      // Share token: if present, validate and short-circuit visibility checks.
+      if (shareToken) {
+        const link = await timed('getShareLinkByToken', () => getShareLinkByToken(shareToken));
+        if (!link || link.portfolio_id !== portfolioId.toLowerCase() || !isShareLinkValid(link)) {
+          return { error: 'Share link invalid or expired' } as const;
+        }
+        authResult = { authenticated: true, isAdmin: false };
+        shareLinkMode = link.mode;
+        // An owner opening their own share link still sends their token.
+        if (token || password) {
+          isOwner = (await timed('authenticateRequest', () => authenticateRequest(portfolioId, token, password))).authenticated;
+        }
+      } else if (token || password) {
+        authResult = await timed('authenticateRequest', () => authenticateRequest(portfolioId, token, password));
+        if (!authResult.authenticated) return { error: 'Invalid password' } as const;
+        isOwner = true;
       }
-      authResult = { authenticated: true, isAdmin: false };
-      shareLinkMode = link.mode;
-      // An owner opening their own share link still sends their token.
-      if (token || password) {
-        isOwner = (await authenticateRequest(portfolioId, token, password)).authenticated;
-      }
-    } else if (token || password) {
-      authResult = await authenticateRequest(portfolioId, token, password);
-      if ((token || password) && !authResult.authenticated) {
-        res.status(401).json({ error: 'Invalid password' });
-        return;
-      }
-      isOwner = true;
+      return { authResult, shareLinkMode, isOwner };
+    })();
+
+    // Read from Redis first, fall back to DB
+    const snapshotPromise = timed('getSnapshotFromRedis', () => getSnapshotFromRedis(portfolioId)).then(
+      (s) => s ?? timed('getPortfolioSnapshot (fallback)', () => getPortfolioSnapshot(portfolioId))
+    );
+    // Benchmark data from price cache - try Redis first
+    const pricesPromise = timed('getPricesFromRedis', () => getPricesFromRedis([BENCHMARK_TICKER])).then(
+      (p) => (p.size > 0 ? p : timed('getCachedPrices (fallback)', () => getCachedPrices([BENCHMARK_TICKER])))
+    );
+    // Viewers if selective visibility (also answers the allowed-viewer check)
+    const viewersPromise = portfolio.visibility === 'selective'
+      ? timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
+      : Promise.resolve(undefined);
+
+    const [auth, snapshot, cachedPrices, viewers] = await Promise.all([
+      authPromise, snapshotPromise, pricesPromise, viewersPromise,
+    ]);
+    if ('error' in auth) {
+      res.status(401).json({ error: auth.error });
+      return;
     }
+    const { authResult, shareLinkMode, isOwner } = auth;
     const hideGains = !!portfolio.gains_owner_only && !isOwner;
     const changesHidden = !!portfolio.changes_owner_only && !isOwner;
 
@@ -169,7 +192,7 @@ export default async function handler(
     if (portfolio.visibility === 'private') {
       restricted = !authResult.authenticated;
     } else if (portfolio.visibility === 'selective') {
-      const isViewer = !!loggedInAs && (await isAllowedViewer(portfolioId, loggedInAs));
+      const isViewer = !!loggedInAs && !!viewers?.includes(loggedInAs);
       restricted = !authResult.authenticated && !isViewer;
     }
     // `?? true` tolerates Redis blobs cached before migration 010 added the field.
@@ -189,12 +212,6 @@ export default async function handler(
     // If `restricted && allocationPublic`, fall through. The strip step at the
     // bottom of the handler anonymizes the response into allocation-only form.
     // Public portfolios: no auth required.
-
-    // Read from Redis first, fall back to DB
-    let snapshot = await timed('getSnapshotFromRedis', () => getSnapshotFromRedis(portfolioId));
-    if (!snapshot) {
-      snapshot = await timed('getPortfolioSnapshot (fallback)', () => getPortfolioSnapshot(portfolioId));
-    }
 
     if (!snapshot) {
       // No snapshot available yet - return empty state.
@@ -226,12 +243,7 @@ export default async function handler(
       return;
     }
 
-    // Get benchmark data from price cache - try Redis first
     let benchmark: BenchmarkData | null = null;
-    let cachedPrices = await timed('getPricesFromRedis', () => getPricesFromRedis([BENCHMARK_TICKER]));
-    if (cachedPrices.size === 0) {
-      cachedPrices = await timed('getCachedPrices (fallback)', () => getCachedPrices([BENCHMARK_TICKER]));
-    }
     const spyPrice = cachedPrices.get(BENCHMARK_TICKER);
     if (spyPrice) {
       benchmark = {
@@ -240,11 +252,6 @@ export default async function handler(
         dayChangePercent: spyPrice.change_percent,
       };
     }
-
-    // Fetch viewers if selective visibility
-    const viewers = portfolio.visibility === 'selective'
-      ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
-      : undefined;
 
     // Check if snapshot is stale (more than 10 minutes old during market hours)
     const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();

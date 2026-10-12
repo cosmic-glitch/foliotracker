@@ -3,7 +3,7 @@
  * Reset a portfolio password.
  *
  * Usage:
- *   source .env.local
+ *   set -a; source .env.local; set +a
  *   npx tsx scripts/reset-password.ts <portfolio_id> <new_password>
  *
  * Example:
@@ -23,8 +23,8 @@ async function main() {
     process.exit(1);
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY. Run: source .env.local');
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY || !process.env.UPSTASH_REDIS_REST_KV_REST_API_URL) {
+    console.error('Missing SUPABASE_URL, SUPABASE_SERVICE_KEY or UPSTASH_REDIS_REST_KV_REST_API_URL. Run: set -a; source .env.local; set +a');
     process.exit(1);
   }
 
@@ -57,14 +57,14 @@ async function main() {
     process.exit(1);
   }
 
-  // Invalidate existing sessions
-  const { error: sessionError } = await supabase
-    .from('sessions')
-    .delete()
-    .eq('portfolio_id', id);
-
-  if (sessionError) {
-    console.error('Warning: Failed to clear sessions:', sessionError.message);
+  // Invalidate existing sessions, including their Redis auth-cache entries
+  // (a plain DB delete would leave cached sessions valid for up to a day).
+  // Imported late so the env check above runs before db.ts builds its clients.
+  const { deleteSessionsForPortfolio } = await import('../api/_lib/db.js');
+  try {
+    await deleteSessionsForPortfolio(id);
+  } catch (sessionError) {
+    console.error('Warning: Failed to clear sessions:', sessionError);
   }
 
   console.log(`Password reset for portfolio "${id}" (${portfolio.display_name || 'no display name'}). All sessions invalidated.`);

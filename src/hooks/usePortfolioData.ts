@@ -72,8 +72,6 @@ interface ApiPortfolioResponse {
   lastUpdated: string;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
-  deepResearch: string | null;
-  deepResearchAt: string | null;
   staleTickers?: string[];
   viewMode?: 'full' | 'allocation_only';
   viewSource?: 'share_link' | 'restricted';
@@ -307,8 +305,6 @@ export function usePortfolioData(
         lastUpdated: new Date(p.lastUpdated),
         marketStatus: p.marketStatus,
         benchmark: p.benchmark,
-        deepResearch: null,
-        deepResearchAt: null,
         staleTickers: p.staleTickers ?? [],
         viewMode: 'allocation_only',
         viewSource: p.viewSource ?? 'share_link',
@@ -415,8 +411,6 @@ export function usePortfolioData(
       lastUpdated: new Date(p.lastUpdated),
       marketStatus: p.marketStatus,
       benchmark: p.benchmark,
-      deepResearch: p.deepResearch,
-      deepResearchAt: p.deepResearchAt,
       staleTickers: p.staleTickers ?? [],
       viewMode: p.viewMode ?? 'full',
       changesHidden: p.changesHidden ?? false,

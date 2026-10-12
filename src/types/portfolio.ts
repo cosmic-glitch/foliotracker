@@ -82,8 +82,6 @@ export interface PortfolioData {
   lastUpdated: Date;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
-  deepResearch: string | null;
-  deepResearchAt: string | null;
   staleTickers: string[];
   // Set when viewing through an `allocation_only` share link OR when the
   // viewer is restricted (private/selective + not the owner) on a portfolio

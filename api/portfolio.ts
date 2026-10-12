@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getPortfolioDeepResearch, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
+import { getPortfolio, authenticateRequest, isAllowedViewer, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
 import { stripPortfolioForAllocationOnly } from './_lib/anonymize.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
@@ -53,8 +53,6 @@ interface PortfolioResponse {
   staleTickers: string[];
   lastError?: string | null;
   lastErrorAt?: string | null;
-  deepResearch: string | null;
-  deepResearchAt: string | null;
   viewMode?: 'full' | 'allocation_only';
   // Set when viewMode === 'allocation_only' so the FE can pick the right banner copy.
   // 'share_link' = viewer arrived via a ?share=... token in allocation_only mode.
@@ -248,9 +246,6 @@ export default async function handler(
       ? await timed('getPortfolioViewers', () => getPortfolioViewers(portfolioId))
       : undefined;
 
-    // Fetch deep research report
-    const deepResearch = await timed('getPortfolioDeepResearch', () => getPortfolioDeepResearch(portfolioId));
-
     // Check if snapshot is stale (more than 10 minutes old during market hours)
     const snapshotAge = Date.now() - new Date(snapshot.updated_at).getTime();
     const isStale = snapshotAge > 10 * 60 * 1000; // Stale if > 10 minutes old
@@ -274,8 +269,6 @@ export default async function handler(
       staleTickers: snapshot.stale_tickers ?? [],
       lastError: snapshot.last_error,
       lastErrorAt: snapshot.last_error_at,
-      deepResearch: deepResearch.deep_research,
-      deepResearchAt: deepResearch.deep_research_at,
       changesHidden,
     };
 

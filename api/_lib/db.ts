@@ -25,8 +25,6 @@ export interface DbPortfolio {
   // from everyone but the owner (and admin), even dollar-value viewers.
   gains_owner_only: boolean;
   changes_owner_only: boolean;
-  deep_research: string | null;
-  deep_research_at: string | null;
 }
 
 export interface DbPortfolioViewer {
@@ -1978,37 +1976,6 @@ export async function getAnalyticsData(
     portfolioActivityByDay,
     shareLinkAccess,
   };
-}
-
-export interface PortfolioDeepResearch {
-  deep_research: string | null;
-  deep_research_at: string | null;
-}
-
-export async function getPortfolioDeepResearch(portfolioId: string): Promise<PortfolioDeepResearch> {
-  const { data, error } = await supabase
-    .from('portfolios')
-    .select('deep_research, deep_research_at')
-    .eq('id', portfolioId.toLowerCase())
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return data || {
-    deep_research: null,
-    deep_research_at: null,
-  };
-}
-
-export async function updateDeepResearch(portfolioId: string, research: string): Promise<void> {
-  const { error } = await supabase
-    .from('portfolios')
-    .update({
-      deep_research: research,
-      deep_research_at: new Date().toISOString(),
-    })
-    .eq('id', portfolioId.toLowerCase());
-
-  if (error) throw error;
 }
 
 export async function getAllPortfolioIds(): Promise<string[]> {

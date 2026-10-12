@@ -14,7 +14,6 @@ import {
   LoadingSkeleton,
   PermissionsModal,
   ShareModal,
-  AIResearchSection,
 } from './components';
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
@@ -92,7 +91,7 @@ function App() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'gains' | 'research' | 'news' | 'history'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'gains' | 'news' | 'history'>('holdings');
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId
@@ -355,18 +354,6 @@ function App() {
                         CG
                       </button>
                     )}
-                    {data.deepResearch && (
-                      <button
-                        onClick={() => setActiveTab('research')}
-                        className={`hidden md:block px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                          activeTab === 'research'
-                            ? 'border-accent text-accent'
-                            : 'border-transparent text-text-secondary hover:text-text hover:border-border'
-                        }`}
-                      >
-                        Research
-                      </button>
-                    )}
                     <button
                       onClick={() => setActiveTab('news')}
                       className={`px-2 md:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
@@ -407,13 +394,6 @@ function App() {
 
                 {activeTab === 'valuation' && (
                   <ValuationTable holdings={data.holdings} />
-                )}
-
-                {activeTab === 'research' && data.deepResearch && (
-                  <AIResearchSection
-                    research={data.deepResearch}
-                    researchAt={data.deepResearchAt}
-                  />
                 )}
 
                 {activeTab === 'news' && (

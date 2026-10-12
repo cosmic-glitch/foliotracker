@@ -30,8 +30,6 @@ interface PortfolioResponseLike {
   totalDayChangePercent?: number;
   totalGain?: number | null;
   totalGainPercent?: number | null;
-  deepResearch?: string | null;
-  deepResearchAt?: string | null;
   [k: string]: unknown;
 }
 
@@ -51,9 +49,6 @@ export function stripPortfolioForAllocationOnly<T extends PortfolioResponseLike>
   stripped.totalGain = null;
   // Keep totalDayChangePercent and totalGainPercent — they're percentages.
 
-  // The deep research report tends to mention dollar amounts, so suppress it.
-  stripped.deepResearch = null;
-  stripped.deepResearchAt = null;
 
   if (Array.isArray(response.holdings)) {
     stripped.holdings = response.holdings.map(stripHolding);

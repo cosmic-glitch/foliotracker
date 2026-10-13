@@ -1130,10 +1130,11 @@ export async function insertMarketPulse(
   if (error) throw error;
 }
 
-export async function getRecentMarketPulses(limit: number): Promise<DbMarketPulse[]> {
-  const { data, error } = await supabase
-    .from('market_pulse')
-    .select('*')
+// Newest first. `before` (an ISO generated_at) pages back through history.
+export async function getRecentMarketPulses(limit: number, before?: string): Promise<DbMarketPulse[]> {
+  let query = supabase.from('market_pulse').select('*');
+  if (before) query = query.lt('generated_at', before);
+  const { data, error } = await query
     .order('generated_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

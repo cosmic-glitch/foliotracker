@@ -536,7 +536,7 @@ export function LandingPage() {
             />
 
             {/* AI market snapshot (public); renders nothing until a pulse exists. */}
-            <MarketPulse pulse={pulse} />
+            <MarketPulse latest={pulse} />
 
             {/* Upcoming macro releases + held-ticker earnings. Self-fetching
                 (useUpcomingEvents) and self-hiding when the feed is empty. */}

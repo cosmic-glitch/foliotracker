@@ -34,21 +34,34 @@ interface PulseResponse {
     marketStatus: string;
     sources: MarketPulseSource[];
   } | null;
+  // Whether a pulse older than this one exists (drives the ‹ button).
+  hasOlder: boolean;
 }
 
-async function handlePulse(res: VercelResponse): Promise<void> {
-  const [latest] = await getRecentMarketPulses(1);
+// No `before` → the latest pulse (uncached: it changes every 30 min). With
+// `before=<generatedAt>` → the next older one. History is append-only, so the
+// pulse before a given one never changes and the CDN can hold it for a day.
+async function handlePulse(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const before = typeof req.query.before === 'string' ? req.query.before : undefined;
+  if (before !== undefined && Number.isNaN(Date.parse(before))) {
+    res.status(400).json({ error: 'Invalid before' });
+    return;
+  }
+  // Fetch one extra row to learn whether anything older exists.
+  const [pulse, older] = await getRecentMarketPulses(2, before);
   const response: PulseResponse = {
-    pulse: latest
+    pulse: pulse
       ? {
-          headline: latest.headline,
-          body: latest.body,
-          generatedAt: latest.generated_at,
-          marketStatus: latest.market_status,
-          sources: latest.sources ?? [],
+          headline: pulse.headline,
+          body: pulse.body,
+          generatedAt: pulse.generated_at,
+          marketStatus: pulse.market_status,
+          sources: pulse.sources ?? [],
         }
       : null,
+    hasOlder: Boolean(older),
   };
+  if (before) res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
   res.status(200).json(response);
 }
 
@@ -74,7 +87,7 @@ export default async function handler(
     // ?type=pulse rides on this endpoint because the Hobby plan caps us at 12
     // serverless functions and api/ is already at 12.
     if (req.query.type === 'pulse') {
-      await handlePulse(res);
+      await handlePulse(req, res);
       return;
     }
 

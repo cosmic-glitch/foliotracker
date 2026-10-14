@@ -10,6 +10,7 @@ import { TimeframeProvider } from './context/TimeframeContext'
 import { ToastProvider } from './context/ToastContext'
 import './index.css'
 import App from './App.tsx'
+import { ScrollToTop } from './components/ScrollToTop.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { CreatePortfolio } from './pages/CreatePortfolio.tsx'
 import { EditPortfolio } from './pages/EditPortfolio.tsx'
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
           <ToastProvider>
             <QueryClientProvider client={queryClient}>
               <BrowserRouter>
+                <ScrollToTop />
                 <Routes>
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/create" element={<CreatePortfolio />} />

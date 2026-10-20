@@ -33,7 +33,7 @@ export interface TickerChart {
   session: { preStart: string; start: string; end: string; postEnd: string } | null;
 }
 
-async function fetchTickerChart(symbol: string, range: TickerRange): Promise<TickerChart> {
+export async function fetchTickerChart(symbol: string, range: TickerRange): Promise<TickerChart> {
   const url = new URL(`${API_BASE_URL}/api/ticker`, window.location.origin);
   url.searchParams.set('symbol', symbol);
   url.searchParams.set('range', range);

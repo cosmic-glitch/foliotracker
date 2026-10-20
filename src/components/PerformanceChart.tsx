@@ -7,9 +7,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceArea,
+  ReferenceLine,
 } from 'recharts';
 import type { HistoricalDataPoint } from '../types/portfolio';
 import type { ChartView } from '../hooks/usePortfolioData';
+import type { BenchmarkPoint, BenchmarkSeries } from '../hooks/useBenchmarkIntraday';
 import { formatChartDate, formatChartTime, formatCurrency } from '../utils/formatters';
 
 interface PerformanceChartProps {
@@ -19,6 +21,10 @@ interface PerformanceChartProps {
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
   showExtendedHours?: boolean;
+  // Benchmark-overlay pilot (BENCHMARK_PILOT): funds plotted by % move on the
+  // 1D chart, against the portfolio's previous-close value.
+  benchmarks?: BenchmarkSeries[];
+  previousCloseValue?: number | null;
 }
 
 interface ChartDataPoint {
@@ -26,18 +32,92 @@ interface ChartDataPoint {
   timestamp: number;
   formattedDate: string;
   value: number;
+  // Benchmark-overlay pilot: each fund's move mapped onto the dollar axis
+  // (previousCloseValue × (1 + pct)) purely for plotting — it is only ever
+  // labelled in %, never as a dollar amount.
+  bench?: Record<string, number | undefined>;
+}
+
+// Validated against both card surfaces (#1e293b dark, #fff light) alongside
+// the portfolio's #3b82f6 for colorblind separation; amber/magenta keep clear
+// of the gain/loss green/red.
+const BENCHMARK_COLORS = ['#c98500', '#d55181'];
+const BENCHMARK_HOLD_MS = 5 * 60 * 1000;
+
+// The fund's % move at time t: linear between its bars (what the drawn line
+// shows anyway), held for one bar past the last one, undefined before the first.
+function benchmarkPctAt(points: BenchmarkPoint[], t: number): number | undefined {
+  if (points.length === 0 || t < points[0].t) return undefined;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (points[mid].t <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  const a = points[lo];
+  const b = points[lo + 1];
+  if (!b) return t - a.t <= BENCHMARK_HOLD_MS ? a.pct : undefined;
+  return a.pct + ((b.pct - a.pct) * (t - a.t)) / (b.t - a.t);
+}
+
+const formatPct = (fraction: number) => {
+  const pct = Number((fraction * 100).toFixed(2));
+  return `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
+};
+const formatPctTick = (fraction: number) => {
+  const pct = Number((fraction * 100).toFixed(2));
+  return `${pct > 0 ? '+' : ''}${pct}%`;
+};
+const formatPts = (fraction: number) => {
+  const pts = Number((fraction * 100).toFixed(2));
+  return `${pts > 0 ? '+' : ''}${pts.toFixed(2)} pts`;
+};
+
+interface OverlayInfo {
+  previousClose: number;
+  series: { symbol: string; color: string }[];
 }
 
 interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ value: number; payload: ChartDataPoint }>;
   label?: number;
+  overlay?: OverlayInfo | null;
 }
 
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, overlay }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
 
   const dataPoint = payload[0].payload;
+
+  if (overlay) {
+    const ownPct = dataPoint.value / overlay.previousClose - 1;
+    return (
+      <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl min-w-44">
+        <p className="text-text-secondary text-xs mb-1">{dataPoint.formattedDate}</p>
+        <div className="flex justify-between gap-4 text-sm text-text-primary font-semibold">
+          <span>{formatCurrency(dataPoint.value)}</span>
+          <span className="text-text-secondary font-normal text-xs self-center">{formatPct(ownPct)}</span>
+        </div>
+        {overlay.series.map(({ symbol, color }) => {
+          const benchValue = dataPoint.bench?.[symbol];
+          if (benchValue === undefined) return null;
+          const benchPct = benchValue / overlay.previousClose - 1;
+          const gap = ownPct - benchPct;
+          return (
+            <div key={symbol} className="flex justify-between gap-4 text-xs mt-1">
+              <span className="inline-flex items-center gap-1.5 text-text-primary">
+                <span className="w-2.5 h-0.5 rounded-full" style={{ background: color }} />
+                {symbol} {formatPct(benchPct)}
+              </span>
+              <span className={gap < 0 ? 'text-negative' : 'text-positive'}>you {formatPts(gap)}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl">
@@ -49,7 +129,10 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
-export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true, benchmarks, previousCloseValue }: PerformanceChartProps) {
+  const [hiddenBenchmarks, setHiddenBenchmarks] = useState<string[]>([]);
+  const overlayActive =
+    chartView === '1D' && !!benchmarks?.length && previousCloseValue != null && previousCloseValue > 0;
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
@@ -144,8 +227,26 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       }
     }
 
+    if (overlayActive) {
+      points = points.map((point) => {
+        const bench: Record<string, number | undefined> = {};
+        for (const series of benchmarks!) {
+          const pct = benchmarkPctAt(series.points, point.timestamp);
+          bench[series.symbol] = pct === undefined ? undefined : previousCloseValue! * (1 + pct);
+        }
+        return { ...point, bench };
+      });
+    }
+
     return points;
-  }, [data, chartView, currentValue]);
+  }, [data, chartView, currentValue, overlayActive, benchmarks, previousCloseValue]);
+
+  // Pilot overlay: colors follow the fund's slot in the list, so toggling one
+  // off never repaints the other.
+  const overlaySeries = overlayActive
+    ? benchmarks!.map((series, i) => ({ symbol: series.symbol, color: BENCHMARK_COLORS[i % BENCHMARK_COLORS.length] }))
+    : [];
+  const visibleSeries = overlaySeries.filter((series) => !hiddenBenchmarks.includes(series.symbol));
 
   // Show loading state
   if (isLoading) {
@@ -177,10 +278,37 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   // Calculate min/max for Y axis with some padding
   const values = chartData.map((d) => d.value);
+  if (overlayActive) {
+    values.push(previousCloseValue!);
+    for (const point of chartData) {
+      for (const { symbol } of visibleSeries) {
+        const v = point.bench?.[symbol];
+        if (v !== undefined) values.push(v);
+      }
+    }
+  }
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue;
   const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(maxValue) * 0.05, 1); // 10% padding, or a small positive pad if flat
+
+  // Overlay: gridline ticks at round % moves from the previous close, shared
+  // by both axes — the left labels them in dollars, the right in %. One scale,
+  // two labelings, so a fund line above yours always means it's up more.
+  let overlayTicks: number[] | undefined;
+  if (overlayActive) {
+    const prev = previousCloseValue!;
+    const lowPct = ((minValue - padding) / prev - 1) * 100;
+    const highPct = ((maxValue + padding) / prev - 1) * 100;
+    const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10].find((s) => (highPct - lowPct) / s <= 6) ?? 10;
+    overlayTicks = [];
+    for (let k = Math.ceil(lowPct / step); k <= Math.floor(highPct / step); k++) {
+      overlayTicks.push(prev * (1 + (k * step) / 100));
+    }
+  }
+
+  // Latest common point per fund, for the chips.
+  const latestRow = chartData[chartData.length - 1];
 
   const getETOffsetIso = (date: Date): string => {
     const offsetPart = new Intl.DateTimeFormat('en-US', {
@@ -235,6 +363,37 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   return (
     <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {overlayActive && (
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 sm:pt-0 pb-1 sm:pb-2 pl-1">
+          <span className="text-text-secondary text-xs mr-0.5">Compare</span>
+          {overlaySeries.map(({ symbol, color }) => {
+            const hidden = hiddenBenchmarks.includes(symbol);
+            const benchValue = latestRow?.bench?.[symbol];
+            const benchPct = benchValue === undefined ? null : benchValue / previousCloseValue! - 1;
+            const gap = benchPct === null ? null : latestRow.value / previousCloseValue! - 1 - benchPct;
+            return (
+              <button
+                key={symbol}
+                type="button"
+                aria-pressed={!hidden}
+                onClick={() => setHiddenBenchmarks((prev) => (
+                  hidden ? prev.filter((s) => s !== symbol) : [...prev, symbol]
+                ))}
+                className={`inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] sm:text-xs transition-opacity ${
+                  hidden ? 'opacity-50 text-text-secondary' : 'text-text-primary'
+                }`}
+              >
+                <span className="w-3 h-0.5 rounded-full" style={{ background: color }} />
+                {symbol}
+                {benchPct !== null && <span className="text-text-secondary">{formatPct(benchPct)}</span>}
+                {gap !== null && (
+                  <span className={gap < 0 ? 'text-negative' : 'text-positive'}>you {formatPts(gap)}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="flex items-start h-48 md:h-72">
         <div className="relative flex-1 h-full min-w-0 flex flex-col">
           <div className="flex-1 min-h-0">
@@ -286,6 +445,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                 />
                 <YAxis
                   domain={[minValue - padding, maxValue + padding]}
+                  ticks={overlayTicks}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -300,7 +460,38 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   }}
                   width={isMobile ? 54 : 58}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                {overlayActive && (
+                  <YAxis
+                    yAxisId="pct"
+                    orientation="right"
+                    domain={[minValue - padding, maxValue + padding]}
+                    ticks={overlayTicks}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    tickFormatter={(value: number) => formatPctTick(value / previousCloseValue! - 1)}
+                    width={isMobile ? 40 : 48}
+                  />
+                )}
+                {overlayActive && (
+                  <ReferenceLine y={previousCloseValue!} stroke="#94a3b8" strokeOpacity={0.5} strokeDasharray="3 4" />
+                )}
+                <Tooltip content={<CustomTooltip overlay={overlayActive ? { previousClose: previousCloseValue!, series: visibleSeries } : null} />} />
+                {visibleSeries.map(({ symbol, color }) => (
+                  <Line
+                    key={symbol}
+                    // Same domain as the dollar axis; recharts only draws an
+                    // axis that has a series attached.
+                    yAxisId="pct"
+                    type="monotone"
+                    dataKey={(d: ChartDataPoint) => d.bench?.[symbol]}
+                    stroke={color}
+                    strokeWidth={1.5}
+                    dot={false}
+                    name={symbol}
+                    isAnimationActive={false}
+                  />
+                ))}
                 <Line
                   type="monotone"
                   dataKey="value"

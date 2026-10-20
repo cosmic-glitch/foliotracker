@@ -18,6 +18,7 @@ import {
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
+import { BENCHMARK_PILOT, useBenchmarkIntraday } from './hooks/useBenchmarkIntraday';
 import { useHoldingsHistory, useUpdateHoldingsHistoryEntry, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
 import type { HoldingsHistoryPatch } from './hooks/useHoldingsHistory';
 import { materialSessions } from './utils/holdingsHistory';
@@ -126,6 +127,20 @@ function App() {
   }, [shareToken, error]);
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
+
+  // Benchmark-overlay pilot on the 1D chart (see BENCHMARK_PILOT). The
+  // baseline is the holdings' previous close summed directly: in the
+  // extended-hours view totalValue tracks the live intraday point while
+  // totalDayChange doesn't, so their difference isn't the previous close.
+  const benchmarkSymbols = BENCHMARK_PILOT[(portfolioId || '').toLowerCase()] ?? [];
+  const benchmarks = useBenchmarkIntraday(
+    benchmarkSymbols,
+    benchmarkSymbols.length > 0 && chartView === '1D' && !!data && !isAllocationOnly,
+  );
+  const previousCloseValue = useMemo(() => {
+    if (!data || benchmarkSymbols.length === 0) return null;
+    return data.holdings.reduce((sum, h) => sum + (h.isStatic ? h.value : h.shares * h.previousClose), 0);
+  }, [data, benchmarkSymbols.length]);
 
   // Changes are visible to anyone who can see dollar values (viewMode 'full'),
   // unless the owner made the tab owner-only (changesHidden); the server
@@ -303,6 +318,8 @@ function App() {
                     onViewChange={setChartView}
                     currentValue={data.totalValue}
                     showExtendedHours={showExtendedHours}
+                    benchmarks={benchmarks}
+                    previousCloseValue={previousCloseValue}
                   />
                 </div>
                 <NewsTicker holdings={data.holdings} />

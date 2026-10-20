@@ -22,7 +22,7 @@ interface PerformanceChartProps {
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
   showExtendedHours?: boolean;
-  // Benchmark-overlay pilot (BENCHMARK_PILOT): funds plotted by % move on the
+  // Benchmark overlay (BENCHMARK_SYMBOLS): funds plotted by % move on the
   // 1D chart, against the portfolio's previous-close value.
   benchmarks?: BenchmarkSeries[];
   previousCloseValue?: number | null;
@@ -33,7 +33,7 @@ interface ChartDataPoint {
   timestamp: number;
   formattedDate: string;
   value: number;
-  // Benchmark-overlay pilot: each fund's move mapped onto the dollar axis
+  // Benchmark overlay: each fund's move mapped onto the dollar axis
   // (previousCloseValue × (1 + pct)) purely for plotting — it is only ever
   // labelled in %, never as a dollar amount.
   bench?: Record<string, number | undefined>;
@@ -298,7 +298,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     return points;
   }, [data, chartView, currentValue, overlayActive, benchmarks, previousCloseValue]);
 
-  // Pilot overlay: colors follow the fund's slot in BENCHMARK_PILOT.
+  // Colors follow the fund's slot in BENCHMARK_SYMBOLS.
   const overlaySeries = overlayActive
     ? benchmarks!.map((series, i) => ({ symbol: series.symbol, color: BENCHMARK_COLORS[i % BENCHMARK_COLORS.length] }))
     : [];
@@ -352,12 +352,14 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // by both axes — the left labels them in dollars, the right in %. One scale,
   // two labelings, so a fund line above yours always means it's up more.
   let overlayTicks: number[] | undefined;
+  let overlayTickStep: number | undefined; // in dollars
   if (overlayActive) {
     const prev = previousCloseValue!;
     const lowPct = ((minValue - padding) / prev - 1) * 100;
     const highPct = ((maxValue + padding) / prev - 1) * 100;
     // No 0.25 step: "+0.25%" would overflow the narrow mobile % axis.
     const step = [0.1, 0.2, 0.5, 1, 2, 5, 10].find((s) => (highPct - lowPct) / s <= 6) ?? 10;
+    overlayTickStep = (prev * step) / 100;
     overlayTicks = [];
     for (let k = Math.ceil(lowPct / step); k <= Math.floor(highPct / step); k++) {
       overlayTicks.push(prev * (1 + (k * step) / 100));
@@ -495,13 +497,22 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   tickMargin={3}
                   tick={{ fill: '#94a3b8', fontSize: tickFontSize }}
                   tickFormatter={(value) => {
+                    // Overlay ticks sit at fixed % steps, which on a smaller
+                    // portfolio can be closer than the default precision
+                    // ($1.6M at 0.5% = $8k → "$1.59M" twice) — add decimals
+                    // until adjacent ticks differ.
+                    const decimalsFor = (unit: number, base: number) => {
+                      if (!overlayTickStep) return base;
+                      const stepUnits = overlayTickStep / unit;
+                      return Math.min(3, Math.max(base, stepUnits >= 1 ? 0 : Math.ceil(-Math.log10(stepUnits) - 1e-9)));
+                    };
                     if (Math.abs(value) >= 1_000_000) {
-                      return `$${(value / 1_000_000).toFixed(2)}M`;
+                      return `$${(value / 1_000_000).toFixed(decimalsFor(1_000_000, 2))}M`;
                     }
                     if (Math.abs(value) >= 1_000) {
-                      return `$${(value / 1_000).toFixed(1)}k`;
+                      return `$${(value / 1_000).toFixed(decimalsFor(1_000, 1))}k`;
                     }
-                    return `$${value.toFixed(0)}`;
+                    return `$${value.toFixed(decimalsFor(1, 0))}`;
                   }}
                   width={isMobile ? 48 : 58}
                 />

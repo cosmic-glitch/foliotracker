@@ -2,12 +2,9 @@ import { useQueries } from '@tanstack/react-query';
 import { isLiveMarketSession } from '../lib/market-hours';
 import { fetchTickerChart } from './useTickerHistory';
 
-// Benchmark-overlay pilot: portfolios whose 1D chart also plots these funds'
-// % move. Delete this map (and the overlay) or widen it once the pilot is
-// decided.
-export const BENCHMARK_PILOT: Record<string, string[]> = {
-  av: ['VOO', 'VGT'],
-};
+// Funds every portfolio's 1D chart overlays by % move. Order sets each
+// fund's color slot (BENCHMARK_COLORS in PerformanceChart).
+export const BENCHMARK_SYMBOLS = ['VOO', 'VGT'];
 
 export interface BenchmarkPoint {
   t: number; // epoch ms

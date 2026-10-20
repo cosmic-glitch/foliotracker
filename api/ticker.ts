@@ -46,7 +46,10 @@ export default async function handler(
     // Let the browser/CDN hold a response briefly so range-flipping on the
     // same ticker doesn't hammer Yahoo; still refreshes within a session.
     // Intraday gets a shorter hold so a reopened panel tracks the live tape.
-    res.setHeader('Cache-Control', `public, max-age=${range === '1d' ? 60 : 300}`);
+    // s-maxage lets Vercel's edge share it across viewers — every portfolio
+    // page polls the same benchmark funds (VOO/VGT) each minute while live.
+    const ttl = range === '1d' ? 60 : 300;
+    res.setHeader('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
     res.status(200).json(chart);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ticker chart failed for ${symbol}/${range}:`, error);

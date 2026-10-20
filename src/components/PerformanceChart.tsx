@@ -192,6 +192,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
+  const tickFontSize = isMobile ? 10 : 11;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -305,7 +306,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="bg-card rounded-2xl px-1 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
@@ -320,7 +321,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="bg-card rounded-2xl px-1 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="flex items-start h-48 md:h-72">
           <div className="relative flex-1 h-full min-w-0 flex items-center justify-center text-text-secondary">
             No data available
@@ -344,7 +345,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue;
-  const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(maxValue) * 0.05, 1); // 10% padding, or a small positive pad if flat
+  // 10% padding (6% on mobile, where every pixel of plot counts), or a small positive pad if flat
+  const padding = range > 0 ? range * (isMobile ? 0.06 : 0.1) : Math.max(Math.abs(maxValue) * 0.05, 1);
 
   // Overlay: gridline ticks at round % moves from the previous close, shared
   // by both axes — the left labels them in dollars, the right in %. One scale,
@@ -354,7 +356,8 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     const prev = previousCloseValue!;
     const lowPct = ((minValue - padding) / prev - 1) * 100;
     const highPct = ((maxValue + padding) / prev - 1) * 100;
-    const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10].find((s) => (highPct - lowPct) / s <= 6) ?? 10;
+    // No 0.25 step: "+0.25%" would overflow the narrow mobile % axis.
+    const step = [0.1, 0.2, 0.5, 1, 2, 5, 10].find((s) => (highPct - lowPct) / s <= 6) ?? 10;
     overlayTicks = [];
     for (let k = Math.ceil(lowPct / step); k <= Math.floor(highPct / step); k++) {
       overlayTicks.push(prev * (1 + (k * step) / 100));
@@ -426,14 +429,14 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     : ['dataMin', 'dataMax'];
 
   return (
-    <div className="bg-card rounded-2xl px-2 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div className="bg-card rounded-2xl px-1 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="flex items-start h-48 md:h-72">
         <div className="relative flex-1 h-full min-w-0 flex flex-col">
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={chartData}
-                margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+                margin={{ top: isMobile ? 6 : 10, right: 0, left: 0, bottom: 0 }}
               >
                 {chartView === '1D' && sessionBoundaries && showExtendedHours && (
                   <>
@@ -467,7 +470,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickSize={0}
+                  tickMargin={isMobile ? 4 : 8}
+                  height={isMobile ? 20 : 30}
+                  tick={{ fill: '#94a3b8', fontSize: tickFontSize }}
                   tickFormatter={(ts) => {
                     if (chartView === '1D') {
                       return formatChartTime(new Date(ts).toISOString());
@@ -482,10 +488,12 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   axisLine={false}
                   tickLine={false}
                   // No tick marks are drawn, so give their 6px back to the
-                  // label — "$24.12M" was clipping at the card edge on iOS.
+                  // label. Mobile widths fit the widest label ("$24.12M",
+                  // "+0.5%") at 10px with ~2px to spare — measured, so don't
+                  // trim further without re-checking for clipping.
                   tickSize={0}
-                  tickMargin={4}
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickMargin={3}
+                  tick={{ fill: '#94a3b8', fontSize: tickFontSize }}
                   tickFormatter={(value) => {
                     if (Math.abs(value) >= 1_000_000) {
                       return `$${(value / 1_000_000).toFixed(2)}M`;
@@ -495,7 +503,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     }
                     return `$${value.toFixed(0)}`;
                   }}
-                  width={isMobile ? 54 : 58}
+                  width={isMobile ? 48 : 58}
                 />
                 {overlayActive && (
                   <YAxis
@@ -506,10 +514,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     axisLine={false}
                     tickLine={false}
                     tickSize={0}
-                    tickMargin={4}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    tickMargin={3}
+                    tick={{ fill: '#94a3b8', fontSize: tickFontSize }}
                     tickFormatter={(value: number) => formatPctTick(value / previousCloseValue! - 1)}
-                    width={isMobile ? 42 : 48}
+                    width={isMobile ? 36 : 48}
                   />
                 )}
                 {overlayActive && (

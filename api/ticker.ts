@@ -47,7 +47,7 @@ export default async function handler(
     // same ticker doesn't hammer Yahoo; still refreshes within a session.
     // Intraday gets a shorter hold so a reopened panel tracks the live tape.
     // s-maxage lets Vercel's edge share it across viewers — every portfolio
-    // page polls the same benchmark funds (VOO/VGT) each minute while live.
+    // page polls the same benchmark funds (BENCHMARK_SYMBOLS) each minute while live.
     const ttl = range === '1d' ? 60 : 300;
     res.setHeader('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
     res.status(200).json(chart);

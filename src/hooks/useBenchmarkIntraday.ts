@@ -4,7 +4,7 @@ import { fetchTickerChart } from './useTickerHistory';
 
 // Funds every portfolio's 1D chart overlays by % move. Order sets each
 // fund's color slot (BENCHMARK_COLORS in PerformanceChart).
-export const BENCHMARK_SYMBOLS = ['VOO', 'VGT'];
+export const BENCHMARK_SYMBOLS = ['VOO', 'QQQ'];
 
 export interface BenchmarkPoint {
   t: number; // epoch ms

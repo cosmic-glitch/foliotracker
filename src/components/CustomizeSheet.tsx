@@ -13,17 +13,6 @@ import { fetchTickerChart } from '../hooks/useTickerHistory';
 // Bottom sheet on mobile, centered card on desktop; portaled to <body> so the
 // header's stacking context can't clip the fixed overlay.
 
-const PRESETS: { symbol: string; name: string }[] = [
-  { symbol: 'VOO', name: 'S&P 500' },
-  { symbol: 'QQQ', name: 'Nasdaq-100' },
-  { symbol: 'VTI', name: 'Total US' },
-  { symbol: 'DIA', name: 'Dow 30' },
-  { symbol: 'IWM', name: 'Russell 2000' },
-  { symbol: 'VXUS', name: 'International' },
-  { symbol: 'AGG', name: 'US Bonds' },
-  { symbol: 'BTC-USD', name: 'Bitcoin' },
-];
-
 export function CustomizeSheet({ onClose }: { onClose: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const { slots, addBenchmark, removeBenchmark, resetBenchmarks } = useBenchmarks();
@@ -135,25 +124,6 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          <div className="text-xs text-text-secondary mb-2">
-            {full ? 'Remove one to add another.' : 'Add'}
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 mb-3">
-            {PRESETS.map(({ symbol, name }) => {
-              const selected = slots.includes(symbol);
-              return (
-                <button
-                  key={symbol}
-                  onClick={() => addBenchmark(symbol)}
-                  disabled={selected || full}
-                  className="flex items-baseline justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-border text-left transition-colors enabled:hover:bg-card-hover disabled:opacity-40"
-                >
-                  <span className="text-sm font-medium text-text-primary">{symbol}</span>
-                  <span className="text-xs text-text-secondary truncate">{selected ? 'Added' : name}</span>
-                </button>
-              );
-            })}
-          </div>
           <form
             className="flex gap-2"
             onSubmit={(e) => {
@@ -168,7 +138,7 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
                 setInput(e.target.value);
                 setError(null);
               }}
-              placeholder="Any ticker, e.g. NVDA"
+              placeholder={full ? 'Remove one to add another' : 'Add a ticker, e.g. VTI'}
               disabled={full}
               autoCapitalize="characters"
               autoCorrect="off"

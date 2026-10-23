@@ -10,8 +10,8 @@ import { fetchTickerChart } from '../hooks/useTickerHistory';
 // Set-and-forget view preferences, opened from UserMenu's "Customize…" row.
 // Extended Hours and 30-Day View deliberately stay as one-tap menu rows —
 // they get flipped often (e.g. extended hours on after the close).
-// Bottom sheet on mobile, centered card on desktop; portaled to <body> so the
-// header's stacking context can't clip the fixed overlay.
+// Centered card like the other menu modals (Share, Permissions); portaled to
+// <body> so the header's stacking context can't clip the fixed overlay.
 
 export function CustomizeSheet({ onClose }: { onClose: () => void }) {
   const { theme, toggleTheme } = useTheme();
@@ -68,11 +68,11 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
       onClick={onClose}
     >
       <div
-        className="bg-card border border-border w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 max-h-[85dvh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="bg-card rounded-2xl border border-border max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

@@ -18,7 +18,7 @@ import {
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
-import { BENCHMARK_SYMBOLS, useBenchmarkIntraday } from './hooks/useBenchmarkIntraday';
+import { BENCHMARK_SYMBOLS, useBenchmarkSeries } from './hooks/useBenchmarkSeries';
 import { useHoldingsHistory, useUpdateHoldingsHistoryEntry, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
 import type { HoldingsHistoryPatch } from './hooks/useHoldingsHistory';
 import { materialSessions } from './utils/holdingsHistory';
@@ -128,13 +128,15 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  // Benchmark overlay on the 1D chart (BENCHMARK_SYMBOLS). The
+  // Benchmark overlay on the 1D and 30D charts (BENCHMARK_SYMBOLS). The 1D
   // baseline is the holdings' previous close summed directly: in the
   // extended-hours view totalValue tracks the live intraday point while
   // totalDayChange doesn't, so their difference isn't the previous close.
-  const benchmarks = useBenchmarkIntraday(
+  // (30D measures from the chart's first day, which PerformanceChart knows.)
+  const benchmarks = useBenchmarkSeries(
     BENCHMARK_SYMBOLS,
-    chartView === '1D' && !!data && !isAllocationOnly,
+    chartView,
+    !!data && !isAllocationOnly,
   );
   const previousCloseValue = useMemo(() => {
     if (!data) return null;

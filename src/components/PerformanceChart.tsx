@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { HistoricalDataPoint } from '../types/portfolio';
 import type { ChartView } from '../hooks/usePortfolioData';
-import type { BenchmarkPoint, BenchmarkSeries } from '../hooks/useBenchmarkIntraday';
+import type { BenchmarkPoint, BenchmarkSeries } from '../hooks/useBenchmarkSeries';
 import { formatChartDate, formatChartTime, formatCurrency } from '../utils/formatters';
 
 interface PerformanceChartProps {
@@ -22,8 +22,9 @@ interface PerformanceChartProps {
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
   showExtendedHours?: boolean;
-  // Benchmark overlay (BENCHMARK_SYMBOLS): funds plotted by % move on the
-  // 1D chart, against the portfolio's previous-close value.
+  // Benchmark overlay (BENCHMARK_SYMBOLS): funds plotted by % move against
+  // the portfolio — on 1D from its previous-close value, on 30D from the
+  // window's first day.
   benchmarks?: BenchmarkSeries[];
   previousCloseValue?: number | null;
 }
@@ -34,7 +35,7 @@ interface ChartDataPoint {
   formattedDate: string;
   value: number;
   // Benchmark overlay: each fund's move mapped onto the dollar axis
-  // (previousCloseValue × (1 + pct)) purely for plotting — it is only ever
+  // (overlay base × (1 + pct)) purely for plotting — it is only ever
   // labelled in %, never as a dollar amount.
   bench?: Record<string, number | undefined>;
 }
@@ -43,11 +44,17 @@ interface ChartDataPoint {
 // the portfolio's #3b82f6 for colorblind separation; amber/magenta keep clear
 // of the gain/loss green/red.
 const BENCHMARK_COLORS = ['#c98500', '#d55181'];
-const BENCHMARK_HOLD_MS = 5 * 60 * 1000;
+// How long a fund's last bar is held past its stamp: one 5-minute bar on 1D;
+// on 30D long enough to carry Friday's close through a holiday weekend to
+// today's point (stamped at local midnight).
+const BENCHMARK_HOLD_MS: Record<ChartView, number> = { '1D': 5 * 60 * 1000, '30D': 4 * 24 * 60 * 60 * 1000 };
 
-// The fund's % move at time t: linear between its bars (what the drawn line
-// shows anyway), held for one bar past the last one, undefined before the first.
-function benchmarkPctAt(points: BenchmarkPoint[], t: number): number | undefined {
+// The fund's close at time t, undefined before its first bar and more than
+// BENCHMARK_HOLD_MS past its last. 1D interpolates between 5-minute bars (what the drawn
+// line shows anyway); 30D steps, holding each close until the next session,
+// because the portfolio's 30D series carries a point for every calendar day
+// with weekends and holidays flat at the prior close.
+function benchmarkCloseAt(points: BenchmarkPoint[], t: number, view: ChartView): number | undefined {
   if (points.length === 0 || t < points[0].t) return undefined;
   let lo = 0;
   let hi = points.length - 1;
@@ -58,8 +65,9 @@ function benchmarkPctAt(points: BenchmarkPoint[], t: number): number | undefined
   }
   const a = points[lo];
   const b = points[lo + 1];
-  if (!b) return t - a.t <= BENCHMARK_HOLD_MS ? a.pct : undefined;
-  return a.pct + ((b.pct - a.pct) * (t - a.t)) / (b.t - a.t);
+  if (!b) return t - a.t <= BENCHMARK_HOLD_MS[view] ? a.close : undefined;
+  if (view === '30D') return a.close;
+  return a.close + ((b.close - a.close) * (t - a.t)) / (b.t - a.t);
 }
 
 const formatPct = (fraction: number) => {
@@ -76,7 +84,7 @@ const formatPts = (fraction: number) => {
 };
 
 interface OverlayInfo {
-  previousClose: number;
+  base: number; // the portfolio value every % is measured from
   series: { symbol: string; color: string }[];
 }
 
@@ -149,7 +157,7 @@ function CustomTooltip({ active, payload, overlay }: CustomTooltipProps) {
   const dataPoint = payload[0].payload;
 
   if (overlay) {
-    const ownPct = dataPoint.value / overlay.previousClose - 1;
+    const ownPct = dataPoint.value / overlay.base - 1;
     return (
       <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl min-w-44">
         <p className="text-text-secondary text-xs mb-1">{dataPoint.formattedDate}</p>
@@ -160,7 +168,7 @@ function CustomTooltip({ active, payload, overlay }: CustomTooltipProps) {
         {overlay.series.map(({ symbol, color }) => {
           const benchValue = dataPoint.bench?.[symbol];
           if (benchValue === undefined) return null;
-          const benchPct = benchValue / overlay.previousClose - 1;
+          const benchPct = benchValue / overlay.base - 1;
           const gap = ownPct - benchPct;
           return (
             <div key={symbol} className="flex justify-between gap-4 text-xs mt-1">
@@ -187,8 +195,6 @@ function CustomTooltip({ active, payload, overlay }: CustomTooltipProps) {
 }
 
 export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true, benchmarks, previousCloseValue }: PerformanceChartProps) {
-  const overlayActive =
-    chartView === '1D' && !!benchmarks?.length && previousCloseValue != null && previousCloseValue > 0;
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
@@ -225,7 +231,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     touchStartRef.current = null;
   };
 
-  const chartData = useMemo(() => {
+  const baseChartData = useMemo(() => {
     if (data.length === 0) return [];
 
     let points: ChartDataPoint[];
@@ -284,19 +290,32 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
       }
     }
 
-    if (overlayActive) {
-      points = points.map((point) => {
-        const bench: Record<string, number | undefined> = {};
-        for (const series of benchmarks!) {
-          const pct = benchmarkPctAt(series.points, point.timestamp);
-          bench[series.symbol] = pct === undefined ? undefined : previousCloseValue! * (1 + pct);
-        }
-        return { ...point, bench };
-      });
-    }
-
     return points;
-  }, [data, chartView, currentValue, overlayActive, benchmarks, previousCloseValue]);
+  }, [data, chartView, currentValue]);
+
+  // 1D measures every move from the previous close; 30D from the window's
+  // first day (the same anchor as the 30D headline), each fund rebased to its
+  // close on that day.
+  const overlayBase = chartView === '1D' ? previousCloseValue ?? null : baseChartData[0]?.value ?? null;
+  const overlayActive = !!benchmarks?.length && overlayBase != null && overlayBase > 0;
+
+  const chartData = useMemo(() => {
+    if (!overlayActive || baseChartData.length === 0) return baseChartData;
+    const funds = benchmarks!.map((series) => ({
+      series,
+      base: chartView === '1D'
+        ? series.previousClose ?? undefined
+        : benchmarkCloseAt(series.points, baseChartData[0].timestamp, chartView),
+    }));
+    return baseChartData.map((point) => {
+      const bench: Record<string, number | undefined> = {};
+      for (const { series, base } of funds) {
+        const close = base ? benchmarkCloseAt(series.points, point.timestamp, chartView) : undefined;
+        bench[series.symbol] = close === undefined ? undefined : overlayBase! * (close / base!);
+      }
+      return { ...point, bench };
+    });
+  }, [baseChartData, chartView, overlayActive, overlayBase, benchmarks]);
 
   // Colors follow the fund's slot in BENCHMARK_SYMBOLS.
   const overlaySeries = overlayActive
@@ -334,7 +353,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // Calculate min/max for Y axis with some padding
   const values = chartData.map((d) => d.value);
   if (overlayActive) {
-    values.push(previousCloseValue!);
+    values.push(overlayBase!);
     for (const point of chartData) {
       for (const { symbol } of overlaySeries) {
         const v = point.bench?.[symbol];
@@ -348,13 +367,13 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
   // 10% padding (6% on mobile, where every pixel of plot counts), or a small positive pad if flat
   const padding = range > 0 ? range * (isMobile ? 0.06 : 0.1) : Math.max(Math.abs(maxValue) * 0.05, 1);
 
-  // Overlay: gridline ticks at round % moves from the previous close, shared
+  // Overlay: gridline ticks at round % moves from the overlay base, shared
   // by both axes — the left labels them in dollars, the right in %. One scale,
   // two labelings, so a fund line above yours always means it's up more.
   let overlayTicks: number[] | undefined;
   let overlayTickStep: number | undefined; // in dollars
   if (overlayActive) {
-    const prev = previousCloseValue!;
+    const prev = overlayBase!;
     const lowPct = ((minValue - padding) / prev - 1) * 100;
     const highPct = ((maxValue + padding) / prev - 1) * 100;
     // No 0.25 step: "+0.25%" would overflow the narrow mobile % axis.
@@ -424,11 +443,12 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     ? getIntradaySessionBoundaries(new Date(chartData[0].timestamp))
     : null;
 
-  const xDomain = chartView === '1D' && sessionBoundaries
+  // 30D spans exactly its data (explicit so the end labels can map it).
+  const xDomain: [number, number] = chartView === '1D' && sessionBoundaries
     ? (showExtendedHours
         ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
         : [sessionBoundaries.regularStart, sessionBoundaries.regularEnd])
-    : ['dataMin', 'dataMax'];
+    : [chartData[0].timestamp, chartData[chartData.length - 1].timestamp];
 
   return (
     <div className="bg-card rounded-2xl px-1 py-0 sm:p-6 border border-border" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -469,7 +489,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   dataKey="timestamp"
                   type="number"
                   scale="time"
-                  domain={xDomain as [number, number] | ['dataMin', 'dataMax']}
+                  domain={xDomain}
                   axisLine={false}
                   tickLine={false}
                   tickSize={0}
@@ -527,14 +547,14 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                     tickSize={0}
                     tickMargin={3}
                     tick={{ fill: '#94a3b8', fontSize: tickFontSize }}
-                    tickFormatter={(value: number) => formatPctTick(value / previousCloseValue! - 1)}
+                    tickFormatter={(value: number) => formatPctTick(value / overlayBase! - 1)}
                     width={isMobile ? 36 : 48}
                   />
                 )}
                 {overlayActive && (
-                  <ReferenceLine y={previousCloseValue!} stroke="#94a3b8" strokeOpacity={0.5} strokeDasharray="3 4" />
+                  <ReferenceLine y={overlayBase!} stroke="#94a3b8" strokeOpacity={0.5} strokeDasharray="3 4" />
                 )}
-                <Tooltip content={<CustomTooltip overlay={overlayActive ? { previousClose: previousCloseValue!, series: overlaySeries } : null} />} />
+                <Tooltip content={<CustomTooltip overlay={overlayActive ? { base: overlayBase!, series: overlaySeries } : null} />} />
                 {overlaySeries.map(({ symbol, color }) => (
                   <Line
                     key={symbol}
@@ -558,10 +578,10 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                   dot={false}
                   name="Portfolio"
                 />
-                {overlayActive && sessionBoundaries && (
+                {overlayActive && (
                   <BenchmarkEndLabels
                     labels={endLabels}
-                    xDomain={xDomain as [number, number]}
+                    xDomain={xDomain}
                     yDomain={[minValue - padding, maxValue + padding]}
                   />
                 )}

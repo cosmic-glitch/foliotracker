@@ -2,10 +2,7 @@ import { useQueries } from '@tanstack/react-query';
 import { isLiveMarketSession } from '../lib/market-hours';
 import { fetchTickerChart } from './useTickerHistory';
 import type { ChartView } from './usePortfolioData';
-
-// Funds every portfolio's 1D and 30D charts overlay by % move. Order sets
-// each fund's color slot (BENCHMARK_COLORS in PerformanceChart).
-export const BENCHMARK_SYMBOLS = ['VOO', 'QQQ'];
+import type { BenchmarkSlots } from '../lib/benchmarks';
 
 export interface BenchmarkPoint {
   t: number; // epoch ms, on the same clock as the chart's x axis
@@ -14,6 +11,7 @@ export interface BenchmarkPoint {
 
 export interface BenchmarkSeries {
   symbol: string;
+  slot: number; // index into the viewer's BenchmarkSlots — picks the line color
   points: BenchmarkPoint[];
   // 1D only: the prior session's close the day's move is measured from. The
   // 30D chart rebases to the fund's close on its own first day instead.
@@ -35,10 +33,11 @@ const BAR_MS = 5 * 60 * 1000;
 //
 // Shares the ['ticker-history', symbol, range] cache with the ticker detail
 // panel.
-export function useBenchmarkSeries(symbols: string[], chartView: ChartView, enabled: boolean): BenchmarkSeries[] {
+export function useBenchmarkSeries(slots: BenchmarkSlots, chartView: ChartView, enabled: boolean): BenchmarkSeries[] {
   const range = chartView === '1D' ? '1d' : '6mo';
+  const picked = slots.flatMap((symbol, slot) => (symbol ? [{ symbol, slot }] : []));
   return useQueries({
-    queries: symbols.map((symbol) => ({
+    queries: picked.map(({ symbol }) => ({
       queryKey: ['ticker-history', symbol, range],
       queryFn: () => fetchTickerChart(symbol, range),
       enabled,
@@ -50,12 +49,14 @@ export function useBenchmarkSeries(symbols: string[], chartView: ChartView, enab
     combine: (results) => {
       const now = Date.now();
       const out: BenchmarkSeries[] = [];
-      for (const { data: chart } of results) {
+      for (const [i, { data: chart }] of results.entries()) {
         if (!chart || chart.points.length === 0) continue;
+        const { symbol, slot } = picked[i];
         if (range === '1d') {
           if (!chart.previousClose || chart.previousClose <= 0) continue;
           out.push({
-            symbol: chart.symbol,
+            symbol,
+            slot,
             previousClose: chart.previousClose,
             points: chart.points.map((p) => ({
               t: Math.min(new Date(p.date).getTime() + BAR_MS, now),
@@ -64,7 +65,8 @@ export function useBenchmarkSeries(symbols: string[], chartView: ChartView, enab
           });
         } else {
           out.push({
-            symbol: chart.symbol,
+            symbol,
+            slot,
             previousClose: null,
             points: chart.points.map((p) => {
               const [year, month, day] = p.date.split('-').map(Number);

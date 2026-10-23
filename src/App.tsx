@@ -18,7 +18,8 @@ import {
 import { PasswordModal } from './components/PasswordModal';
 import { HoldingsHistory } from './components/HoldingsHistory';
 import { usePortfolioData } from './hooks/usePortfolioData';
-import { BENCHMARK_SYMBOLS, useBenchmarkSeries } from './hooks/useBenchmarkSeries';
+import { useBenchmarkSeries } from './hooks/useBenchmarkSeries';
+import { useBenchmarks } from './context/BenchmarksContext';
 import { useHoldingsHistory, useUpdateHoldingsHistoryEntry, useDeleteHoldingsHistoryEntry } from './hooks/useHoldingsHistory';
 import type { HoldingsHistoryPatch } from './hooks/useHoldingsHistory';
 import { materialSessions } from './utils/holdingsHistory';
@@ -128,13 +129,15 @@ function App() {
 
   const isAllocationOnly = data?.viewMode === 'allocation_only';
 
-  // Benchmark overlay on the 1D and 30D charts (BENCHMARK_SYMBOLS). The 1D
-  // baseline is the holdings' previous close summed directly: in the
-  // extended-hours view totalValue tracks the live intraday point while
-  // totalDayChange doesn't, so their difference isn't the previous close.
+  // Benchmark overlay on the 1D and 30D charts (the viewer's pick from the
+  // Customize sheet, BenchmarksContext). The 1D baseline is the holdings'
+  // previous close summed directly: in the extended-hours view totalValue
+  // tracks the live intraday point while totalDayChange doesn't, so their
+  // difference isn't the previous close.
   // (30D measures from the chart's first day, which PerformanceChart knows.)
+  const { slots: benchmarkSlots } = useBenchmarks();
   const benchmarks = useBenchmarkSeries(
-    BENCHMARK_SYMBOLS,
+    benchmarkSlots,
     chartView,
     !!data && !isAllocationOnly,
   );

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, ChevronDown, Pencil, Settings, LogOut, Sun, Moon, Clock, Link2, CalendarRange, Scale, History } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { User, ChevronDown, Pencil, Settings, LogOut, Clock, Link2, CalendarRange, Scale, History, SlidersHorizontal } from 'lucide-react';
+import { CustomizeSheet } from './CustomizeSheet';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe } from '../context/TimeframeContext';
 
@@ -20,7 +20,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const { showExtendedHours, toggleExtendedHours } = useExtendedHours();
   const { timeframe, toggleTimeframe } = useTimeframe();
 
@@ -109,22 +109,6 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
           </button>
           <div className="mx-3 my-1 border-t border-border" />
           <button
-            onClick={toggleTheme}
-            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
-          >
-            {theme === 'dark' ? (
-              <>
-                <Sun className="w-4 h-4 text-text-secondary" />
-                Light Mode
-              </>
-            ) : (
-              <>
-                <Moon className="w-4 h-4 text-text-secondary" />
-                Dark Mode
-              </>
-            )}
-          </button>
-          <button
             onClick={toggleExtendedHours}
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
           >
@@ -155,6 +139,15 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
               {timeframe === '30d' && '✓'}
             </span>
           </button>
+          {/* Set-and-forget preferences (benchmarks, theme). The two check rows
+              above stay one tap since they get flipped often. */}
+          <button
+            onClick={() => { setOpen(false); setCustomizeOpen(true); }}
+            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-text-secondary" />
+            Customize…
+          </button>
           <div className="mx-3 my-1 border-t border-border" />
           <button
             onClick={() => { setOpen(false); onLogout(); }}
@@ -165,6 +158,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
           </button>
         </div>
       )}
+      {customizeOpen && <CustomizeSheet onClose={() => setCustomizeOpen(false)} />}
     </div>
   );
 }

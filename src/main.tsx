@@ -7,6 +7,7 @@ import { queryClient } from './lib/queryClient'
 import { ThemeProvider } from './context/ThemeContext'
 import { ExtendedHoursProvider } from './context/ExtendedHoursContext'
 import { TimeframeProvider } from './context/TimeframeContext'
+import { BenchmarksProvider } from './context/BenchmarksContext'
 import { ToastProvider } from './context/ToastContext'
 import './index.css'
 import App from './App.tsx'
@@ -23,26 +24,28 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <ExtendedHoursProvider>
         <TimeframeProvider>
-          <ToastProvider>
-            <QueryClientProvider client={queryClient}>
-              <BrowserRouter>
-                <ScrollToTop />
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/create" element={<CreatePortfolio />} />
-                  <Route path="/analytics" element={<AnalyticsDashboard />} />
-                  {/* No ordering constraint needed: react-router v7 ranks static
-                      segments above dynamic ones, so /compare always wins over
-                      /:portfolioId. (api/portfolios.ts reserves the id too.) */}
-                  <Route path="/compare" element={<ComparePage />} />
-                  <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
-                  <Route path="/:portfolioId/history" element={<PortfolioHistory />} />
-                  <Route path="/:portfolioId" element={<App />} />
-                </Routes>
-                <Analytics />
-              </BrowserRouter>
-            </QueryClientProvider>
-          </ToastProvider>
+          <BenchmarksProvider>
+            <ToastProvider>
+              <QueryClientProvider client={queryClient}>
+                <BrowserRouter>
+                  <ScrollToTop />
+                  <Routes>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/create" element={<CreatePortfolio />} />
+                    <Route path="/analytics" element={<AnalyticsDashboard />} />
+                    {/* No ordering constraint needed: react-router v7 ranks static
+                        segments above dynamic ones, so /compare always wins over
+                        /:portfolioId. (api/portfolios.ts reserves the id too.) */}
+                    <Route path="/compare" element={<ComparePage />} />
+                    <Route path="/:portfolioId/edit" element={<EditPortfolio />} />
+                    <Route path="/:portfolioId/history" element={<PortfolioHistory />} />
+                    <Route path="/:portfolioId" element={<App />} />
+                  </Routes>
+                  <Analytics />
+                </BrowserRouter>
+              </QueryClientProvider>
+            </ToastProvider>
+          </BenchmarksProvider>
         </TimeframeProvider>
       </ExtendedHoursProvider>
     </ThemeProvider>

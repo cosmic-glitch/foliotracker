@@ -13,6 +13,7 @@ import {
 import type { HistoricalDataPoint } from '../types/portfolio';
 import type { ChartView } from '../hooks/usePortfolioData';
 import type { BenchmarkPoint, BenchmarkSeries } from '../hooks/useBenchmarkSeries';
+import { BENCHMARK_COLORS } from '../lib/benchmarks';
 import { formatChartDate, formatChartTime, formatCurrency } from '../utils/formatters';
 
 interface PerformanceChartProps {
@@ -22,7 +23,7 @@ interface PerformanceChartProps {
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
   showExtendedHours?: boolean;
-  // Benchmark overlay (BENCHMARK_SYMBOLS): funds plotted by % move against
+  // Benchmark overlay (the viewer's pick, BenchmarksContext): funds plotted by % move against
   // the portfolio — on 1D from its previous-close value, on 30D from the
   // window's first day.
   benchmarks?: BenchmarkSeries[];
@@ -40,10 +41,6 @@ interface ChartDataPoint {
   bench?: Record<string, number | undefined>;
 }
 
-// Validated against both card surfaces (#1e293b dark, #fff light) alongside
-// the portfolio's #3b82f6 for colorblind separation; amber/magenta keep clear
-// of the gain/loss green/red.
-const BENCHMARK_COLORS = ['#c98500', '#d55181'];
 // How long a fund's last bar is held past its stamp: one 5-minute bar on 1D;
 // on 30D long enough to carry Friday's close through a holiday weekend to
 // today's point (stamped at local midnight).
@@ -317,9 +314,9 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     });
   }, [baseChartData, chartView, overlayActive, overlayBase, benchmarks]);
 
-  // Colors follow the fund's slot in BENCHMARK_SYMBOLS.
+  // Colors follow the fund's slot in the viewer's pick (BenchmarksContext).
   const overlaySeries = overlayActive
-    ? benchmarks!.map((series, i) => ({ symbol: series.symbol, color: BENCHMARK_COLORS[i % BENCHMARK_COLORS.length] }))
+    ? benchmarks!.map((series) => ({ symbol: series.symbol, color: BENCHMARK_COLORS[series.slot % BENCHMARK_COLORS.length] }))
     : [];
 
   // Show loading state

@@ -39,6 +39,16 @@ body {
   min-height: 100vh;
 }
 
+/* iOS Safari zooms the page in when focusing a field under 16px (every
+   field here is text-sm). Unlayered, so it outranks Tailwind's utilities. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

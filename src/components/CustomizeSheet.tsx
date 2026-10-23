@@ -40,11 +40,11 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
     const symbol = input.trim().toUpperCase();
     if (!symbol) return;
     if (!BENCHMARK_SYMBOL_RE.test(symbol)) {
-      setError('Not a valid ticker');
+      setError('Tickers use letters, numbers, . or -');
       return;
     }
     if (slots.includes(symbol)) {
-      setError(`${symbol} is already on the chart`);
+      setError(`${symbol} is already added`);
       return;
     }
     setChecking(true);
@@ -60,7 +60,7 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
       addBenchmark(symbol);
       setInput('');
     } catch {
-      setError(`No price data for ${symbol}`);
+      setError(`Couldn't find ${symbol}`);
     } finally {
       setChecking(false);
     }
@@ -93,17 +93,17 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
             <h4 className="text-sm font-semibold text-text-primary">Benchmarks</h4>
             {!isDefault && (
               <button onClick={resetBenchmarks} className="text-xs text-accent hover:underline">
-                Reset to default
+                Reset to {DEFAULT_BENCHMARKS.filter(Boolean).join(' + ')}
               </button>
             )}
           </div>
           <p className="text-xs text-text-secondary mb-3">
-            Compared by % move on the 1D and 30D charts. Up to {MAX_BENCHMARKS}.
+            Compare every chart against up to three benchmark tickers to put a portfolio's moves in context.
           </p>
 
           <div className="flex flex-wrap gap-2 mb-4 min-h-[2rem]">
             {picked.length === 0 ? (
-              <span className="text-sm text-text-secondary self-center">None — the chart shows your portfolio alone.</span>
+              <span className="text-sm text-text-secondary self-center">None selected.</span>
             ) : (
               picked.map(({ symbol, slot }) => (
                 <span
@@ -138,7 +138,7 @@ export function CustomizeSheet({ onClose }: { onClose: () => void }) {
                 setInput(e.target.value);
                 setError(null);
               }}
-              placeholder={full ? 'Remove one to add another' : 'Add a ticker, e.g. VTI'}
+              placeholder={full ? 'Limit reached — remove one first' : 'Add a ticker, e.g. VTI'}
               disabled={full}
               autoCapitalize="characters"
               autoCorrect="off"

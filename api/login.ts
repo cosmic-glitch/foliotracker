@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { getPortfolio, createSession, logAnalyticsEvent, getGeoFromIP } from './_lib/db.js';
+import { getPortfolio, createSession, renewSession, logAnalyticsEvent, getGeoFromIP } from './_lib/db.js';
 
 const ADMIN_HASH = '$2b$10$PHYCpLb5/4zFCetogpu3G.U3oNv6M6z7hHoL/wzaWVxSk.kq8Uucm';
 
@@ -24,6 +24,19 @@ export default async function handler(
   }
 
   try {
+    // Session renewal (sliding expiry) lives here because api/ is at Hobby's
+    // 12-function cap. 401 tells the client its session is gone.
+    if (req.body?.action === 'renew') {
+      const { token } = req.body;
+      const expiresAt = typeof token === 'string' && token ? await renewSession(token) : null;
+      if (!expiresAt) {
+        res.status(401).json({ error: 'Session invalid or expired' });
+        return;
+      }
+      res.status(200).json({ expiresAt });
+      return;
+    }
+
     const { portfolioId, password } = req.body;
 
     if (!portfolioId || !password) {

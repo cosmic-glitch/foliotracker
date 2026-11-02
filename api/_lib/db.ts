@@ -167,12 +167,16 @@ export interface SessionData {
   isAdmin: boolean;
 }
 
+// Sessions slide: the client renews (renewSession) at most once a day while in
+// use, so only SESSION_TTL_MS of inactivity logs someone out.
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function createSession(
   portfolioId: string,
   isAdmin: boolean
 ): Promise<{ token: string; expiresAt: string }> {
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
   const { error } = await supabase.from('sessions').insert({
     token,
@@ -211,6 +215,22 @@ export async function verifySessionToken(token: string): Promise<SessionData | n
   }
 
   return { portfolioId: data.portfolio_id, isAdmin: data.is_admin };
+}
+
+// Pushes a still-valid session's expiry out a full TTL. Returns null when the
+// token is unknown, expired or revoked (e.g. by a password change).
+export async function renewSession(token: string): Promise<string | null> {
+  if (!(await verifySessionToken(token))) return null;
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ expires_at: expiresAt })
+    .eq('token', token)
+    .select('portfolio_id, is_admin, expires_at')
+    .single();
+  if (error || !data) return null;
+  await setAuthCache('session', token, data);
+  return expiresAt;
 }
 
 export async function deleteSessionsForPortfolio(portfolioId: string): Promise<void> {

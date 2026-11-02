@@ -29,3 +29,22 @@ export async function loginToPortfolio(
 
   return response.json();
 }
+
+// Sliding-expiry renewal. Returns the new expiry, 'invalid' when the server
+// says the session is gone (expired or revoked), or null on any other failure
+// (network, 5xx) — callers must not log out on null.
+export async function renewSessionToken(token: string): Promise<string | 'invalid' | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'renew', token }),
+    });
+    if (response.status === 401) return 'invalid';
+    if (!response.ok) return null;
+    const { expiresAt } = await response.json();
+    return typeof expiresAt === 'string' ? expiresAt : null;
+  } catch {
+    return null;
+  }
+}

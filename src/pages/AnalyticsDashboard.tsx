@@ -68,7 +68,7 @@ interface ShareLinkAccessEntry {
   tokenSuffix: string;
   mode: string; // 'full' | 'allocation_only'
   createdAt: string;
-  expiresAt: string;
+  expiresAt: string | null;
   views: number;
   uniqueVisitors: number;
   lastAccessAt: string | null;

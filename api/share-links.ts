@@ -12,7 +12,6 @@ const VALID_MODES: ShareLinkMode[] = ['full', 'allocation_only'];
 
 interface MintBody {
   portfolioId?: string;
-  durationDays?: number;
   label?: string;
   token?: string;
   password?: string;
@@ -73,16 +72,11 @@ export default async function handler(
     if (req.method === 'POST') {
       const body = (req.body || {}) as MintBody;
       const portfolioId = body.portfolioId?.toLowerCase();
-      const durationDays = body.durationDays;
       const label = body.label?.trim() || null;
       const mode: ShareLinkMode = (body.mode ?? 'full') as ShareLinkMode;
 
       if (!portfolioId) {
         res.status(400).json({ error: 'portfolioId is required' });
-        return;
-      }
-      if (!Number.isInteger(durationDays) || (durationDays as number) < 1) {
-        res.status(400).json({ error: 'durationDays must be a positive integer' });
         return;
       }
       if (!VALID_MODES.includes(mode)) {
@@ -106,7 +100,7 @@ export default async function handler(
         return;
       }
 
-      const link = await createShareLink(portfolioId, durationDays as number, label, mode);
+      const link = await createShareLink(portfolioId, label, mode);
 
       res.status(201).json({
         id: link.id,

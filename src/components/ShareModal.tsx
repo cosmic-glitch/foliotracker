@@ -14,7 +14,9 @@ interface ShareLink {
   token: string;
   label: string | null;
   createdAt: string;
-  expiresAt: string;
+  // Null for every link made since links stopped expiring; a date survives
+  // only on legacy rows (see DbShareLink in api/_lib/db.ts).
+  expiresAt: string | null;
   revokedAt: string | null;
   mode: ShareLinkMode;
 }
@@ -32,12 +34,17 @@ function shareUrl(portfolioId: string, token: string): string {
   return `${window.location.origin}/${portfolioId}?share=${token}`;
 }
 
-function statusFor(link: ShareLink): { text: string; tone: 'active' | 'revoked' | 'expired' } {
-  if (link.revokedAt) return { text: 'Revoked', tone: 'revoked' };
-  if (new Date(link.expiresAt) <= new Date()) return { text: 'Expired', tone: 'expired' };
-  const ms = new Date(link.expiresAt).getTime() - Date.now();
-  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  return { text: `Expires in ${days} day${days === 1 ? '' : 's'}`, tone: 'active' };
+function isActive(link: ShareLink): boolean {
+  if (link.revokedAt) return false;
+  return !link.expiresAt || new Date(link.expiresAt) > new Date();
+}
+
+// "Created Nov 6", with the year only when it isn't the current one.
+function createdText(createdAt: string): string {
+  const d = new Date(createdAt);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return `Created ${d.toLocaleDateString('en-US', opts)}`;
 }
 
 export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Props) {
@@ -46,7 +53,6 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
   const [error, setError] = useState<string | null>(null);
 
   const [labelInput, setLabelInput] = useState('');
-  const [daysInput, setDaysInput] = useState('1');
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [plainCopied, setPlainCopied] = useState(false);
@@ -89,12 +95,6 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
   }, [onClose]);
 
   const handleCreate = async () => {
-    const days = parseInt(daysInput, 10);
-    if (!Number.isInteger(days) || days < 1) {
-      setError('Duration must be a positive whole number of days');
-      return;
-    }
-
     try {
       setSubmitting(true);
       const res = await fetch(`${API_BASE_URL}/api/share-links`, {
@@ -102,7 +102,6 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolioId,
-          durationDays: days,
           label: labelInput.trim() || undefined,
           token: ownerToken,
         }),
@@ -122,7 +121,6 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
         flash('Link generated (clipboard unavailable)');
       }
       setLabelInput('');
-      setDaysInput('1');
       setError(null);
       await refresh();
     } catch (e) {
@@ -162,11 +160,11 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
       const res = await fetch(url.toString(), { method: 'DELETE' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to revoke');
+        throw new Error(body.error || 'Failed to delete');
       }
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to revoke share link');
+      setError(e instanceof Error ? e.message : 'Failed to delete share link');
     }
   };
 
@@ -216,9 +214,14 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
                     {visibility === 'selective' && ' Viewers you\'ve invited still see dollar values.'}
                   </p>
                   <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-2">
-                    <span className="flex-1 min-w-0 truncate text-sm text-text-primary">
+                    <a
+                      href={plainUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 min-w-0 truncate text-sm text-accent hover:underline"
+                    >
                       {plainUrl.replace(/^https?:\/\//, '')}
-                    </span>
+                    </a>
                     <button
                       type="button"
                       onClick={handleCopyPlain}
@@ -228,6 +231,9 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
                       <Copy className={`w-4 h-4 ${plainCopied ? 'text-accent' : 'text-text-secondary'}`} />
                     </button>
                   </div>
+                  <p className="text-xs text-text-secondary mt-1.5">
+                    You'll see dollar values because you're logged in; visitors see percentages only.
+                  </p>
                 </>
               )}
             </section>
@@ -241,42 +247,31 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
             {visibility ? '2. With dollar values' : 'With dollar values'}
           </h4>
           <p className="text-sm text-text-secondary mb-3">
-            Create a read-only link that stops working after the number of days you set.
+            Create a read-only link that works until you delete it.
           </p>
 
-          <div className="space-y-2 mb-5">
+          <div className="flex gap-2 items-center relative mb-5">
             <input
               type="text"
               value={labelInput}
               onChange={(e) => setLabelInput(e.target.value)}
               placeholder="Label (optional)"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
             />
-            <div className="flex gap-2 items-center relative">
-              <span className="text-sm text-text-secondary">Expiry</span>
-              <input
-                type="number"
-                min={1}
-                value={daysInput}
-                onChange={(e) => setDaysInput(e.target.value)}
-                className="w-14 bg-background border border-border rounded-lg px-2 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm text-center"
-              />
-              <span className="text-sm text-text-secondary">days</span>
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={submitting}
-                className="ml-auto bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
-              >
-                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Generate link
-              </button>
-              {flashMessage && (
-                <div className="absolute right-0 top-full mt-1.5 z-10 bg-card border border-accent/40 text-accent text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fade-in pointer-events-none whitespace-nowrap">
-                  {flashMessage}
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={submitting}
+              className="bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Generate link
+            </button>
+            {flashMessage && (
+              <div className="absolute right-0 top-full mt-1.5 z-10 bg-card border border-accent/40 text-accent text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fade-in pointer-events-none whitespace-nowrap">
+                {flashMessage}
+              </div>
+            )}
           </div>
 
           {error && (
@@ -288,14 +283,13 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
         {loading ? (
           <p className="text-sm text-text-secondary">Loading…</p>
         ) : (() => {
-          const activeLinks = links.filter((l) => statusFor(l).tone === 'active');
+          const activeLinks = links.filter(isActive);
           if (activeLinks.length === 0) {
             return <p className="text-sm text-text-secondary">No active links.</p>;
           }
           return (
             <div className="bg-background rounded-lg border border-border divide-y divide-border">
               {activeLinks.map((link) => {
-                const status = statusFor(link);
                 return (
                   <div key={link.id} className="flex items-center gap-3 px-3 py-2">
                     <div className="flex-1 min-w-0">
@@ -309,7 +303,7 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-text-secondary">{status.text}</p>
+                      <p className="text-xs text-text-secondary">{createdText(link.createdAt)}</p>
                     </div>
                     <button
                       type="button"
@@ -322,7 +316,7 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
                     <button
                       type="button"
                       onClick={() => handleRevoke(link)}
-                      title="Revoke"
+                      title="Delete"
                       className="p-1 hover:bg-negative/10 hover:text-negative rounded transition-colors"
                     >
                       <Trash2 className="w-4 h-4 text-text-secondary hover:text-negative" />

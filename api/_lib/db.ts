@@ -289,19 +289,20 @@ export interface DbShareLink {
   token: string;
   label: string | null;
   created_at: string;
-  expires_at: string;
+  // Links last until the owner deletes them (revoked_at). New links store
+  // null; a non-null date only survives on revoked legacy rows from when
+  // links expired (migration 016), and is still honored if present.
+  expires_at: string | null;
   revoked_at: string | null;
   mode: ShareLinkMode;
 }
 
 export async function createShareLink(
   portfolioId: string,
-  durationDays: number,
   label: string | null,
   mode: ShareLinkMode = 'full'
 ): Promise<DbShareLink> {
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await supabase
     .from('share_links')
@@ -309,7 +310,6 @@ export async function createShareLink(
       portfolio_id: portfolioId.toLowerCase(),
       token,
       label,
-      expires_at: expiresAt,
       mode,
     })
     .select('*')
@@ -363,7 +363,7 @@ export async function revokeShareLink(id: string, portfolioId: string): Promise<
 
 export function isShareLinkValid(link: DbShareLink): boolean {
   if (link.revoked_at) return false;
-  if (new Date(link.expires_at) <= new Date()) return false;
+  if (link.expires_at && new Date(link.expires_at) <= new Date()) return false;
   return true;
 }
 
@@ -1433,7 +1433,7 @@ export interface ShareLinkAccessEntry {
   tokenSuffix: string;          // last 6 chars of the token, to identify unlabeled links
   mode: ShareLinkMode;          // 'full' | 'allocation_only'
   createdAt: string;
-  expiresAt: string;
+  expiresAt: string | null;
   views: number;                // attributed views, all-time
   uniqueVisitors: number;       // distinct IPs among those views
   lastAccessAt: string | null;  // most recent attributed view, or null if never used
@@ -1630,7 +1630,7 @@ export async function getTodayViewCount(): Promise<number> {
 
 function shareLinkStatus(link: DbShareLink): ShareLinkStatus {
   if (link.revoked_at) return 'revoked';
-  if (new Date(link.expires_at) <= new Date()) return 'expired';
+  if (link.expires_at && new Date(link.expires_at) <= new Date()) return 'expired';
   return 'active';
 }
 

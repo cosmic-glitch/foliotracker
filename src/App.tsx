@@ -26,6 +26,7 @@ import { materialSessions } from './utils/holdingsHistory';
 import { useUnlockedPortfolios } from './hooks/useUnlockedPortfolios';
 import { useLoggedInPortfolio } from './hooks/useLoggedInPortfolio';
 import { useViewAnalytics } from './hooks/useAnalytics';
+import { useShareLinks } from './hooks/useShareLinks';
 import { loginToPortfolio } from './lib/auth';
 import type { Holding } from './types/portfolio';
 
@@ -94,6 +95,10 @@ function App() {
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'holdings' | 'allocation' | 'valuation' | 'gains' | 'news' | 'history'>('holdings');
+
+  // Warm the owner's share-link list now, so the Share dialog opens with it
+  // already in place instead of growing once the fetch lands.
+  useShareLinks(portfolioId, getLoginToken(), loggedInAs === portfolioId?.toLowerCase());
 
   // Get stored token if portfolio was previously unlocked OR if logged in as this portfolio
   const storedToken = portfolioId

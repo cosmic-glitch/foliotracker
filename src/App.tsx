@@ -475,6 +475,7 @@ function App() {
         <ShareModal
           portfolioId={portfolioId}
           ownerToken={getLoginToken() || ''}
+          visibility={data?.visibility}
           onClose={() => setShowShareModal(false)}
         />
       )}

@@ -96,6 +96,8 @@ export interface PortfolioData {
   // (The owner-only CG switch needs no flag: the API strips cost basis, so
   // the tab's own hasCostBasis check hides it.)
   changesHidden?: boolean;
+  // Lets the Share dialog say whether the plain URL hides dollar values.
+  visibility?: 'public' | 'private' | 'selective';
 }
 
 export interface HoldingConfig {

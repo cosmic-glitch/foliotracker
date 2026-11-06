@@ -181,7 +181,7 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
         <div className="flex items-start justify-between mb-2">
           <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Link2 className="w-5 h-5 text-text-secondary" />
-            Share via link
+            Share
           </h3>
           <button
             onClick={onClose}
@@ -191,85 +191,99 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
           </button>
         </div>
 
-        <p className="text-sm text-text-secondary mb-5">
-          Anyone with the link can see this portfolio's dollar values (read-only) until it expires.
-        </p>
-
-        {/* Create form */}
-        <div className="space-y-2 mb-5">
-          <input
-            type="text"
-            value={labelInput}
-            onChange={(e) => setLabelInput(e.target.value)}
-            placeholder="Label (optional)"
-            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-          />
-          <div className="flex gap-2 items-center relative">
-            <span className="text-sm text-text-secondary">Expiry</span>
-            <input
-              type="number"
-              min={1}
-              value={daysInput}
-              onChange={(e) => setDaysInput(e.target.value)}
-              className="w-14 bg-background border border-border rounded-lg px-2 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm text-center"
-            />
-            <span className="text-sm text-text-secondary">days</span>
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={submitting}
-              className="ml-auto bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
-            >
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Generate link
-            </button>
-            {flashMessage && (
-              <div className="absolute right-0 top-full mt-1.5 z-10 bg-card border border-accent/40 text-accent text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fade-in pointer-events-none whitespace-nowrap">
-                {flashMessage}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {error && (
-          <p className="text-xs text-negative mb-3">{error}</p>
-        )}
-
-        {/* Sharing percentages only needs no generated link: visitors without
-            access to a private/selective portfolio get the allocation-only
-            view from the plain URL (api/portfolio.ts). */}
+        {/* visibility arrives with the portfolio data; until then only the
+            dollar-value section renders, since the plain URL's behavior
+            depends on it. */}
         {visibility && (
-          <div className="bg-background rounded-lg border border-border px-3 py-2.5">
-            <p className="text-sm font-medium text-text-primary mb-1">Share percentages only</p>
-            {visibility === 'public' ? (
-              <p className="text-xs text-text-secondary">
-                Your portfolio is public, so its plain link shows dollar values to everyone. To share allocation percentages only, switch it to Private or Selective in Permissions.
-              </p>
-            ) : (
-              <>
-                <p className="text-xs text-text-secondary mb-2">
-                  Send your plain portfolio link instead. It never expires, and visitors see allocation percentages, not dollar values{visibility === 'selective' ? ', unless you invited them' : ''}.
+          <>
+            <p className="text-sm text-text-secondary mb-5">
+              Share this portfolio in one of two ways:
+            </p>
+
+            {/* Percentages only needs no generated link: visitors without
+                access to a private/selective portfolio get the allocation-only
+                view from the plain URL (api/portfolio.ts). */}
+            <section className="mb-5">
+              <h4 className="text-sm font-semibold text-text-primary mb-1">1. Percentages only</h4>
+              {visibility === 'public' ? (
+                <p className="text-sm text-text-secondary">
+                  Your portfolio is public, so its link shows dollar values to everyone. To share percentages only, switch it to Private or Selective in Permissions.
                 </p>
-                <div className="flex items-center gap-2">
-                  <span className="flex-1 min-w-0 truncate text-sm text-text-primary">
-                    {plainUrl.replace(/^https?:\/\//, '')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyPlain}
-                    title="Copy URL"
-                    className="p-1 hover:bg-card-hover rounded transition-colors"
-                  >
-                    <Copy className={`w-4 h-4 ${plainCopied ? 'text-accent' : 'text-text-secondary'}`} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <p className="text-sm text-text-secondary mb-2">
+                    Send your portfolio link. Visitors see allocation percentages, not dollar values, and the link never expires.
+                    {visibility === 'selective' && ' Viewers you\'ve invited still see dollar values.'}
+                  </p>
+                  <div className="flex items-center gap-2 bg-background rounded-lg border border-border px-3 py-2">
+                    <span className="flex-1 min-w-0 truncate text-sm text-text-primary">
+                      {plainUrl.replace(/^https?:\/\//, '')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyPlain}
+                      title="Copy URL"
+                      className="p-1 hover:bg-card-hover rounded transition-colors"
+                    >
+                      <Copy className={`w-4 h-4 ${plainCopied ? 'text-accent' : 'text-text-secondary'}`} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <div className="border-t border-border my-5" />
+          </>
         )}
 
-        <div className="border-t border-border my-5" />
-        <h4 className="text-sm font-medium text-text-primary mb-3">Active links</h4>
+        <section>
+          <h4 className="text-sm font-semibold text-text-primary mb-1">
+            {visibility ? '2. With dollar values' : 'With dollar values'}
+          </h4>
+          <p className="text-sm text-text-secondary mb-3">
+            Create a read-only link that stops working after the number of days you set.
+          </p>
+
+          <div className="space-y-2 mb-5">
+            <input
+              type="text"
+              value={labelInput}
+              onChange={(e) => setLabelInput(e.target.value)}
+              placeholder="Label (optional)"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+            />
+            <div className="flex gap-2 items-center relative">
+              <span className="text-sm text-text-secondary">Expiry</span>
+              <input
+                type="number"
+                min={1}
+                value={daysInput}
+                onChange={(e) => setDaysInput(e.target.value)}
+                className="w-14 bg-background border border-border rounded-lg px-2 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm text-center"
+              />
+              <span className="text-sm text-text-secondary">days</span>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={submitting}
+                className="ml-auto bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
+              >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Generate link
+              </button>
+              {flashMessage && (
+                <div className="absolute right-0 top-full mt-1.5 z-10 bg-card border border-accent/40 text-accent text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fade-in pointer-events-none whitespace-nowrap">
+                  {flashMessage}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-negative mb-3">{error}</p>
+          )}
+
+          <h5 className="text-xs font-medium uppercase tracking-wide text-text-secondary mb-2">Active links</h5>
 
         {loading ? (
           <p className="text-sm text-text-secondary">Loading…</p>
@@ -319,6 +333,7 @@ export function ShareModal({ portfolioId, ownerToken, visibility, onClose }: Pro
             </div>
           );
         })()}
+        </section>
       </div>
     </div>
   );

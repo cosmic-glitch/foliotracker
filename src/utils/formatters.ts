@@ -106,7 +106,7 @@ const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 // Fiscal-year-end label for forward estimates: "2027-01-25" → "FY Jan 27".
 // Uses the month the fiscal year ends rather than company "FY2027" naming,
 // which varies by company. Parsed from the string to avoid timezone shifts.
-// Same as companiesmarketcap.org's label minus its apostrophe ("Jan '27").
+// Same format as companiesmarketcap.org's table.
 export function formatFiscalYearEnd(date: string | null | undefined): string | null {
   const match = date?.match(/^(\d{4})-(\d{2})/);
   if (!match) return null;

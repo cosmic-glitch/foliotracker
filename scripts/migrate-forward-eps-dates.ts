@@ -3,7 +3,7 @@
  * Add the fiscal-year-end date behind each forward EPS estimate to
  * fundamentals_cache (forward_eps_date / _next_date / _next2_date), from
  * companiesmarketcap.org's forwardEPS{,Next,Next2}Date. The PE tab labels each
- * forward PE with the month its fiscal year ends ("FY Jan '27").
+ * forward PE with the month its fiscal year ends ("FY Jan 27").
  */
 
 import pg from 'pg';

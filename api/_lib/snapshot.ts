@@ -33,6 +33,14 @@ interface PriceData {
 
 const FUNDAMENTALS_STALE_HOURS = 12;
 
+// Past this age a cache row is dropped rather than served. A ticker that
+// leaves companiesmarketcap.org (its scraper only covers market caps above
+// $1B — TRIP fell under in Nov 2026) or a share-class alias that stops
+// resolving never refreshes, so without a cutoff its last revenue/EPS/PE
+// would show forever. A week rides out an outage of our own service and a
+// ticker hovering around $1B; after that the holding shows no fundamentals.
+const FUNDAMENTALS_MAX_AGE_DAYS = 7;
+
 // companiesmarketcap.org's scraper dedupes share classes to one canonical
 // symbol per company, so a held ticker may not exist there at all (GOOGL →
 // only GOOG is served). Without this map those tickers silently never
@@ -137,6 +145,14 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
       }
     } catch (error) {
       console.warn('Failed to fetch fundamentals, using cached data:', error);
+    }
+  }
+
+  const maxAgeMs = FUNDAMENTALS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  for (const [ticker, entry] of cached) {
+    if (now - new Date(entry.updated_at).getTime() > maxAgeMs) {
+      console.warn(`Fundamentals for ${ticker} last refreshed ${entry.updated_at}; too old, not served`);
+      cached.delete(ticker);
     }
   }
 

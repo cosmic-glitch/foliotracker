@@ -7,11 +7,11 @@ import { consolidateHoldings } from '../utils/equivalentTickers';
 // The "PE" tab: every market-priced holding's valuation multiples side by
 // side. Same four figures companiesmarketcap.org publishes — trailing PE,
 // forward PE (ongoing FY), forward PE next FY, forward PE FY+2 — and, like
-// its table, each forward PE carries a small "FY Jan '27" line naming the
+// its table, each forward PE carries a small "FY Jan 27" line naming the
 // month that fiscal year ends (companies' years end in different months). One table
 // serves both desktop and mobile. Mobile is the primary surface: columns
-// stay narrow (px-1.5, inactive sort icons and the labels' "FY " hidden below
-// sm) so all five fit a 390px phone, and the table wrapper scrolls
+// stay narrow (px-1, inactive sort icons hidden below sm) so all five fit a
+// 390px phone, and the table wrapper scrolls
 // horizontally as a backstop so a column can never be clipped.
 
 type SortColumn = 'ticker' | 'peRatio' | 'forwardPE' | 'forwardPENext' | 'forwardPENext2';
@@ -60,20 +60,14 @@ const COLUMNS: Array<{ column: SortColumn; label: string; title?: string }> = [
 ];
 
 // Forward PE with the fiscal year its estimate covers as a small muted second
-// line ("FY Jan '27"; just "Jan '27" on phones, where the "FY" would widen
-// the column past the header). Empty cell when there's no value.
+// line ("FY Jan 27"). Empty cell when there's no value.
 function ForwardPEValue({ value, fiscalYearEnd }: { value: number | null; fiscalYearEnd: string | null }) {
   if (value == null) return null;
   const label = formatFiscalYearEnd(fiscalYearEnd);
   return (
     <>
       {formatPERatio(value)}
-      {label && (
-        <span className="block text-xs leading-4 text-text-secondary">
-          <span className="hidden sm:inline">FY </span>
-          {label}
-        </span>
-      )}
+      {label && <span className="block text-xs leading-4 text-text-secondary">{label}</span>}
     </>
   );
 }
@@ -157,7 +151,7 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         <thead>
           <tr className="border-b border-border">
             {COLUMNS.map(({ column, label, title }) => (
-              <th key={column} className="text-left text-text-secondary text-sm font-medium px-1.5 md:px-4 py-2 whitespace-nowrap">
+              <th key={column} className="text-left text-text-secondary text-sm font-medium px-1 md:px-4 py-2 whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => handleSort(column)}
@@ -174,19 +168,19 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         <tbody>
           {rows.map((holding) => (
             <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-              <td className="px-1.5 md:px-4 py-2 whitespace-nowrap">
+              <td className="px-1 md:px-4 py-2 whitespace-nowrap">
                 <span className="font-semibold text-text-primary">{holding.ticker}</span>
               </td>
-              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-1 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.peRatio != null ? formatPERatio(holding.peRatio) : ''}
               </td>
-              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-1 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 <ForwardPEValue value={holding.forwardPE} fiscalYearEnd={holding.forwardEPSDate} />
               </td>
-              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-1 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 <ForwardPEValue value={holding.forwardPENext} fiscalYearEnd={holding.forwardEPSNextDate} />
               </td>
-              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-1 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 <ForwardPEValue value={holding.forwardPENext2} fiscalYearEnd={holding.forwardEPSNext2Date} />
               </td>
             </tr>

@@ -31,7 +31,7 @@ export interface Holding {
   // analyst coverage).
   forwardPENext2: number | null;
   // Fiscal-year-end date ('YYYY-MM-DD') behind each forward PE; the PE tab
-  // labels values with it ("FY Jan '27").
+  // labels values with it ("FY Jan 27").
   forwardEPSDate: string | null;
   forwardEPSNextDate: string | null;
   forwardEPSNext2Date: string | null;

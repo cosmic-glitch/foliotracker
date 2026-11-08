@@ -890,6 +890,11 @@ export interface DbFundamentalsCache {
   forward_eps: number | null;
   forward_eps_next: number | null;
   forward_eps_next2: number | null;
+  // Fiscal-year-end date ('YYYY-MM-DD') each forward EPS estimate covers.
+  // Migration 'forward-eps-dates'; null on rows not refetched since.
+  forward_eps_date: string | null;
+  forward_eps_next_date: string | null;
+  forward_eps_next2_date: string | null;
   week_52_high: number | null;
   operating_margin: number | null;
   revenue_growth_3y: number | null;
@@ -928,6 +933,9 @@ export async function upsertFundamentalsCache(
     forward_eps: number | null;
     forward_eps_next: number | null;
     forward_eps_next2: number | null;
+    forward_eps_date: string | null;
+    forward_eps_next_date: string | null;
+    forward_eps_next2_date: string | null;
     week_52_high: number | null;
     operating_margin: number | null;
     revenue_growth_3y: number | null;
@@ -1201,6 +1209,11 @@ export interface SnapshotHolding {
   // analyst coverage). Optional: snapshots written before this field was
   // introduced lack it.
   forwardPENext2?: number | null;
+  // Fiscal-year-end date ('YYYY-MM-DD') behind forwardPE / Next / Next2.
+  // Optional: snapshots written before this field was introduced lack it.
+  forwardEPSDate?: string | null;
+  forwardEPSNextDate?: string | null;
+  forwardEPSNext2Date?: string | null;
   pctTo52WeekHigh: number | null;
   week52High: number | null;
   operatingMargin: number | null;

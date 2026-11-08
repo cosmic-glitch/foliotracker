@@ -30,6 +30,11 @@ export interface Holding {
   // Forward P/E on the fiscal year after next (FY+2 estimate, thinner
   // analyst coverage).
   forwardPENext2: number | null;
+  // Fiscal-year-end date ('YYYY-MM-DD') behind each forward PE; the PE tab
+  // labels values with it ("FY Jan '27").
+  forwardEPSDate: string | null;
+  forwardEPSNextDate: string | null;
+  forwardEPSNext2Date: string | null;
   pctTo52WeekHigh: number | null;
   week52High: number | null;
   operatingMargin: number | null;

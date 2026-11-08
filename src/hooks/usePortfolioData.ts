@@ -61,6 +61,9 @@ interface ApiPortfolioResponse {
     forwardPE?: number | null;
     forwardPENext?: number | null;
     forwardPENext2?: number | null;
+    forwardEPSDate?: string | null;
+    forwardEPSNextDate?: string | null;
+    forwardEPSNext2Date?: string | null;
     pctTo52WeekHigh?: number | null;
     week52High?: number | null;
     operatingMargin?: number | null;
@@ -280,6 +283,9 @@ export function usePortfolioData(
       forwardPE: h.forwardPE ?? null,
       forwardPENext: h.forwardPENext ?? null,
       forwardPENext2: h.forwardPENext2 ?? null,
+      forwardEPSDate: h.forwardEPSDate ?? null,
+      forwardEPSNextDate: h.forwardEPSNextDate ?? null,
+      forwardEPSNext2Date: h.forwardEPSNext2Date ?? null,
       pctTo52WeekHigh: h.pctTo52WeekHigh ?? null,
       week52High: h.week52High ?? null,
       operatingMargin: h.operatingMargin ?? null,

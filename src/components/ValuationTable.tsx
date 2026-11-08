@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
 import type { Holding } from '../types/portfolio';
 import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatPERatio } from '../utils/formatters';
+import { formatFiscalYearEnd, formatPERatio } from '../utils/formatters';
 import { consolidateHoldings } from '../utils/equivalentTickers';
 
 // The "PE" tab: every market-priced holding's valuation multiples side by
 // side. Same four figures companiesmarketcap.org publishes — trailing PE,
-// forward PE (ongoing FY), forward PE next FY, forward PE FY+2. One table
+// forward PE (ongoing FY), forward PE next FY, forward PE FY+2 — and, like
+// its table, each forward PE carries a small "FY Jan '27" line naming the
+// month that fiscal year ends (companies' years end in different months). One table
 // serves both desktop and mobile. Mobile is the primary surface: columns
-// stay narrow (px-2, inactive sort icons hidden below sm) so all five fit a
-// phone, and the table wrapper scrolls horizontally as a backstop so a
-// column can never be clipped.
+// stay narrow (px-1.5, inactive sort icons and the labels' "FY " hidden below
+// sm) so all five fit a 390px phone, and the table wrapper scrolls
+// horizontally as a backstop so a column can never be clipped.
 
 type SortColumn = 'ticker' | 'peRatio' | 'forwardPE' | 'forwardPENext' | 'forwardPENext2';
 type SortDirection = 'asc' | 'desc';
@@ -30,29 +32,51 @@ function getSortValue(holding: Holding, column: SortColumn): string | number | n
   }
 }
 
+const FY_LABEL_HINT = ' The small label under each value is the month that fiscal year ends.';
+
+// Labels are deliberately unspaced ("FwdPE+1") to keep columns narrow on phones.
 const COLUMNS: Array<{ column: SortColumn; label: string; title?: string }> = [
   { column: 'ticker', label: 'Asset' },
   {
     column: 'peRatio',
-    label: 'PE',
+    label: 'TTM PE',
     title: 'Trailing PE on the last four reported quarters',
   },
   {
     column: 'forwardPE',
     label: 'FwdPE',
-    title: "FwdPE on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)",
+    title: "FwdPE on the ongoing fiscal year's EPS estimate (blends reported quarters with projections)." + FY_LABEL_HINT,
   },
   {
     column: 'forwardPENext',
     label: 'FwdPE+1',
-    title: "FwdPE on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)",
+    title: "FwdPE on next fiscal year's EPS estimate (pure projection — no reported quarters mixed in)." + FY_LABEL_HINT,
   },
   {
     column: 'forwardPENext2',
     label: 'FwdPE+2',
-    title: "FwdPE on the fiscal year after next's EPS estimate (pure projection — thinner analyst coverage than FwdPE+1)",
+    title: "FwdPE on the fiscal year after next's EPS estimate (pure projection — thinner analyst coverage than FwdPE+1)." + FY_LABEL_HINT,
   },
 ];
+
+// Forward PE with the fiscal year its estimate covers as a small muted second
+// line ("FY Jan '27"; just "Jan '27" on phones, where the "FY" would widen
+// the column past the header). Empty cell when there's no value.
+function ForwardPEValue({ value, fiscalYearEnd }: { value: number | null; fiscalYearEnd: string | null }) {
+  if (value == null) return null;
+  const label = formatFiscalYearEnd(fiscalYearEnd);
+  return (
+    <>
+      {formatPERatio(value)}
+      {label && (
+        <span className="block text-xs leading-4 text-text-secondary">
+          <span className="hidden sm:inline">FY </span>
+          {label}
+        </span>
+      )}
+    </>
+  );
+}
 
 interface ValuationTableProps {
   holdings: Holding[];
@@ -133,7 +157,7 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         <thead>
           <tr className="border-b border-border">
             {COLUMNS.map(({ column, label, title }) => (
-              <th key={column} className="text-left text-text-secondary text-sm font-medium px-2 md:px-4 py-2 whitespace-nowrap">
+              <th key={column} className="text-left text-text-secondary text-sm font-medium px-1.5 md:px-4 py-2 whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => handleSort(column)}
@@ -150,20 +174,20 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
         <tbody>
           {rows.map((holding) => (
             <tr key={holding.ticker} className="border-b border-border last:border-0 hover:bg-card-hover transition-colors">
-              <td className="px-2 md:px-4 py-2 whitespace-nowrap">
+              <td className="px-1.5 md:px-4 py-2 whitespace-nowrap">
                 <span className="font-semibold text-text-primary">{holding.ticker}</span>
               </td>
-              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
                 {holding.peRatio != null ? formatPERatio(holding.peRatio) : ''}
               </td>
-              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
-                {holding.forwardPE != null ? formatPERatio(holding.forwardPE) : ''}
+              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+                <ForwardPEValue value={holding.forwardPE} fiscalYearEnd={holding.forwardEPSDate} />
               </td>
-              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
-                {holding.forwardPENext != null ? formatPERatio(holding.forwardPENext) : ''}
+              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+                <ForwardPEValue value={holding.forwardPENext} fiscalYearEnd={holding.forwardEPSNextDate} />
               </td>
-              <td className="px-2 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
-                {holding.forwardPENext2 != null ? formatPERatio(holding.forwardPENext2) : ''}
+              <td className="px-1.5 md:px-4 py-2 text-sm text-text-primary whitespace-nowrap">
+                <ForwardPEValue value={holding.forwardPENext2} fiscalYearEnd={holding.forwardEPSNext2Date} />
               </td>
             </tr>
           ))}
@@ -172,7 +196,7 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
       </div>
       <div className="border-t border-border px-3 md:px-4 py-3 space-y-1.5 text-xs text-text-secondary">
         <p>
-          <span className="font-medium text-text-primary">PE</span> — based on EPS of the last
+          <span className="font-medium text-text-primary">TTM PE</span> — based on EPS of the last
           four reported quarters; can include one-time items (investment gains, write-offs) that
           distort the multiple.
         </p>
@@ -190,6 +214,10 @@ export function ValuationTable({ holdings }: ValuationTableProps) {
           <span className="font-medium text-text-primary">FwdPE+2</span> — based on estimated
           EPS of the fiscal year after next; same purity as FwdPE+1, but thinner analyst
           coverage makes it the least certain of the four.
+        </p>
+        <p>
+          The label under each forward PE is the month that company's fiscal year ends.
+          Companies' fiscal years end in different months: NVDA's in January, AAPL's in September.
         </p>
       </div>
     </div>

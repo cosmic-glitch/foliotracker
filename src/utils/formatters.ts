@@ -101,6 +101,20 @@ export function formatPERatio(value: number | null): string {
   return value.toFixed(1);
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Fiscal-year-end month for forward estimates: "2027-01-25" → "Jan '27"
+// (callers prefix "FY"). Uses the month the fiscal year ends rather than
+// company "FY2027" naming, which varies by company. Parsed from the string to
+// avoid timezone shifts. Same format as companiesmarketcap.org's table.
+export function formatFiscalYearEnd(date: string | null | undefined): string | null {
+  const match = date?.match(/^(\d{4})-(\d{2})/);
+  if (!match) return null;
+  const month = MONTH_ABBR[Number(match[2]) - 1];
+  if (!month) return null;
+  return `${month} '${match[1].slice(2)}`;
+}
+
 export function formatMarginOrGrowth(value: number | null): string {
   if (value === null || value === undefined) return '--';
   return `${(value * 100).toFixed(1)}%`;

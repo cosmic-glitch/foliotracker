@@ -75,7 +75,7 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
       const requestSymbols = Array.from(new Set(
         staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
       ));
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y,marketCap,price`;
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,forwardEPSDate,forwardEPSNextDate,forwardEPSNext2Date,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y,marketCap,price`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -88,6 +88,9 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
           forward_eps: number | null;
           forward_eps_next: number | null;
           forward_eps_next2: number | null;
+          forward_eps_date: string | null;
+          forward_eps_next_date: string | null;
+          forward_eps_next2_date: string | null;
           week_52_high: number | null;
           operating_margin: number | null;
           revenue_growth_3y: number | null;
@@ -108,6 +111,10 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
               forward_eps: data.forwardEPS != null ? data.forwardEPS / ratio : null,
               forward_eps_next: data.forwardEPSNext != null ? data.forwardEPSNext / ratio : null,
               forward_eps_next2: data.forwardEPSNext2 != null ? data.forwardEPSNext2 / ratio : null,
+              // Fiscal-year ends are company-level, so aliases copy them as-is.
+              forward_eps_date: data.forwardEPSDate ?? null,
+              forward_eps_next_date: data.forwardEPSNextDate ?? null,
+              forward_eps_next2_date: data.forwardEPSNext2Date ?? null,
               week_52_high: data.week52High != null ? data.week52High / ratio : null,
               operating_margin: data.operatingMargin ?? null,
               revenue_growth_3y: data.revenueGrowth3Y ?? null,
@@ -208,6 +215,9 @@ function computeHoldings(
         forwardPE: null,
         forwardPENext: null,
         forwardPENext2: null,
+        forwardEPSDate: null,
+        forwardEPSNextDate: null,
+        forwardEPSNext2Date: null,
         pctTo52WeekHigh: null,
         week52High: null,
         operatingMargin: null,
@@ -301,6 +311,10 @@ function computeHoldings(
         forwardPE,
         forwardPENext,
         forwardPENext2,
+        // Only meaningful alongside a value, so null with its PE.
+        forwardEPSDate: forwardPE != null ? fund?.forward_eps_date ?? null : null,
+        forwardEPSNextDate: forwardPENext != null ? fund?.forward_eps_next_date ?? null : null,
+        forwardEPSNext2Date: forwardPENext2 != null ? fund?.forward_eps_next2_date ?? null : null,
         pctTo52WeekHigh,
         week52High: effective52WeekHigh,
         operatingMargin: fund?.operating_margin ?? null,

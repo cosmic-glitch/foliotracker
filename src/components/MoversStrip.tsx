@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChartLine, Flame } from 'lucide-react';
 import { formatPrice } from '../utils/formatters';
 import { TickerDetailModal, type TickerDetailSubject } from './TickerDetailModal';
@@ -85,6 +85,11 @@ interface MoversStripProps {
   // percentages are moves since the close, not the day's. Undefined ⇒ the
   // rows are the intraday movers and no qualifier is shown.
   session?: 'pre-market' | 'after-hours';
+  // Right-aligned control on the tab row (the landing page's At Close / After
+  // Hours SessionSwitch, which renders nothing during the session). When it
+  // renders, it replaces the session pill — its selected option already says
+  // which session the rows are ranked by.
+  headerAction?: ReactNode;
 }
 
 // How many movers the pill shows by default (one per row) — the collapsed size.
@@ -161,7 +166,7 @@ function holderLabel(m: MarketMover, visibleCount = m.holders.length): string {
 // filler. The server keeps the list populated (see computeMarketMovers). During
 // the very first load (no data yet) it instead holds its space with a skeleton,
 // so it doesn't pop in above the Users card and shove it down once data arrives.
-export function MoversStrip({ movers, isLoading, session }: MoversStripProps) {
+export function MoversStrip({ movers, isLoading, session, headerAction }: MoversStripProps) {
   // Collapsed by default; the viewer can expand to the full qualified list and
   // collapse back. Only offered when the server returned more than DISPLAY_COUNT
   // (i.e. there are qualified movers beyond the default rows to reveal).
@@ -249,14 +254,27 @@ export function MoversStrip({ movers, isLoading, session }: MoversStripProps) {
   // stay aligned; it appears only while the extended-only ranking is live and
   // disappears entirely in the normal (intraday) case. Amber matches the
   // pre/after-hours state of the header's market-status badge.
-  const tab = (
+  //
+  // With a headerAction (SessionSwitch, outside the session) the row spreads
+  // tab-left / switch-right, bottom-aligned like the Users tab row; the switch
+  // stands in for the pill. The loading skeleton gets the bare tab.
+  const tabLabel = (
+    <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+      <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
+      <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
+        Top movers
+      </span>
+    </div>
+  );
+  const skeletonTab = <div className="flex items-center gap-2">{tabLabel}</div>;
+  const tab = headerAction ? (
+    <div className="flex items-end justify-between gap-2">
+      {tabLabel}
+      {headerAction}
+    </div>
+  ) : (
     <div className="flex items-center gap-2">
-      <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
-        <Flame className="w-3.5 h-3.5 text-amber-500" aria-hidden />
-        <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
-          Top movers
-        </span>
-      </div>
+      {tabLabel}
       {session && (
         <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-500 whitespace-nowrap">
           {session}
@@ -274,7 +292,7 @@ export function MoversStrip({ movers, isLoading, session }: MoversStripProps) {
     if (!isLoading) return null;
     return (
       <div className="mb-3 md:mb-6" aria-hidden>
-        {tab}
+        {skeletonTab}
         <div className="-mt-px bg-card border border-border rounded-3xl rounded-tl-none px-4 py-2.5">
           <div className="grid grid-cols-[auto_auto_auto_1fr] items-center gap-x-3 gap-y-2.5 animate-pulse">
             {Array.from({ length: DISPLAY_COUNT }).map((_, i) => (

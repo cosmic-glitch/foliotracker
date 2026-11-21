@@ -5,6 +5,7 @@ import { SignInModal } from '../components/SignInModal';
 import { PermissionsModal } from '../components/PermissionsModal';
 import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { MoversStrip } from '../components/MoversStrip';
+import { SessionSwitch } from '../components/SessionSwitch';
 import { UpcomingEvents } from '../components/UpcomingEvents';
 import { MarketPulse } from '../components/MarketPulse';
 import { UserMenu } from '../components/UserMenu';
@@ -102,41 +103,6 @@ function getRankMetric(
   if (isDemoPortfolio(p)) return null;
   if (isFullyBlurred(p)) return null;
   return getDisplayChangePercent(p, showExtendedHours, timeframe);
-}
-
-// Outside the regular session the board defaults to extended-hours figures;
-// this two-way switch lets anyone flip the whole page (rows, ranking, movers
-// strip — everything reading ExtendedHoursContext) to how the day closed.
-// Hidden during the session, where UserMenu's "Extended Hours All Day" governs.
-// Before the open the extended side is pre-market; any other time (evening,
-// overnight, weekend) it's the last after-hours session.
-function SessionSwitch() {
-  const { marketStatus, atClose, setAtClose } = useExtendedHours();
-  if (marketStatus === 'open') return null;
-  const options: { label: string; close: boolean }[] = [
-    { label: 'At Close', close: true },
-    { label: marketStatus === 'pre-market' ? 'Pre-Market' : 'After Hours', close: false },
-  ];
-  return (
-    <div role="group" aria-label="Price basis" className="mb-1.5 flex rounded-full border border-border bg-card p-0.5">
-      {options.map((o) => {
-        const active = atClose === o.close;
-        return (
-          <button
-            key={o.label}
-            type="button"
-            aria-pressed={active}
-            onClick={() => setAtClose(o.close)}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium leading-tight whitespace-nowrap transition-colors ${
-              active ? 'bg-card-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 interface PortfolioListRowProps {
@@ -351,7 +317,19 @@ export function LandingPage() {
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   useLandingViewAnalytics(loggedInAs);
   const { data: pulse, refetch: refetchPulse } = useMarketPulse();
-  const { showExtendedHours } = useExtendedHours();
+  const { showExtendedHours: appShowExtendedHours, marketStatus } = useExtendedHours();
+  // Outside the session, the At Close / After Hours switch (SessionSwitch) can
+  // flip this page to regular-close figures. Page-local and in-memory: every
+  // visit starts on the extended view, the portfolio page is never affected,
+  // and a market-status change (open, close, pre-market start) drops the pick.
+  // Reset-during-render is React's documented pattern for this.
+  const [atClose, setAtClose] = useState(false);
+  const [statusSeen, setStatusSeen] = useState(marketStatus);
+  if (statusSeen !== marketStatus) {
+    setStatusSeen(marketStatus);
+    setAtClose(false);
+  }
+  const showExtendedHours = marketStatus === 'open' ? appShowExtendedHours : !atClose;
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
   // Which timeframe drives the change column (1D vs 30D). Toggled from
@@ -407,6 +385,13 @@ export function LandingPage() {
       holders: [...m.holders].sort((a, b) => tier(a) - tier(b)),
     }));
   }, [data, showExtendedHours, loggedInAs]);
+
+  // MoversStrip renders while it has rows or is still on its first load; when
+  // it's hidden (quiet day) the switch drops to the Users tab row instead.
+  const moversVisible = movers.length > 0 || isLoading;
+  const sessionSwitch = (
+    <SessionSwitch marketStatus={marketStatus} atClose={atClose} onChange={setAtClose} />
+  );
 
   const portfolios = useMemo(() => {
     const raw = data?.portfolios ?? [];
@@ -562,12 +547,13 @@ export function LandingPage() {
               movers={movers}
               session={
                 showExtendedHours && data?.movers?.extendedBasis === 'extended-only'
-                  ? getMarketStatus() === 'pre-market'
+                  ? marketStatus === 'pre-market'
                     ? 'pre-market'
                     : 'after-hours'
                   : undefined
               }
               isLoading={isLoading}
+              headerAction={sessionSwitch}
             />
 
             {/* AI market snapshot (public); renders nothing until a pulse exists. */}
@@ -596,7 +582,10 @@ export function LandingPage() {
                     Users
                   </span>
                 </div>
-                <SessionSwitch />
+                {/* Fallback home for the switch when the movers strip is
+                    hidden (quiet day) — it normally sits on the movers tab row,
+                    the topmost card it affects. */}
+                {!moversVisible && sessionSwitch}
               </div>
 
               {/* Card body: top-left squared to line up flush under the tab,

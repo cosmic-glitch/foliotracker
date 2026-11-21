@@ -104,6 +104,41 @@ function getRankMetric(
   return getDisplayChangePercent(p, showExtendedHours, timeframe);
 }
 
+// Outside the regular session the board defaults to extended-hours figures;
+// this two-way switch lets anyone flip the whole page (rows, ranking, movers
+// strip — everything reading ExtendedHoursContext) to how the day closed.
+// Hidden during the session, where UserMenu's "Extended Hours All Day" governs.
+// Before the open the extended side is pre-market; any other time (evening,
+// overnight, weekend) it's the last after-hours session.
+function SessionSwitch() {
+  const { marketStatus, atClose, setAtClose } = useExtendedHours();
+  if (marketStatus === 'open') return null;
+  const options: { label: string; close: boolean }[] = [
+    { label: 'At Close', close: true },
+    { label: marketStatus === 'pre-market' ? 'Pre-Market' : 'After Hours', close: false },
+  ];
+  return (
+    <div role="group" aria-label="Price basis" className="mb-1.5 flex rounded-full border border-border bg-card p-0.5">
+      {options.map((o) => {
+        const active = atClose === o.close;
+        return (
+          <button
+            key={o.label}
+            type="button"
+            aria-pressed={active}
+            onClick={() => setAtClose(o.close)}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium leading-tight whitespace-nowrap transition-colors ${
+              active ? 'bg-card-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface PortfolioListRowProps {
   portfolio: Portfolio;
   // Portfolio total — the row's prominent dollar figure (larger, bold, primary
@@ -554,11 +589,14 @@ export function LandingPage() {
                   top border into one connected notepad-tab shape. Matches the
                   movers/upcoming strips' tabs, including the shared fixed width
                   (w-36) that keeps all three tabs at a constant width. */}
-              <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
-                <Users className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
-                <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
-                  Users
-                </span>
+              <div className="flex items-end justify-between gap-2">
+                <div className="relative z-10 flex w-36 items-center gap-1.5 bg-card border border-border border-b-0 rounded-t-xl px-3 py-1.5">
+                  <Users className="w-3.5 h-3.5 text-text-secondary" aria-hidden />
+                  <span className="text-[13px] md:text-sm font-semibold text-text-primary whitespace-nowrap">
+                    Users
+                  </span>
+                </div>
+                <SessionSwitch />
               </div>
 
               {/* Card body: top-left squared to line up flush under the tab,

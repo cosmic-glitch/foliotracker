@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { isMarketOpen } from '../lib/market-hours';
+import { getMarketStatus } from '../lib/market-hours';
+import type { MarketStatus } from '../types/portfolio';
 
 // Extended-hours prices are always shown outside the regular session
 // (pre-market, after-hours, overnight, weekends, holidays) — nobody checking
@@ -9,13 +10,24 @@ import { isMarketOpen } from '../lib/market-hours';
 // noise. Every consumer reads the effective `showExtendedHours`; only the
 // menu checkbox reads `extendedHoursAllDay`. Logged-out viewers (no menu) get
 // the default preference, so they too see extended hours outside the session.
+//
+// Outside the session the landing page offers an "At Close / After Hours"
+// switch (`atClose`) so anyone can still see how the day ended. It's
+// in-memory only and resets whenever the market status changes, so every
+// evening starts back on the extended view.
 
 interface ExtendedHoursContextType {
-  // Effective: preference on, or the regular session is closed.
+  // Effective: in session, the All Day preference; outside it, on unless the
+  // viewer switched to At Close.
   showExtendedHours: boolean;
   // The stored preference, for the menu checkbox.
   extendedHoursAllDay: boolean;
   toggleExtendedHours: () => void;
+  // Live NYSE session state, re-checked every minute.
+  marketStatus: MarketStatus;
+  // Outside the session: show regular-close figures instead of extended ones.
+  atClose: boolean;
+  setAtClose: (next: boolean) => void;
 }
 
 const ExtendedHoursContext = createContext<ExtendedHoursContextType | undefined>(undefined);
@@ -34,13 +46,14 @@ function readPreference(): boolean {
 export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
   // Hydrated synchronously (lazy initializer), per the storage-hook rule.
   const [extendedHoursAllDay, setExtendedHoursAllDay] = useState<boolean>(readPreference);
-  const [regularOpen, setRegularOpen] = useState<boolean>(() => isMarketOpen());
+  const [marketStatus, setMarketStatus] = useState<MarketStatus>(() => getMarketStatus());
+  const [atClose, setAtClose] = useState(false);
 
   // Flip at the open/close without a reload: poll once a minute, and recheck
   // on return to the tab (timers are throttled in background tabs and the iOS
   // home-screen app can sit suspended for hours).
   useEffect(() => {
-    const recheck = () => setRegularOpen(isMarketOpen());
+    const recheck = () => setMarketStatus(getMarketStatus());
     const id = window.setInterval(recheck, MARKET_RECHECK_MS);
     const onVisible = () => { if (document.visibilityState === 'visible') recheck(); };
     document.addEventListener('visibilitychange', onVisible);
@@ -49,6 +62,15 @@ export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
+
+  // A new session state (open, close, pre-market start…) drops the At Close
+  // pick. Adjusting state during render is React's documented pattern for
+  // resetting on a prop/state change without an extra effect pass.
+  const [statusSeen, setStatusSeen] = useState(marketStatus);
+  if (statusSeen !== marketStatus) {
+    setStatusSeen(marketStatus);
+    setAtClose(false);
+  }
 
   const toggleExtendedHours = () => {
     setExtendedHoursAllDay((prev) => {
@@ -62,10 +84,12 @@ export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const showExtendedHours = extendedHoursAllDay || !regularOpen;
+  const showExtendedHours = marketStatus === 'open' ? extendedHoursAllDay : !atClose;
 
   return (
-    <ExtendedHoursContext.Provider value={{ showExtendedHours, extendedHoursAllDay, toggleExtendedHours }}>
+    <ExtendedHoursContext.Provider
+      value={{ showExtendedHours, extendedHoursAllDay, toggleExtendedHours, marketStatus, atClose, setAtClose }}
+    >
       {children}
     </ExtendedHoursContext.Provider>
   );

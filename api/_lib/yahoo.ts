@@ -353,8 +353,9 @@ export async function getHistoricalData(
 // open, the last completed one otherwise (same convention as the day-change
 // quote) — and always includes the pre-market and after-hours bars
 // (`includePrePost`). The detail panel shows extended hours unconditionally,
-// independent of the app's Extended Hours toggle (that toggle governs whether
-// portfolio *values* move after the close, not what the tape looks like).
+// independent of the app's Extended Hours setting (that setting governs
+// whether portfolio *values* include extended prints, not what the tape looks
+// like).
 // Its points carry a full ISO timestamp rather than a calendar date, and the
 // response adds the pre/regular/post session bounds and previous close so the
 // UI can pin the x-axis to the whole 4 a.m.–8 p.m. span, tint the sessions,

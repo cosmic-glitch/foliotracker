@@ -387,8 +387,9 @@ function buildPreviewResponse(classification: ClassificationResult): {
 // move the snapshot's `dayChangePercent` carries. With Extended Hours on, the
 // viewer wants to know what's moving after the bell, and a name that ran 5% in
 // the session and sat flat after-hours shouldn't crowd out one that's up 3%
-// since the close. The strip renders whichever the viewer's Extended Hours
-// toggle selects (default off ⇒ regular). Because the strip is ordered by
+// since the close. The strip renders whichever the viewer's effective Extended
+// Hours state selects (always extended outside the regular session; during it,
+// the All Day toggle, default off ⇒ regular). Because the strip is ordered by
 // |move|, the ranking — not just the displayed percentage — switches with the
 // basis. While the regular session is in progress, or no name has an extended
 // print yet, the extended-only move is noise or 0 and the ranking would be

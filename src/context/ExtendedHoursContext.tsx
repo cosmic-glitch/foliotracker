@@ -1,30 +1,71 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { isMarketOpen } from '../lib/market-hours';
+
+// Extended-hours prices are always shown outside the regular session
+// (pre-market, after-hours, overnight, weekends, holidays) — nobody checking
+// in after the bell wants to miss the after-hours move. The stored preference
+// ("Extended Hours All Day" in UserMenu) only decides whether they're ALSO
+// shown while the regular session is open, where the pre-market tape can be
+// noise. Every consumer reads the effective `showExtendedHours`; only the
+// menu checkbox reads `extendedHoursAllDay`. Logged-out viewers (no menu) get
+// the default preference, so they too see extended hours outside the session.
 
 interface ExtendedHoursContextType {
+  // Effective: preference on, or the regular session is closed.
   showExtendedHours: boolean;
+  // The stored preference, for the menu checkbox.
+  extendedHoursAllDay: boolean;
   toggleExtendedHours: () => void;
 }
 
 const ExtendedHoursContext = createContext<ExtendedHoursContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'foliotracker-extended-hours';
+const MARKET_RECHECK_MS = 60 * 1000;
+
+function readPreference(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
-  const [showExtendedHours, setShowExtendedHours] = useState<boolean>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'true';
-  });
+  // Hydrated synchronously (lazy initializer), per the storage-hook rule.
+  const [extendedHoursAllDay, setExtendedHoursAllDay] = useState<boolean>(readPreference);
+  const [regularOpen, setRegularOpen] = useState<boolean>(() => isMarketOpen());
+
+  // Flip at the open/close without a reload: poll once a minute, and recheck
+  // on return to the tab (timers are throttled in background tabs and the iOS
+  // home-screen app can sit suspended for hours).
+  useEffect(() => {
+    const recheck = () => setRegularOpen(isMarketOpen());
+    const id = window.setInterval(recheck, MARKET_RECHECK_MS);
+    const onVisible = () => { if (document.visibilityState === 'visible') recheck(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const toggleExtendedHours = () => {
-    setShowExtendedHours((prev) => {
+    setExtendedHoursAllDay((prev) => {
       const next = !prev;
-      localStorage.setItem(STORAGE_KEY, String(next));
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        // Storage unavailable — the choice still applies for this session.
+      }
       return next;
     });
   };
 
+  const showExtendedHours = extendedHoursAllDay || !regularOpen;
+
   return (
-    <ExtendedHoursContext.Provider value={{ showExtendedHours, toggleExtendedHours }}>
+    <ExtendedHoursContext.Provider value={{ showExtendedHours, extendedHoursAllDay, toggleExtendedHours }}>
       {children}
     </ExtendedHoursContext.Provider>
   );

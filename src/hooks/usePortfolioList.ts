@@ -46,8 +46,8 @@ export interface PortfoliosResponse {
   canCreate: boolean;
   // Most-held tickers swinging ≥2% today; empty on quiet days. Two
   // independently-ranked lists, one per price basis — the strip shows `extended`
-  // or `regular` depending on the Extended Hours toggle, matching the holdings
-  // table and totals.
+  // or `regular` depending on the effective Extended Hours state (see
+  // ExtendedHoursContext), matching the holdings table and totals.
   movers?: {
     regular: MarketMover[];
     extended: MarketMover[];

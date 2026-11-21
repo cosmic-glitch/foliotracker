@@ -21,7 +21,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  const { showExtendedHours, toggleExtendedHours } = useExtendedHours();
+  const { extendedHoursAllDay, toggleExtendedHours } = useExtendedHours();
   const { timeframe, toggleTimeframe } = useTimeframe();
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg min-w-[200px] py-1.5 z-50 animate-[fadeIn_0.15s_ease-out]">
+        <div className="absolute right-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-lg min-w-[200px] whitespace-nowrap py-1.5 z-50 animate-[fadeIn_0.15s_ease-out]">
           {showEditAndPermissions && onEdit && (
             <button
               onClick={() => { setOpen(false); onEdit(); }}
@@ -113,18 +113,18 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
           >
             <Clock className="w-4 h-4 text-text-secondary" />
-            Extended Hours
+            Extended Hours All Day
             <span className={`ml-auto w-4 h-4 rounded border flex items-center justify-center text-xs ${
-              showExtendedHours
+              extendedHoursAllDay
                 ? 'bg-accent border-accent text-white'
                 : 'border-border'
             }`}>
-              {showExtendedHours && '✓'}
+              {extendedHoursAllDay && '✓'}
             </span>
           </button>
           {/* Global 1D/30D view — drives the landing list, the portfolio
               page's TotalValue headline, and the chart together. Same
-              check-row pattern as Extended Hours above. */}
+              check-row pattern as Extended Hours All Day above. */}
           <button
             onClick={toggleTimeframe}
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"

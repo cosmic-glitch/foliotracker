@@ -43,8 +43,8 @@ export interface Holding {
   // Live market cap (implied shares × current price, computed server-side).
   marketCap: number | null;
   regularMarketPrice: number;
-  // The snapshot's extended-hours price, kept even when the Extended Hours
-  // toggle is off and currentPrice has been rewritten to the regular close.
+  // The snapshot's extended-hours price, kept even when extended hours are
+  // off and currentPrice has been rewritten to the regular close.
   // TickerDetailModal ignores the toggle and always shows this.
   extendedPrice: number;
   // Trade-aware day change (api/_lib/day-flows.ts), present only on lines

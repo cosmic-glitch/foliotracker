@@ -89,7 +89,7 @@ const PREVIOUS_CLOSE_STROKE = '#94a3b8';
 // Intraday session bounds as ms timestamps: `start`/`end` bound the regular
 // session, `preStart`/`postEnd` the extended one. Always drawn in full — the
 // detail panel shows the extended tape regardless of the app's Extended Hours
-// toggle, which only governs whether portfolio values move after the close.
+// setting, which only governs whether portfolio values include extended prints.
 interface IntradaySession {
   preStart: number;
   start: number;

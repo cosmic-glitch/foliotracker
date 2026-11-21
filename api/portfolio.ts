@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPortfolio, authenticateRequest, getPortfolioViewers, getPortfolioSnapshot, getCachedPrices, getShareLinkByToken, isShareLinkValid, type Visibility, type ShareLinkMode } from './_lib/db.js';
 import { stripPortfolioForAllocationOnly } from './_lib/anonymize.js';
+import type { ClosedTodayLine } from './_lib/day-flows.js';
 import { getMarketStatus } from './_lib/cache.js';
 import { getSnapshotFromRedis, getPortfolioFromRedis, setPortfolioInRedis, getPricesFromRedis, type CachedPortfolio } from './_lib/redis.js';
 
@@ -43,6 +44,8 @@ interface PortfolioResponse {
   totalGain: number | null;
   totalGainPercent: number | null;
   holdings: Holding[];
+  // Lines sold out today, still counted in the day change (day-flows.ts).
+  dayClosed: ClosedTodayLine[];
   lastUpdated: string;
   isStale: boolean;
   marketStatus: string;
@@ -266,6 +269,7 @@ export default async function handler(
       totalGain: snapshot.total_gain,
       totalGainPercent: snapshot.total_gain_percent,
       holdings: snapshot.holdings_json,
+      dayClosed: snapshot.day_closed_json ?? [],
       lastUpdated: snapshot.updated_at,
       isStale,
       marketStatus: getMarketStatus(),

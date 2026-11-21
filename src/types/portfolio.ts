@@ -47,6 +47,22 @@ export interface Holding {
   // toggle is off and currentPrice has been rewritten to the regular close.
   // TickerDetailModal ignores the toggle and always shows this.
   extendedPrice: number;
+  // Trade-aware day change (api/_lib/day-flows.ts), present only on lines
+  // edited today: value at the previous close of what was held then, money
+  // moved in (+) / out (−) by today's edits, and that money weighted by the
+  // share of the session it was invested. See holdingDayBase in usePortfolioData.
+  dayBaseValue?: number;
+  dayFlow?: number;
+  dayFlowWeighted?: number;
+}
+
+// A line sold out today: still counted in the day change (day-flows.ts).
+export interface ClosedTodayLine {
+  ticker: string;
+  dayBaseValue: number;
+  dayFlow: number;
+  dayFlowWeighted: number;
+  dayChange: number;
 }
 
 export interface HistoricalDataPoint {
@@ -73,6 +89,10 @@ export interface PortfolioData {
   totalValue: number;
   totalDayChange: number;
   totalDayChangePercent: number;
+  // The 1D chart's base: what was held at the previous close, plus money moved
+  // in/out today (so a deposit doesn't read as a gain on the chart).
+  // totalValue − previousCloseValue = totalDayChange.
+  previousCloseValue: number;
   // 30D headline change against the oldest point in the active 30D series.
   // Null while the 30D history is loading or when no anchor is available
   // (brand-new portfolio with no historical data). Mirrors the per-portfolio

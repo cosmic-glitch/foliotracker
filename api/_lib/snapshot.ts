@@ -18,10 +18,23 @@ import {
   getPortfolioSnapshot,
   upsertPortfolioDailyValues,
   type DbPortfolioDailyValue,
+  type DbHoldingsHistory,
 } from './db.js';
 import { getMultipleQuotes, getHistoricalData } from './yahoo.js';
 import { getCurrentTradingSessionRange, getMarketStatus, isLiveMarketSession, isDailyNavStale, createETDate, getDailyValueRecordDate } from './cache.js';
 import { setSnapshotInRedis, setPricesInRedis } from './redis.js';
+import {
+  closedTodayTickers,
+  dayTotals,
+  editsFor,
+  getTodaysHoldingsEdits,
+  getTradeWindow,
+  resolveDayEdits,
+  type ClosedTodayLine,
+  type DayEdits,
+  type DayFlowFields,
+  type TradeWindow,
+} from './day-flows.js';
 
 const BENCHMARK_TICKER = 'SPY';
 
@@ -189,10 +202,12 @@ function computeHoldings(
   // 30D close-price history per ticker; oldest entry is each ticker's 30D
   // anchor. Empty map → 30D fields fall to null on each holding.
   historicalPrices: Map<string, Map<string, number>> = new Map(),
-): { holdings: SnapshotHolding[]; totalValue: number; totalDayChange: number; totalGain: number | null; totalGainPercent: number | null } {
+  // Today's edits (see day-flows.ts). Empty → every holding counts as held
+  // since the previous close.
+  dayEdits: Map<string, DayEdits> = new Map(),
+): { holdings: SnapshotHolding[]; totalValue: number; totalGain: number | null; totalGainPercent: number | null } {
   const holdings: SnapshotHolding[] = [];
   let totalValue = 0;
-  let totalDayChange = 0;
   let totalCostBasis = 0;
   let totalValueWithCostBasis = 0;
 
@@ -203,6 +218,17 @@ function computeHoldings(
       const profitLoss = costBasis !== null ? value - costBasis : null;
       const profitLossPercent = costBasis !== null && costBasis > 0
         ? (profitLoss! / costBasis) * 100
+        : null;
+
+      // A static line never moves, so any value change today is money moved
+      // (dayFlow) — including one made outside the log.
+      const edits = editsFor(dayEdits, holding.ticker, true);
+      const dayFields: DayFlowFields | null = edits
+        ? {
+            dayBaseValue: edits.base,
+            dayFlow: value - edits.base,
+            dayFlowWeighted: edits.trades.reduce((sum, t) => sum + t.flow * t.weight, 0),
+          }
         : null;
 
       holdings.push({
@@ -241,6 +267,7 @@ function computeHoldings(
         epsGrowth3Y: null,
         marketCap: null,
         regularMarketPrice: value,
+        ...dayFields,
       });
       totalValue += value;
 
@@ -256,9 +283,23 @@ function computeHoldings(
       }
 
       const value = holding.shares * price.currentPrice;
-      const previousValue = holding.shares * price.previousClose;
-      const dayChange = value - previousValue;
-      const dayChangePercent = previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
+      // Per-holding % is the ticker's own move; the $ figure is trade-aware.
+      const dayChangePercent = price.previousClose > 0
+        ? ((price.currentPrice - price.previousClose) / price.previousClose) * 100
+        : 0;
+      const edits = editsFor(dayEdits, holding.ticker, false);
+      let dayFields: DayFlowFields | null = null;
+      if (edits) {
+        // Shares changed outside the log (direct DB edit) count as held since
+        // the previous close, as before.
+        const baseShares = edits.base + (holding.shares - edits.final);
+        dayFields = {
+          dayBaseValue: baseShares * price.previousClose,
+          dayFlow: edits.trades.reduce((sum, t) => sum + t.flow, 0),
+          dayFlowWeighted: edits.trades.reduce((sum, t) => sum + t.flow * t.weight, 0),
+        };
+      }
+      const dayChange = value - (dayFields?.dayBaseValue ?? holding.shares * price.previousClose) - (dayFields?.dayFlow ?? 0);
 
       const costBasis = holding.cost_basis;
       const profitLoss = costBasis !== null ? value - costBasis : null;
@@ -338,10 +379,10 @@ function computeHoldings(
         epsGrowth3Y: fund?.eps_growth_3y ?? null,
         marketCap,
         regularMarketPrice: regPrice?.currentPrice ?? price.currentPrice,
+        ...dayFields,
       });
 
       totalValue += value;
-      totalDayChange += dayChange;
 
       if (costBasis !== null) {
         totalCostBasis += costBasis;
@@ -379,8 +420,59 @@ function computeHoldings(
     ? ((totalValueWithCostBasis - totalCostBasis) / totalCostBasis) * 100
     : null;
 
-  return { holdings, totalValue, totalDayChange, totalGain, totalGainPercent };
+  return { holdings, totalValue, totalGain, totalGainPercent };
 }
+
+// Lines sold out (or static lines deleted) today: their move from the previous
+// close up to the sale, plus their share of the % denominator. Tradeable lines
+// without a quote are skipped (the naive day change ignored them too).
+function computeClosedToday(
+  dayEdits: Map<string, DayEdits>,
+  dbHoldings: DbHolding[],
+  prices: Map<string, PriceData>,
+): ClosedTodayLine[] {
+  const held = new Set(dbHoldings.map((h) => `${h.is_static ? 's' : 't'}:${h.ticker}`));
+  const out: ClosedTodayLine[] = [];
+  for (const [k, e] of dayEdits) {
+    if (!e.removed || held.has(k) || e.base === 0) continue;
+    const dayFlow = e.trades.reduce((sum, t) => sum + t.flow, 0);
+    const dayFlowWeighted = e.trades.reduce((sum, t) => sum + t.flow * t.weight, 0);
+    if (e.isStatic) {
+      out.push({
+        ticker: e.ticker, name: e.name, isStatic: true, baseShares: 1, previousClose: e.base,
+        dayBaseValue: e.base, dayFlow: -e.base, dayFlowWeighted, dayChange: 0,
+      });
+      continue;
+    }
+    const price = prices.get(e.ticker);
+    if (!price) continue;
+    const dayBaseValue = e.base * price.previousClose;
+    out.push({
+      ticker: e.ticker, name: e.name, isStatic: false, baseShares: e.base, previousClose: price.previousClose,
+      dayBaseValue, dayFlow, dayFlowWeighted, dayChange: -dayBaseValue - dayFlow,
+    });
+  }
+  return out;
+}
+
+// Resolve one portfolio's edits for the day. A portfolio that held nothing
+// before today's edits (just created, or rebuilt from empty) keeps the naive
+// day change: treating its whole contents as a same-day deposit would show
+// only the move since the edit, which reads as broken on a brand-new page.
+function portfolioDayEdits(
+  rows: DbHoldingsHistory[] | undefined,
+  dbHoldings: DbHolding[],
+  window: TradeWindow,
+  regularPrices: Map<string, PriceData>,
+  intradayPrices: Map<string, Array<{ date: string; close: number }>>,
+): Map<string, DayEdits> {
+  if (!rows || rows.length === 0) return new Map();
+  const edits = resolveDayEdits(rows, window, regularPrices, intradayPrices);
+  const heldBefore = dbHoldings.some((h) => !editsFor(edits, h.ticker, h.is_static))
+    || [...edits.values()].some((e) => e.base > 0);
+  return heldBefore ? edits : new Map();
+}
+
 
 // Compute 30D historical portfolio values
 async function compute30DHistory(
@@ -436,86 +528,75 @@ async function compute30DHistory(
   return history.slice(-30);
 }
 
-// Compute 1D intraday history
+// Compute 1D intraday history.
+//
+// Trade-aware (see day-flows.ts): each line holds its shares as of each
+// timestamp — today's edits are undone before they happened, and sold-out
+// lines are held until their sale — and money an edit moves in or out is
+// added to every point before that edit. The line therefore runs continuously
+// through a trade (a deposit is not a jump), ends at the current value, and
+// starts at the flow-adjusted previous close Σ(dayBaseValue + dayFlow) that
+// App.tsx uses as the 1D base. Static lines contribute their current value
+// throughout (their edits are pure flows, which cancel).
 async function compute1DHistory(
   dbHoldings: DbHolding[],
   intradayPrices: Map<string, Array<{ date: string; close: number }>>,
-  currentPrices: Map<string, PriceData>
+  currentPrices: Map<string, PriceData>,
+  dayEdits: Map<string, DayEdits> = new Map(),
+  closedToday: ClosedTodayLine[] = [],
 ): Promise<HistoryDataPoint[]> {
-  const tradeableHoldings = dbHoldings.filter((h) => !h.is_static);
-  const staticHoldings = dbHoldings.filter((h) => h.is_static);
-
-  // Calculate constant value (static + holdings without intraday data)
   let constantValue = 0;
-  for (const holding of staticHoldings) {
-    constantValue += holding.static_value ?? 0;
+  for (const holding of dbHoldings) {
+    if (holding.is_static) constantValue += holding.static_value ?? 0;
   }
 
-  const holdingsWithData: Array<{ ticker: string; shares: number; data: Array<{ date: string; close: number }> }> = [];
-
-  for (const holding of tradeableHoldings) {
-    const data = intradayPrices.get(holding.ticker);
-    if (!data || data.length === 0) {
-      // No intraday data - use current price
-      const price = currentPrices.get(holding.ticker);
-      if (price) {
-        constantValue += holding.shares * price.currentPrice;
-      }
-    } else {
-      holdingsWithData.push({ ticker: holding.ticker, shares: holding.shares, data });
-    }
+  // Every tradeable line on the chart: current holdings plus closed lines.
+  const lines: Array<{ ticker: string; shares: number; edits?: DayEdits }> = [];
+  for (const holding of dbHoldings) {
+    if (holding.is_static) continue;
+    lines.push({ ticker: holding.ticker, shares: holding.shares, edits: editsFor(dayEdits, holding.ticker, false) });
+  }
+  for (const c of closedToday) {
+    if (!c.isStatic) lines.push({ ticker: c.ticker, shares: 0, edits: editsFor(dayEdits, c.ticker, false) });
   }
 
-  // Collect all unique timestamps
-  const allTimestamps = new Set<string>();
-  for (const { data } of holdingsWithData) {
-    for (const point of data) {
-      allTimestamps.add(point.date);
-    }
-  }
-
-  const sortedTimestamps = Array.from(allTimestamps).sort();
-
-  // Build price maps
   const priceMaps = new Map<string, Map<string, number>>();
-  for (const { ticker, data } of holdingsWithData) {
+  const allTimestamps = new Set<string>();
+  for (const { ticker } of lines) {
+    const data = intradayPrices.get(ticker);
+    if (!data || data.length === 0) continue;
     const priceMap = new Map<string, number>();
     for (const point of data) {
       priceMap.set(point.date, point.close);
+      allTimestamps.add(point.date);
     }
     priceMaps.set(ticker, priceMap);
   }
 
-  // Calculate portfolio value at each timestamp
+  const sortedTimestamps = Array.from(allTimestamps).sort();
+  const lastPrice = new Map<string, number>();
   const history: HistoryDataPoint[] = [];
 
   for (const timestamp of sortedTimestamps) {
+    const at = Date.parse(timestamp);
     let totalValue = constantValue;
 
-    for (const { ticker, shares } of holdingsWithData) {
-      const priceMap = priceMaps.get(ticker);
-      if (priceMap) {
-        let price = priceMap.get(timestamp);
-        if (!price) {
-          // Try fill forward from previous price
-          for (const ts of sortedTimestamps) {
-            if (ts > timestamp) break;
-            const p = priceMap.get(ts);
-            if (p) price = p;
-          }
-        }
-        // If still no price (e.g., money market funds with single end-of-day data point),
-        // use currentPrice as fallback to ensure consistent contribution throughout the chart
-        if (!price) {
-          const currentPriceData = currentPrices.get(ticker);
-          if (currentPriceData) {
-            price = currentPriceData.currentPrice;
-          }
-        }
-        if (price) {
-          totalValue += shares * price;
+    for (const { ticker, shares, edits } of lines) {
+      const p = priceMaps.get(ticker)?.get(timestamp);
+      if (p) lastPrice.set(ticker, p);
+      // No print yet (or no intraday data at all, e.g. once-daily funds):
+      // carry the last print, else the current price.
+      const price = lastPrice.get(ticker) ?? currentPrices.get(ticker)?.currentPrice;
+      if (!price) continue;
+      let sharesAt = shares;
+      let pendingFlow = 0;
+      for (const t of edits?.trades ?? []) {
+        if (t.at > at) {
+          sharesAt -= t.deltaShares;
+          pendingFlow += t.flow;
         }
       }
+      totalValue += sharesAt * price + pendingFlow;
     }
 
     if (Number.isFinite(totalValue)) {
@@ -628,6 +709,16 @@ export async function refreshAllSnapshots(): Promise<void> {
         if (holding.instrument_type) instrumentTypes.set(holding.ticker, holding.instrument_type);
       }
     }
+  }
+
+  // Today's holdings edits (trade-aware day change, day-flows.ts). Tickers
+  // sold out today are quoted too so their move up to the sale is priced.
+  const tradeWindow = getTradeWindow();
+  const todaysEdits = await getTodaysHoldingsEdits(tradeWindow);
+  for (const portfolio of portfolios) {
+    const rows = todaysEdits.get(portfolio.id);
+    if (!rows) continue;
+    for (const t of closedTodayTickers(rows, allHoldingsMap.get(portfolio.id) || [])) allTickers.add(t);
   }
 
   // Add benchmark ticker
@@ -817,12 +908,13 @@ export async function refreshAllSnapshots(): Promise<void> {
   for (const portfolio of portfolios) {
     const holdings = allHoldingsMap.get(portfolio.id) || [];
 
-    const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices);
-    const previousTotalValue = totalValue - totalDayChange;
-    const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
+    const dayEdits = portfolioDayEdits(todaysEdits.get(portfolio.id), holdings, tradeWindow, regularPriceMap, intradayPrices);
+    const { holdings: snapshotHoldings, totalValue, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices, dayEdits);
+    const closedToday = computeClosedToday(dayEdits, holdings, priceMap);
+    const { dayChange: totalDayChange, dayChangePercent: totalDayChangePercent } = dayTotals(snapshotHoldings, closedToday, (h) => h.value);
 
     const history30d = await compute30DHistory(holdings, historicalPrices);
-    const history1d = await compute1DHistory(holdings, intradayPrices, priceMap);
+    const history1d = await compute1DHistory(holdings, intradayPrices, priceMap, dayEdits, closedToday);
 
     // Compute regular-hours-only 1D history
     let regularHistory1d = history1d.filter(point => {
@@ -849,6 +941,7 @@ export async function refreshAllSnapshots(): Promise<void> {
       total_gain: totalGain,
       total_gain_percent: totalGainPercent,
       holdings_json: snapshotHoldings,
+      day_closed_json: closedToday,
       history_30d_json: history30d,
       history_1d_json: history1d,
       regular_history_1d_json: regularHistory1d,
@@ -874,6 +967,10 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
 
   const holdings = await getHoldings(portfolioId);
   const tickers = holdings.filter((h) => !h.is_static).map((h) => h.ticker);
+  // Today's edits (day-flows.ts); sold-out tickers are quoted too.
+  const tradeWindow = getTradeWindow();
+  const todaysRows = (await getTodaysHoldingsEdits(tradeWindow, portfolioId)).get(portfolioId.toLowerCase());
+  if (todaysRows) tickers.push(...closedTodayTickers(todaysRows, holdings));
   tickers.push(BENCHMARK_TICKER);
 
   // Fetch current quotes
@@ -1040,12 +1137,13 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
   const benchmarkHistory = computeBenchmarkHistory(spyPrices);
 
   // Compute snapshot
-  const { holdings: snapshotHoldings, totalValue, totalDayChange, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices);
-  const previousTotalValue = totalValue - totalDayChange;
-  const totalDayChangePercent = previousTotalValue > 0 ? (totalDayChange / previousTotalValue) * 100 : 0;
+  const dayEdits = portfolioDayEdits(todaysRows, holdings, tradeWindow, regularPriceMap, intradayPrices);
+  const { holdings: snapshotHoldings, totalValue, totalGain, totalGainPercent } = computeHoldings(holdings, priceMap, fundamentalsMap, regularPriceMap, yahoo52WeekHighMap, historicalPrices, dayEdits);
+  const closedToday = computeClosedToday(dayEdits, holdings, priceMap);
+  const { dayChange: totalDayChange, dayChangePercent: totalDayChangePercent } = dayTotals(snapshotHoldings, closedToday, (h) => h.value);
 
   const history30d = await compute30DHistory(holdings, historicalPrices);
-  const history1d = await compute1DHistory(holdings, intradayPrices, priceMap);
+  const history1d = await compute1DHistory(holdings, intradayPrices, priceMap, dayEdits, closedToday);
 
   // Compute regular-hours-only 1D history
   const singleTradingDate = sessionRange.tradingDate;
@@ -1076,6 +1174,7 @@ export async function refreshPortfolioSnapshot(portfolioId: string): Promise<voi
     total_gain: totalGain,
     total_gain_percent: totalGainPercent,
     holdings_json: snapshotHoldings,
+    day_closed_json: closedToday,
     history_30d_json: history30d,
     history_1d_json: history1d,
     regular_history_1d_json: regularHistory1d,

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint } from '../types/portfolio';
+import type { PortfolioData, MarketStatus, BenchmarkData, HistoricalDataPoint, BenchmarkHistoryPoint, ClosedTodayLine } from '../types/portfolio';
 import { isLiveMarketSession } from '../lib/market-hours';
 import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe, type Timeframe } from '../context/TimeframeContext';
@@ -19,6 +19,25 @@ function chartViewToTimeframe(c: ChartView): Timeframe {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+// Trade-aware day base of a holding (api/_lib/day-flows.ts holdingDayBase —
+// keep in sync): lines without today's edits count as held since the previous
+// close.
+function holdingDayBase(h: {
+  isStatic: boolean;
+  shares: number;
+  previousClose: number;
+  value: number;
+  dayBaseValue?: number;
+  dayFlow?: number;
+  dayFlowWeighted?: number;
+}): { dayBaseValue: number; dayFlow: number; dayFlowWeighted: number } {
+  return {
+    dayBaseValue: h.dayBaseValue ?? (h.isStatic ? h.value : h.shares * h.previousClose),
+    dayFlow: h.dayFlow ?? 0,
+    dayFlowWeighted: h.dayFlowWeighted ?? 0,
+  };
+}
 
 interface ApiHistoryResponse {
   data: HistoricalDataPoint[];
@@ -71,7 +90,12 @@ interface ApiPortfolioResponse {
     epsGrowth3Y?: number | null;
     marketCap?: number | null;
     regularMarketPrice?: number;
+    dayBaseValue?: number;
+    dayFlow?: number;
+    dayFlowWeighted?: number;
   }>;
+  // Absent on responses from before the trade-aware day change shipped.
+  dayClosed?: ClosedTodayLine[];
   lastUpdated: string;
   marketStatus: MarketStatus;
   benchmark: BenchmarkData | null;
@@ -306,6 +330,7 @@ export function usePortfolioData(
         totalValue: 0,
         totalDayChange: 0,
         totalDayChangePercent: p.totalDayChangePercent,
+        previousCloseValue: 0,
         totalThirtyDayChange: null,
         totalThirtyDayChangePercent: null,
         totalGain: null,
@@ -322,22 +347,41 @@ export function usePortfolioData(
       };
     }
 
+    // Lines sold out today still count in the day change; their amounts don't
+    // depend on the price basis. previousCloseValue (the 1D chart base) is
+    // flow-adjusted the same way for both bases.
+    const closed = p.dayClosed ?? [];
+    let previousCloseValue = 0;
+    for (const h of holdings) {
+      const b = holdingDayBase(h);
+      previousCloseValue += b.dayBaseValue + b.dayFlow;
+    }
+    for (const c of closed) previousCloseValue += c.dayBaseValue + c.dayFlow;
+
     if (!showExtendedHours) {
-      // Use regular market prices for totals and holdings
+      // Use regular market prices for totals and holdings. Trade-aware like
+      // the snapshot (api/_lib/day-flows.ts): value − dayBaseValue − dayFlow,
+      // over Σ(dayBaseValue + dayFlowWeighted).
       let regularTotal = 0;
-      let regularPreviousTotal = 0;
+      let regularDayChange = 0;
+      let regularDenominator = 0;
+      for (const c of closed) {
+        regularDayChange += c.dayChange;
+        regularDenominator += c.dayBaseValue + c.dayFlowWeighted;
+      }
 
       holdings = holdings.map(h => {
         const regPrice = h.regularMarketPrice;
+        const b = holdingDayBase(h);
+        regularDenominator += b.dayBaseValue + b.dayFlowWeighted;
         if (h.isStatic) {
           regularTotal += h.value;
-          regularPreviousTotal += h.value;
           return h;
         }
         const value = h.shares * regPrice;
-        const previousValue = h.shares * h.previousClose;
-        const dayChange = value - previousValue;
-        const dayChangePercent = previousValue > 0 ? (dayChange / previousValue) * 100 : 0;
+        const dayChange = value - b.dayBaseValue - b.dayFlow;
+        // The ticker's own move; the $ figure above is trade-aware.
+        const dayChangePercent = h.previousClose > 0 ? ((regPrice - h.previousClose) / h.previousClose) * 100 : 0;
         // Recompute 30D off the regular-hours close, using the per-ticker
         // anchor the server included. Without this, 30D figures would still
         // reflect the extended-hours endpoint and disagree slightly with
@@ -350,7 +394,7 @@ export function usePortfolioData(
           ? ((regPrice - anchor) / anchor) * 100
           : null;
         regularTotal += value;
-        regularPreviousTotal += previousValue;
+        regularDayChange += dayChange;
         return {
           ...h,
           currentPrice: regPrice,
@@ -373,9 +417,9 @@ export function usePortfolioData(
       }
 
       displayTotalValue = regularTotal;
-      displayDayChange = regularTotal - regularPreviousTotal;
-      displayDayChangePercent = regularPreviousTotal > 0
-        ? (displayDayChange / regularPreviousTotal) * 100
+      displayDayChange = regularDayChange;
+      displayDayChangePercent = regularDenominator > 0
+        ? (regularDayChange / regularDenominator) * 100
         : 0;
     } else {
       // Extended-hours view: the snapshot stores regular-hours allocations
@@ -412,6 +456,7 @@ export function usePortfolioData(
       totalValue: displayTotalValue,
       totalDayChange: displayDayChange,
       totalDayChangePercent: displayDayChangePercent,
+      previousCloseValue,
       totalThirtyDayChange,
       totalThirtyDayChangePercent,
       totalGain: p.totalGain,

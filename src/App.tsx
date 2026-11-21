@@ -136,7 +136,8 @@ function App() {
 
   // Benchmark overlay on the 1D and 30D charts (the viewer's pick from the
   // Customize sheet, BenchmarksContext). The 1D baseline is the holdings'
-  // previous close summed directly: in the extended-hours view totalValue
+  // previous close summed directly (flow-adjusted for today's edits — see
+  // PortfolioData.previousCloseValue): in the extended-hours view totalValue
   // tracks the live intraday point while totalDayChange doesn't, so their
   // difference isn't the previous close.
   // (30D measures from the chart's first day, which PerformanceChart knows.)
@@ -146,10 +147,7 @@ function App() {
     chartView,
     !!data && !isAllocationOnly,
   );
-  const previousCloseValue = useMemo(() => {
-    if (!data) return null;
-    return data.holdings.reduce((sum, h) => sum + (h.isStatic ? h.value : h.shares * h.previousClose), 0);
-  }, [data]);
+  const previousCloseValue = data?.previousCloseValue ?? null;
 
   // Changes are visible to anyone who can see dollar values (viewMode 'full'),
   // unless the owner made the tab owner-only (changesHidden); the server

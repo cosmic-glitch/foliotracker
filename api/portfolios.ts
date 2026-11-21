@@ -26,6 +26,7 @@ import {
 } from './_lib/db.js';
 import { getSymbolInfo, getQuote } from './_lib/yahoo.js';
 import { refreshPortfolioSnapshot } from './_lib/snapshot.js';
+import { dayTotals } from './_lib/day-flows.js';
 import { isMarketOpen } from './_lib/cache.js';
 import {
   getAllSnapshotsFromRedis,
@@ -826,28 +827,23 @@ export default async function handler(
           // Compute regular-hours totals from holdings' regularMarketPrice and
           // peak-potential (what-if-all-hit-52w-high) in a single pass. Shared
           // between full-access and hideDollarsOnly branches.
-          let regularTotalValue = 0;
-          let regularPreviousTotal = 0;
           let peakPotentialValue = 0;
           if (snapshot) {
             for (const h of snapshot.holdings_json) {
-              if (h.isStatic) {
-                regularTotalValue += h.value;
-                regularPreviousTotal += h.value;
-                peakPotentialValue += h.value;
-              } else {
-                regularTotalValue += h.shares * h.regularMarketPrice;
-                regularPreviousTotal += h.shares * h.previousClose;
-                peakPotentialValue += (h.week52High != null && h.week52High > 0)
-                  ? h.shares * h.week52High
-                  : h.value;
-              }
+              peakPotentialValue += !h.isStatic && h.week52High != null && h.week52High > 0
+                ? h.shares * h.week52High
+                : h.value;
             }
           }
-          const regularDayChange = regularTotalValue - regularPreviousTotal;
-          const regularDayChangePercent = regularPreviousTotal > 0
-            ? (regularDayChange / regularPreviousTotal) * 100
-            : 0;
+          // Trade-aware, like the snapshot's own day change (day-flows.ts).
+          const regular = dayTotals(
+            snapshot?.holdings_json ?? [],
+            snapshot?.day_closed_json,
+            (h) => (h.isStatic ? h.value : h.shares * h.regularMarketPrice),
+          );
+          const regularTotalValue = regular.value;
+          const regularDayChange = regular.dayChange;
+          const regularDayChangePercent = regular.dayChangePercent;
 
           // True when today's 1D move can't be known yet (funds-only portfolio,
           // NAV not repriced). FE renders "—" and drops it from "Top today".

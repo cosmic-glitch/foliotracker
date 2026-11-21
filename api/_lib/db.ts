@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getAuthCache, setAuthCache, deleteAuthCache } from './redis.js';
+import type { ClosedTodayLine } from './day-flows.js';
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
@@ -1223,6 +1224,12 @@ export interface SnapshotHolding {
   // written before this field was introduced lack it.
   marketCap?: number | null;
   regularMarketPrice: number;
+  // Trade-aware day change (day-flows.ts): present only on lines edited today.
+  // Absent → held since the previous close (dayBaseValue = shares ×
+  // previousClose, or value for static lines; no flow).
+  dayBaseValue?: number;
+  dayFlow?: number;
+  dayFlowWeighted?: number;
   // JSONB-stored; the index signature lets future fields land in
   // holdings_json without a type change, and keeps SnapshotHolding[]
   // assignable to api/portfolio.ts's Holding[] (which has the same
@@ -1248,6 +1255,9 @@ export interface DbPortfolioSnapshot {
   total_gain: number | null;
   total_gain_percent: number | null;
   holdings_json: SnapshotHolding[];
+  // Lines sold out today, still counted in the day change (day-flows.ts;
+  // migration 017). Optional: missing on rows/Redis blobs written before it.
+  day_closed_json?: ClosedTodayLine[] | null;
   history_30d_json: HistoryDataPoint[] | null;
   history_1d_json: HistoryDataPoint[] | null;
   regular_history_1d_json: HistoryDataPoint[] | null;

@@ -47,6 +47,8 @@ export function stripPortfolioForAllocationOnly<T extends PortfolioResponseLike>
   stripped.totalValue = 0;
   stripped.totalDayChange = 0;
   stripped.totalGain = null;
+  // Sold-today lines carry shares and dollar amounts.
+  stripped.dayClosed = [];
   // Keep totalDayChangePercent and totalGainPercent — they're percentages.
 
 

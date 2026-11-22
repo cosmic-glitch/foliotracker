@@ -117,7 +117,6 @@ function App() {
     requiresAuth,
     chartView,
     setChartView,
-    showExtendedHours,
   } = usePortfolioData(portfolioId || '', storedToken, loggedInAs, shareToken);
 
   // If the share token was rejected (server returned 401 → React Query threw "Invalid password"),
@@ -324,7 +323,6 @@ function App() {
                     chartView={chartView}
                     onViewChange={setChartView}
                     currentValue={data.totalValue}
-                    showExtendedHours={showExtendedHours}
                     benchmarks={benchmarks}
                     previousCloseValue={previousCloseValue}
                   />

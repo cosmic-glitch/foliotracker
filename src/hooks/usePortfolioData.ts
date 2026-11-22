@@ -268,15 +268,12 @@ export function usePortfolioData(
 
   // Get the current chart data based on view
   const chartData = useMemo(() => {
-    if (chartView === '1D') {
-      if (!showExtendedHours && intradayQuery.data?.regularData) {
-        return intradayQuery.data.regularData;
-      }
-      return intradayQuery.data?.data || [];
-    }
+    // 1D always plots the full extended day (PerformanceChart spans 4 a.m.–
+    // 8 p.m.); the server's `regularData` slice is no longer used.
+    if (chartView === '1D') return intradayQuery.data?.data || [];
     // 30D uses history data
     return historyQuery.data?.data || [];
-  }, [chartView, intradayQuery.data, historyQuery.data, showExtendedHours]);
+  }, [chartView, intradayQuery.data, historyQuery.data]);
 
   // Combine portfolio and chart data
   const data: PortfolioData | null = useMemo(() => {
@@ -503,7 +500,6 @@ export function usePortfolioData(
     privateDisplayName,
     chartView,
     setChartView,
-    showExtendedHours,
     refresh,
     refreshHistory,
   };

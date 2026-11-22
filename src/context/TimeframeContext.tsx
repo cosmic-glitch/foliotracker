@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-// Global 1D/30D view setting. Mirrors ExtendedHoursContext in shape and is
-// surfaced from the same place (UserMenu's check rows). One source of truth
+// Global 1D/30D view setting, surfaced as a check row in UserMenu. One source of truth
 // means the landing page's Users table and a portfolio's TotalValue headline
 // + chart all stay in sync.
 //
@@ -14,8 +13,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 // also resets — the same signal that counts a new view in useAnalytics, so
 // "counted as a view" and "back at the default" stay in lockstep.
 //
-// Logged-out viewers don't see UserMenu today (same as Theme and Extended
-// Hours), so they always get the 1D default — an accepted limitation,
+// Logged-out viewers don't see UserMenu today (same as Theme), so they always get the 1D default — an accepted limitation,
 // consistent with the other view settings.
 
 export type Timeframe = 'day' | '30d';

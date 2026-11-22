@@ -395,10 +395,9 @@ function computeHoldings(
   // session close (or current price for static holdings). This is the stable
   // baseline that allocation-only share-link viewers see — they can't
   // recompute client-side because dollar fields are stripped — and matches
-  // what a viewer sees during the regular session with Extended Hours All Day
-  // off (the default) after `usePortfolioData` recomputes. Outside the session
-  // (or with All Day on) the hook recomputes against the extended-hours
-  // `totalValue` instead.
+  // what a viewer sees during the regular session after `usePortfolioData`
+  // recomputes. Outside the session the hook recomputes against the
+  // extended-hours `totalValue` instead.
   let regularTotalValue = 0;
   for (const holding of holdings) {
     regularTotalValue += holding.isStatic

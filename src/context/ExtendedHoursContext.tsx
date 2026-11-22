@@ -2,45 +2,28 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { getMarketStatus } from '../lib/market-hours';
 import type { MarketStatus } from '../types/portfolio';
 
-// Extended-hours prices are always shown outside the regular session
-// (pre-market, after-hours, overnight, weekends, holidays) — nobody checking
-// in after the bell wants to miss the after-hours move. The stored preference
-// ("Extended Hours All Day" in UserMenu) only decides whether they're ALSO
-// shown while the regular session is open, where the pre-market tape can be
-// noise. Every consumer reads the effective `showExtendedHours`; only the
-// menu checkbox reads `extendedHoursAllDay`. Logged-out viewers (no menu) get
-// the default preference, so they too see extended hours outside the session.
+// Which price basis the figures use, from the live NYSE session state — there
+// is no user setting. During the regular session the figures use the live
+// regular price; outside it (pre-market, after-hours, overnight, weekends,
+// holidays) they use extended-hours prices, for every viewer. The 1D chart
+// always draws the full 4 a.m.–8 p.m. day regardless (PerformanceChart).
 //
 // Outside the session the landing page also offers an "At Close / After
 // Hours" switch (SessionSwitch); that pick is landing-local state layered on
 // top of `showExtendedHours`, so it never leaks onto the portfolio page.
 
 interface ExtendedHoursContextType {
-  // Effective: in session, the All Day preference; outside it, always on.
+  // True whenever the regular session is closed.
   showExtendedHours: boolean;
-  // The stored preference, for the menu checkbox.
-  extendedHoursAllDay: boolean;
-  toggleExtendedHours: () => void;
   // Live NYSE session state, re-checked every minute.
   marketStatus: MarketStatus;
 }
 
 const ExtendedHoursContext = createContext<ExtendedHoursContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'foliotracker-extended-hours';
 const MARKET_RECHECK_MS = 60 * 1000;
 
-function readPreference(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
-  // Hydrated synchronously (lazy initializer), per the storage-hook rule.
-  const [extendedHoursAllDay, setExtendedHoursAllDay] = useState<boolean>(readPreference);
   const [marketStatus, setMarketStatus] = useState<MarketStatus>(() => getMarketStatus());
 
   // Flip at the open/close without a reload: poll once a minute, and recheck
@@ -57,24 +40,10 @@ export function ExtendedHoursProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const toggleExtendedHours = () => {
-    setExtendedHoursAllDay((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEY, String(next));
-      } catch {
-        // Storage unavailable — the choice still applies for this session.
-      }
-      return next;
-    });
-  };
-
-  const showExtendedHours = extendedHoursAllDay || marketStatus !== 'open';
+  const showExtendedHours = marketStatus !== 'open';
 
   return (
-    <ExtendedHoursContext.Provider
-      value={{ showExtendedHours, extendedHoursAllDay, toggleExtendedHours, marketStatus }}
-    >
+    <ExtendedHoursContext.Provider value={{ showExtendedHours, marketStatus }}>
       {children}
     </ExtendedHoursContext.Provider>
   );

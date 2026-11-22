@@ -2,8 +2,8 @@ import type { MarketStatus } from '../types/portfolio';
 
 // Outside the regular session the landing page defaults to extended-hours
 // figures; this two-way switch flips it (movers strip, Users rows, ranking) to
-// how the day closed. Hidden during the session, where UserMenu's "Extended
-// Hours All Day" governs. Before the open the extended side is pre-market; any
+// how the day closed. Hidden during the session, when the figures already use
+// the live regular price. Before the open the extended side is pre-market; any
 // other time (evening, overnight, weekend) it's the last after-hours session.
 // Lives on the topmost card it affects: the movers tab row, or the Users tab
 // row when the movers strip is hidden (quiet day).

@@ -22,7 +22,6 @@ interface PerformanceChartProps {
   chartView: ChartView;
   onViewChange: (view: ChartView) => void;
   currentValue?: number;
-  showExtendedHours?: boolean;
   // Benchmark overlay (the viewer's pick, BenchmarksContext): funds plotted by % move against
   // the portfolio — on 1D from its previous-close value, on 30D from the
   // window's first day.
@@ -191,7 +190,7 @@ function CustomTooltip({ active, payload, overlay }: CustomTooltipProps) {
   );
 }
 
-export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, showExtendedHours = true, benchmarks, previousCloseValue }: PerformanceChartProps) {
+export function PerformanceChart({ data, isLoading, chartView, onViewChange, currentValue, benchmarks, previousCloseValue }: PerformanceChartProps) {
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
   ));
@@ -440,11 +439,11 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
     ? getIntradaySessionBoundaries(new Date(chartData[0].timestamp))
     : null;
 
-  // 30D spans exactly its data (explicit so the end labels can map it).
+  // 1D always spans the full extended day (4 a.m.–8 p.m. ET) for everyone,
+  // with the pre/post stretches shaded; 30D spans exactly its data (explicit
+  // so the end labels can map it).
   const xDomain: [number, number] = chartView === '1D' && sessionBoundaries
-    ? (showExtendedHours
-        ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
-        : [sessionBoundaries.regularStart, sessionBoundaries.regularEnd])
+    ? [sessionBoundaries.preStart, sessionBoundaries.postEnd]
     : [chartData[0].timestamp, chartData[chartData.length - 1].timestamp];
 
   return (
@@ -457,7 +456,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
                 data={chartData}
                 margin={{ top: isMobile ? 6 : 10, right: 0, left: 0, bottom: 0 }}
               >
-                {chartView === '1D' && sessionBoundaries && showExtendedHours && (
+                {chartView === '1D' && sessionBoundaries && (
                   <>
                     <ReferenceArea
                       x1={sessionBoundaries.preStart}
@@ -585,7 +584,7 @@ export function PerformanceChart({ data, isLoading, chartView, onViewChange, cur
               </LineChart>
             </ResponsiveContainer>
           </div>
-          {chartView === '1D' && sessionBoundaries && showExtendedHours && (
+          {chartView === '1D' && sessionBoundaries && (
             <div className="hidden md:flex items-center gap-2.5 pt-1 pl-1 text-[10px] text-text-secondary">
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-teal-400/90" />

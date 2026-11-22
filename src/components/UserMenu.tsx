@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, ChevronDown, Pencil, Settings, LogOut, Clock, Link2, CalendarRange, Scale, History, SlidersHorizontal } from 'lucide-react';
+import { User, ChevronDown, Pencil, Settings, LogOut, Link2, CalendarRange, Scale, History, SlidersHorizontal } from 'lucide-react';
 import { CustomizeSheet } from './CustomizeSheet';
-import { useExtendedHours } from '../context/ExtendedHoursContext';
 import { useTimeframe } from '../context/TimeframeContext';
 
 interface UserMenuProps {
@@ -21,7 +20,6 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  const { extendedHoursAllDay, toggleExtendedHours } = useExtendedHours();
   const { timeframe, toggleTimeframe } = useTimeframe();
 
   useEffect(() => {
@@ -108,23 +106,8 @@ export function UserMenu({ loggedInAs, onEdit, onPermissions, onShare, onLogout,
             Portfolio History
           </button>
           <div className="mx-3 my-1 border-t border-border" />
-          <button
-            onClick={toggleExtendedHours}
-            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"
-          >
-            <Clock className="w-4 h-4 text-text-secondary" />
-            Extended Hours All Day
-            <span className={`ml-auto w-4 h-4 rounded border flex items-center justify-center text-xs ${
-              extendedHoursAllDay
-                ? 'bg-accent border-accent text-white'
-                : 'border-border'
-            }`}>
-              {extendedHoursAllDay && '✓'}
-            </span>
-          </button>
           {/* Global 1D/30D view — drives the landing list, the portfolio
-              page's TotalValue headline, and the chart together. Same
-              check-row pattern as Extended Hours All Day above. */}
+              page's TotalValue headline, and the chart together. */}
           <button
             onClick={toggleTimeframe}
             className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-text-primary hover:bg-card-hover transition-colors"

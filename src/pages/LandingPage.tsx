@@ -317,7 +317,7 @@ export function LandingPage() {
   const { loggedInAs, login, logout, getToken } = useLoggedInPortfolio();
   useLandingViewAnalytics(loggedInAs);
   const { data: pulse, refetch: refetchPulse } = useMarketPulse();
-  const { showExtendedHours: appShowExtendedHours, marketStatus } = useExtendedHours();
+  const { marketStatus } = useExtendedHours();
   // Outside the session, the At Close / After Hours switch (SessionSwitch) can
   // flip this page to regular-close figures. Page-local and in-memory: every
   // visit starts on the extended view, the portfolio page is never affected,
@@ -329,7 +329,7 @@ export function LandingPage() {
     setStatusSeen(marketStatus);
     setAtClose(false);
   }
-  const showExtendedHours = marketStatus === 'open' ? appShowExtendedHours : !atClose;
+  const showExtendedHours = marketStatus !== 'open' && !atClose;
   const [showSignIn, setShowSignIn] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
   // Which timeframe drives the change column (1D vs 30D). Toggled from

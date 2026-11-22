@@ -8,8 +8,7 @@ import { BENCHMARK_COLORS, BENCHMARK_SYMBOL_RE, DEFAULT_BENCHMARKS, MAX_BENCHMAR
 import { fetchTickerChart } from '../hooks/useTickerHistory';
 
 // Set-and-forget view preferences, opened from UserMenu's "Customize…" row.
-// Extended Hours All Day and 30-Day View deliberately stay as one-tap menu
-// rows — they get flipped often.
+// 30-Day View deliberately stays a one-tap menu row — it gets flipped often.
 // Centered card like the other menu modals (Share, Permissions); portaled to
 // <body> so the header's stacking context can't clip the fixed overlay.
 

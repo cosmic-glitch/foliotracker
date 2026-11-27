@@ -48,30 +48,10 @@ const FUNDAMENTALS_STALE_HOURS = 12;
 
 // Past this age a cache row is dropped rather than served. A ticker that
 // leaves companiesmarketcap.org (its scraper only covers market caps above
-// $1B — TRIP fell under in Nov 2026) or a share-class alias that stops
-// resolving never refreshes, so without a cutoff its last revenue/EPS/PE
-// would show forever. A week rides out an outage of our own service and a
+// $1B — TRIP fell under in Nov 2026) never refreshes, so without a cutoff
+// its last revenue/EPS/PE would show forever. A week rides out an outage of our own service and a
 // ticker hovering around $1B; after that the holding shows no fundamentals.
 const FUNDAMENTALS_MAX_AGE_DAYS = 7;
-
-// companiesmarketcap.org's scraper dedupes share classes to one canonical
-// symbol per company, so a held ticker may not exist there at all (GOOGL →
-// only GOOG is served). Without this map those tickers silently never
-// refresh and their cache rows fossilize. Request the canonical symbol
-// instead and write the result back under the held ticker. perShareRatio
-// converts per-share fields (forward EPS, 52wk high) by dividing the
-// canonical value: aliased shares per canonical share (GOOGL:GOOG 1:1,
-// BRK-B:BRK-A 1500:1); ratios (pe_ratio) and
-// company-level fields copy unscaled. The site's canonical class can flip:
-// Berkshire was served as BRK-A until ~Jul 2026, then BRK-B, and by late
-// Sep 2026 BRK-A again (BRK-B empty). Alphabet was served as GOOGL until
-// ~Sep 2026, then GOOG (GOOGL empty). Removing an alias without adding the
-// reverse one leaves the other class fossilized. If a ticker's fundamentals
-// fossilize, probe the API for which class it serves now.
-const FUNDAMENTALS_SHARE_CLASS_ALIASES: Record<string, { canonical: string; perShareRatio: number }> = {
-  GOOGL: { canonical: 'GOOG', perShareRatio: 1 },
-  'BRK-B': { canonical: 'BRK-A', perShareRatio: 1500 },
-};
 
 // Fetch fundamentals from companiesmarketcap API, using cache when fresh
 async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFundamentalsCache>> {
@@ -93,10 +73,9 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
   if (staleTickers.length > 0) {
     console.log(`Fetching fundamentals for ${staleTickers.length} stale tickers...`);
     try {
-      const requestSymbols = Array.from(new Set(
-        staleTickers.map((t) => FUNDAMENTALS_SHARE_CLASS_ALIASES[t]?.canonical ?? t)
-      ));
-      const url = `https://www.companiesmarketcap.org/api/company?symbols=${requestSymbols.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,forwardEPSDate,forwardEPSNextDate,forwardEPSNext2Date,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y,marketCap,price`;
+      // Dual-class tickers (GOOG/GOOGL, BRK-A/BRK-B) are answered for every
+      // class by the service itself, so held tickers are requested as-is.
+      const url = `https://www.companiesmarketcap.org/api/company?symbols=${staleTickers.join(',')}&fields=revenue,earnings,peRatio,forwardEPS,forwardEPSNext,forwardEPSNext2,forwardEPSDate,forwardEPSNextDate,forwardEPSNext2Date,week52High,operatingMargin,revenueGrowth3Y,epsGrowth3Y,marketCap,price`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -120,29 +99,24 @@ async function fetchFundamentals(tickers: string[]): Promise<Map<string, DbFunda
         }> = [];
 
         for (const ticker of staleTickers) {
-          const alias = FUNDAMENTALS_SHARE_CLASS_ALIASES[ticker];
-          const data = companies[alias?.canonical ?? ticker];
+          const data = companies[ticker];
           if (data) {
-            const ratio = alias?.perShareRatio ?? 1;
             const entry = {
               ticker,
               revenue: data.revenue ?? null,
               earnings: data.earnings ?? null,
               pe_ratio: data.peRatio ?? null,
-              forward_eps: data.forwardEPS != null ? data.forwardEPS / ratio : null,
-              forward_eps_next: data.forwardEPSNext != null ? data.forwardEPSNext / ratio : null,
-              forward_eps_next2: data.forwardEPSNext2 != null ? data.forwardEPSNext2 / ratio : null,
-              // Fiscal-year ends are company-level, so aliases copy them as-is.
+              forward_eps: data.forwardEPS ?? null,
+              forward_eps_next: data.forwardEPSNext ?? null,
+              forward_eps_next2: data.forwardEPSNext2 ?? null,
               forward_eps_date: data.forwardEPSDate ?? null,
               forward_eps_next_date: data.forwardEPSNextDate ?? null,
               forward_eps_next2_date: data.forwardEPSNext2Date ?? null,
-              week_52_high: data.week52High != null ? data.week52High / ratio : null,
+              week_52_high: data.week52High ?? null,
               operating_margin: data.operatingMargin ?? null,
               revenue_growth_3y: data.revenueGrowth3Y ?? null,
               eps_growth_3y: data.epsGrowth3Y ?? null,
-              // marketCap is company-level, so the implied count is in
-              // canonical shares; × ratio converts to the held class's units.
-              shares_outstanding: data.marketCap > 0 && data.price > 0 ? (data.marketCap / data.price) * ratio : null,
+              shares_outstanding: data.marketCap > 0 && data.price > 0 ? data.marketCap / data.price : null,
             };
             upserts.push(entry);
             cached.set(ticker, { ...entry, updated_at: new Date().toISOString() });
